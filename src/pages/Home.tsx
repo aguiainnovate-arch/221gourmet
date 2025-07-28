@@ -8,7 +8,15 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold mb-8">221Gourmet</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">221Gourmet</h1>
+        <Link 
+          to="/staff" 
+          className="bg-orange-500 text-white px-4 py-2 rounded font-semibold"
+        >
+          🍳 Visão da Cozinha
+        </Link>
+      </div>
       
       <div className="bg-white p-6 rounded mb-6">
         <div className="flex justify-between items-center mb-4">

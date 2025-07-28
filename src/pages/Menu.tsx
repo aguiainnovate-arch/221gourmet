@@ -1,8 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
 import type { Product } from '../types/product';
+import { useOrders } from '../contexts/OrderContext';
 
 export default function Menu() {
   const { mesaId } = useParams();
+  const { addOrder } = useOrders();
 
   // Exemplos de produtos usando a interface Product
   const products: Product[] = [
@@ -30,14 +32,18 @@ export default function Menu() {
   ];
 
   const handleEnviarPedido = () => {
-    const pedido = {
-      mesa: mesaId,
-      timestamp: new Date().toISOString(),
-      status: 'enviado'
-    };
+    if (!mesaId) return;
+
+    // Simula itens selecionados (aqui seria baseado em uma seleção real)
+    const itensSelecionados = products.map(product => product.name);
     
-    console.log('Pedido enviado:', pedido);
-    console.log(`Mesa ${mesaId} fez um pedido!`);
+    addOrder({
+      mesa: mesaId,
+      itens: itensSelecionados
+    });
+
+    console.log(`Pedido enviado da Mesa ${mesaId}!`);
+    alert(`Pedido enviado da Mesa ${mesaId}! Verifique na página da cozinha.`);
   };
 
   return (

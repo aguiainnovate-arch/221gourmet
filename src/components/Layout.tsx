@@ -12,8 +12,8 @@ export default function Layout() {
             <Link to="/" className="text-gray-600">
               Home
             </Link>
-            <Link to="/about" className="text-gray-600">
-              Sobre
+            <Link to="/staff" className="text-gray-600">
+              Cozinha
             </Link>
           </div>
         </div>
