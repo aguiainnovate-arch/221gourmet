@@ -1,155 +1,210 @@
-import { Link } from 'react-router-dom';
-import { Clock, CheckCircle, Users, ChefHat, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useOrders } from '../contexts/OrderContext';
+import { 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  Trash2, 
+  Settings, 
+  RefreshCw, 
+  ChefHat,
+  Users,
+  Package,
+  Timer
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Staff() {
-  const { orders, updateOrderStatus } = useOrders();
-
-  // Filtrar pedidos por status para estatísticas
-  const pedidosNovos = orders.filter(order => order.status === 'novo');
-  const pedidosPreparando = orders.filter(order => order.status === 'preparando');
-  const pedidosProntos = orders.filter(order => order.status === 'pronto');
-
-  // Filtrar apenas pedidos que não foram entregues
-  const pedidosAtivos = orders.filter(order => order.status !== 'entregue');
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'novo': return 'bg-yellow-100 text-yellow-800';
-      case 'preparando': return 'bg-blue-100 text-blue-800';
-      case 'pronto': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const { orders, updateOrderStatus, deleteOrder, refreshOrders } = useOrders();
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'novo': return <AlertCircle className="w-4 h-4" />;
-      case 'preparando': return <Clock className="w-4 h-4" />;
-      case 'pronto': return <CheckCircle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
+      case 'novo':
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'preparando':
+        return <Clock className="w-5 h-5 text-yellow-500" />;
+      case 'pronto':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      default:
+        return <AlertCircle className="w-5 h-5 text-gray-500" />;
     }
   };
 
-  const handleStatusChange = (orderId: string, newStatus: 'preparando' | 'pronto' | 'entregue') => {
-    updateOrderStatus(orderId, newStatus);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'novo':
+        return 'bg-red-50 border-red-200 shadow-sm';
+      case 'preparando':
+        return 'bg-yellow-50 border-yellow-200 shadow-sm';
+      case 'pronto':
+        return 'bg-green-50 border-green-200 shadow-sm';
+      default:
+        return 'bg-gray-50 border-gray-200 shadow-sm';
+    }
   };
 
+  const handleStatusChange = async (orderId: string, currentStatus: string) => {
+    let newStatus: 'novo' | 'preparando' | 'pronto';
+    
+    switch (currentStatus) {
+      case 'novo':
+        newStatus = 'preparando';
+        break;
+      case 'preparando':
+        newStatus = 'pronto';
+        break;
+      default:
+        return;
+    }
+
+    await updateOrderStatus(orderId, newStatus);
+  };
+
+  const handleFinalizeOrder = async (orderId: string) => {
+    if (window.confirm('Tem certeza que deseja finalizar este pedido? Esta ação não pode ser desfeita.')) {
+      await deleteOrder(orderId);
+    }
+  };
+
+  const getStatusButtonText = (status: string) => {
+    switch (status) {
+      case 'novo':
+        return 'Iniciar Preparo';
+      case 'preparando':
+        return 'Marcar como Pronto';
+      default:
+        return '';
+    }
+  };
+
+  const groupedOrders = orders.reduce((acc, order) => {
+    if (!acc[order.status]) {
+      acc[order.status] = [];
+    }
+    acc[order.status].push(order);
+    return acc;
+  }, {} as Record<string, typeof orders>);
+
+  const statusOrder = ['novo', 'preparando', 'pronto'];
+
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center space-x-3">
-          <ChefHat className="w-8 h-8 text-orange-500" />
-          <h1 className="text-3xl font-bold">Cozinha - 221Gourmet</h1>
-        </div>
-        <Link 
-          to="/" 
-          className="flex items-center space-x-2 bg-gray-500 text-white px-4 py-2 rounded"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Voltar</span>
-        </Link>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded shadow">
-          <div className="flex items-center space-x-3">
-            <AlertCircle className="w-6 h-6 text-yellow-500" />
-            <div>
-              <p className="text-2xl font-bold">{pedidosNovos.length}</p>
-              <p className="text-gray-600">Pedidos Novos</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-3">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <ChefHat className="w-8 h-8 text-orange-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Cozinha</h1>
+                <p className="text-sm text-gray-500">Gerenciamento de Pedidos</p>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded shadow">
-          <div className="flex items-center space-x-3">
-            <Clock className="w-6 h-6 text-blue-500" />
-            <div>
-              <p className="text-2xl font-bold">{pedidosPreparando.length}</p>
-              <p className="text-gray-600">Em Preparo</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded shadow">
-          <div className="flex items-center space-x-3">
-            <CheckCircle className="w-6 h-6 text-green-500" />
-            <div>
-              <p className="text-2xl font-bold">{pedidosProntos.length}</p>
-              <p className="text-gray-600">Prontos</p>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={refreshOrders}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Atualizar
+              </button>
+              <Link
+                to="/settings"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Configurações
+              </Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Lista de Pedidos */}
-      <div className="bg-white rounded shadow">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold">Pedidos em Andamento</h2>
-        </div>
-        {pedidosAtivos.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            Nenhum pedido em andamento
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {orders.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido no momento</h3>
+            <p className="text-gray-500">Os pedidos aparecerão aqui quando forem enviados pelos clientes</p>
           </div>
         ) : (
-          <div className="divide-y">
-            {pedidosAtivos.map((pedido) => (
-              <div key={pedido.id} className="p-6">
-                <div className="flex justify-between items-start mb-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {statusOrder.map((status) => (
+              <div key={status} className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <Users className="w-5 h-5 text-gray-500" />
-                    <span className="font-semibold text-lg">Mesa {pedido.mesa}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(pedido.status)}`}>
-                      {getStatusIcon(pedido.status)}
-                      <span className="capitalize">{pedido.status}</span>
-                    </span>
+                    {getStatusIcon(status)}
+                    <h2 className="text-lg font-semibold text-gray-900 capitalize">
+                      {status === 'novo' && 'Novos Pedidos'}
+                      {status === 'preparando' && 'Em Preparo'}
+                      {status === 'pronto' && 'Prontos'}
+                    </h2>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">Pedido #{pedido.id}</p>
-                    <p className="text-sm text-gray-500">{pedido.timestamp}</p>
-                  </div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    {groupedOrders[status]?.length || 0}
+                  </span>
                 </div>
                 
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2">Itens:</h4>
-                  <ul className="list-disc list-inside text-gray-700">
-                    {pedido.itens.map((item, index) => (
-                      <li key={index}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 flex items-center space-x-1">
-                    <Clock className="w-4 h-4" />
-                    <span>Tempo estimado: {pedido.tempoEspera}</span>
-                  </span>
-                  <div className="space-x-2">
-                    {pedido.status === 'novo' && (
-                      <button 
-                        onClick={() => handleStatusChange(pedido.id, 'preparando')}
-                        className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
-                      >
-                        Iniciar Preparo
-                      </button>
-                    )}
-                    {pedido.status === 'preparando' && (
-                      <button 
-                        onClick={() => handleStatusChange(pedido.id, 'pronto')}
-                        className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600"
-                      >
-                        Marcar como Pronto
-                      </button>
-                    )}
-                    {pedido.status === 'pronto' && (
-                      <button 
-                        onClick={() => handleStatusChange(pedido.id, 'entregue')}
-                        className="bg-gray-500 text-white px-4 py-2 rounded text-sm hover:bg-gray-600"
-                      >
-                        Entregue
-                      </button>
-                    )}
-                  </div>
+                <div className="space-y-4">
+                  {groupedOrders[status]?.map((order) => (
+                    <div
+                      key={order.id}
+                      className={`p-6 rounded-lg border ${getStatusColor(status)}`}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-white p-2 rounded-lg shadow-sm">
+                            <Users className="w-4 h-4 text-gray-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">Mesa {order.mesaNumero}</h3>
+                            <p className="text-sm text-gray-500">{order.timestamp}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1 text-sm text-gray-500">
+                          <Timer className="w-4 h-4" />
+                          <span>{order.tempoEspera}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-6">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                          <Package className="w-4 h-4 mr-2 text-gray-500" />
+                          Itens do Pedido
+                        </h4>
+                        <ul className="space-y-2">
+                          {order.itens.map((item, index) => (
+                            <li key={index} className="text-sm text-gray-700 bg-white px-3 py-2 rounded border border-gray-100">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {status !== 'pronto' && (
+                          <button
+                            onClick={() => handleStatusChange(order.id, status)}
+                            className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
+                          >
+                            {getStatusButtonText(status)}
+                          </button>
+                        )}
+                        
+                        {status === 'pronto' && (
+                          <button
+                            onClick={() => handleFinalizeOrder(order.id)}
+                            className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Finalizar Pedido
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
