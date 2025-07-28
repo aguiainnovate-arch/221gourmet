@@ -1,30 +1,26 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 
 export default function Layout() {
   return (
-    <div className="flex flex-col min-h-screen">
-      <nav className="bg-white border-b p-4">
-        <div className="flex justify-between items-center">
-          <Link to="/" className="text-xl font-bold">
-            221Gourmet
-          </Link>
-          <div className="flex space-x-4">
-            <Link to="/" className="text-gray-600">
-              Home
-            </Link>
-            <Link to="/staff" className="text-gray-600">
-              Cozinha
-            </Link>
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-white shadow p-4">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-bold">221 Gourmet</h1>
+          <div className="space-x-4">
+            <a href="/" className="text-gray-600 hover:text-gray-900">Home</a>
+            <a href="/staff" className="text-gray-600 hover:text-gray-900">Cozinha</a>
           </div>
         </div>
       </nav>
       
-      <main className="flex-grow">
+      <main>
         <Outlet />
       </main>
       
-      <footer className="bg-gray-800 text-white p-4 text-center">
-        <p>© 2024 221Gourmet</p>
+      <footer className="bg-white shadow p-4 mt-8">
+        <div className="max-w-4xl mx-auto text-center text-gray-600">
+          <p>© 2024 221 Gourmet. Todos os direitos reservados.</p>
+        </div>
       </footer>
     </div>
   );
