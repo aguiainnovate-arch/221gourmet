@@ -2,45 +2,17 @@ import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
+import { getProducts } from '../services/productService';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
-
-// Mock de produtos para demonstração
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Hambúrguer Clássico',
-    description: 'Pão, carne, alface, tomate, queijo',
-    price: 25.90,
-    category: 'Lanches',
-    available: true,
-    preparationTime: 15
-  },
-  {
-    id: '2',
-    name: 'Pizza Margherita',
-    description: 'Molho de tomate, mussarela, manjericão',
-    price: 35.00,
-    category: 'Pizzas',
-    available: true,
-    preparationTime: 20
-  },
-  {
-    id: '3',
-    name: 'Batata Frita',
-    description: 'Porção de batatas fritas crocantes',
-    price: 12.50,
-    category: 'Acompanhamentos',
-    available: true,
-    preparationTime: 8
-  }
-];
 
 export default function Menu() {
   const { mesaId } = useParams<{ mesaId: string }>();
   const { addOrder } = useOrders();
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   useEffect(() => {
     const carregarMesaInfo = async () => {
@@ -58,7 +30,20 @@ export default function Menu() {
       }
     };
 
+    const carregarProdutos = async () => {
+      try {
+        setLoadingProducts(true);
+        const productsData = await getProducts();
+        setProducts(productsData.filter(p => p.available));
+      } catch (error) {
+        // Erro silencioso
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
     carregarMesaInfo();
+    carregarProdutos();
   }, [mesaId]);
 
   const handleEnviarPedido = async () => {
@@ -67,7 +52,7 @@ export default function Menu() {
       return;
     }
 
-    const itensSelecionados = mockProducts.map(p => p.name);
+    const itensSelecionados = products.map(p => p.name);
     
     await addOrder({
       mesaId: mesaInfo.id, // ID da mesa no Firestore
@@ -105,26 +90,36 @@ export default function Menu() {
           <p className="text-gray-600 mb-4">Mesa {mesaInfo.numero}</p>
         </div>
 
-        <div className="grid gap-6 mb-8">
-          {mockProducts.map((product) => (
-            <div key={product.id} className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
-                  <p className="text-gray-600 mb-2">{product.description}</p>
-                  <p className="text-sm text-gray-500">
-                    ⏱️ {product.preparationTime} min
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-green-600">
-                    R$ {product.price.toFixed(2)}
-                  </p>
+        {loadingProducts ? (
+          <div className="text-center py-8">
+            <div className="text-gray-500">Carregando cardápio...</div>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-gray-500">Nenhum produto disponível no momento</div>
+          </div>
+        ) : (
+          <div className="grid gap-6 mb-8">
+            {products.map((product) => (
+              <div key={product.id} className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
+                    <p className="text-gray-600 mb-2">{product.description}</p>
+                    <p className="text-sm text-gray-500">
+                      ⏱️ {product.preparationTime || 0} min
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-green-600">
+                      R$ {product.price.toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow p-6">
           <button
