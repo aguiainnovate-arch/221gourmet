@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
-import { ChevronDown, ChevronRight, Plus, Minus, Send, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
