@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Filter } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
