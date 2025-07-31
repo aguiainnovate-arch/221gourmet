@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
+import { useSettings } from '../contexts/SettingsContext';
 import { testAllCollections } from '../services/firestoreTest';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
@@ -12,6 +13,7 @@ import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 
 export default function Settings() {
+  const { settings, updateSettings } = useSettings();
   const [activeTab, setActiveTab] = useState('mesas');
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
@@ -33,6 +35,13 @@ export default function Settings() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState('');
+  
+  // Estados para personalização
+  const [personalizationForm, setPersonalizationForm] = useState({
+    restaurantName: '',
+    primaryColor: '',
+    secondaryColor: ''
+  });
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -90,6 +99,17 @@ export default function Settings() {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  // Carregar configurações no formulário
+  useEffect(() => {
+    if (settings) {
+      setPersonalizationForm({
+        restaurantName: settings.restaurantName,
+        primaryColor: settings.primaryColor,
+        secondaryColor: settings.secondaryColor
+      });
+    }
+  }, [settings]);
 
   const loadTables = async () => {
     try {
@@ -346,6 +366,26 @@ export default function Settings() {
     }
   };
 
+  // Função para salvar personalização
+  const savePersonalization = async () => {
+    if (!personalizationForm.restaurantName.trim()) {
+      alert('Por favor, digite o nome do restaurante');
+      return;
+    }
+
+    try {
+      await updateSettings({
+        restaurantName: personalizationForm.restaurantName.trim(),
+        primaryColor: personalizationForm.primaryColor,
+        secondaryColor: personalizationForm.secondaryColor
+      });
+      alert('Configurações salvas com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+      alert('Erro ao salvar configurações. Tente novamente.');
+    }
+  };
+
   // Filtrar produtos
   const filteredProducts = products.filter(product => {
     // Filtro por categoria
@@ -435,6 +475,17 @@ export default function Settings() {
               >
                 <Utensils className="w-5 h-5" />
                 <span>Gerenciar Cardápio</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('personalizacao')}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
+                  activeTab === 'personalizacao' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Palette className="w-5 h-5" />
+                <span>Personalização</span>
               </button>
             </nav>
           </div>
@@ -739,6 +790,162 @@ export default function Settings() {
             </div>
           )}
 
+          {activeTab === 'personalizacao' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Personalização</h2>
+                <button
+                  onClick={savePersonalization}
+                  className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Salvar Configurações</span>
+                </button>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-6">Configurações do Restaurante</h3>
+                
+                <div className="space-y-6">
+                  {/* Nome do Restaurante */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nome do Restaurante
+                    </label>
+                    <input
+                      type="text"
+                      value={personalizationForm.restaurantName}
+                      onChange={(e) => setPersonalizationForm(prev => ({ ...prev, restaurantName: e.target.value }))}
+                      placeholder="Ex: 221 Gourmet"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Este nome aparecerá no cabeçalho do cardápio
+                    </p>
+                  </div>
+
+                  {/* Cores */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Cor Primária */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Cor Primária
+                      </label>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="color"
+                          value={personalizationForm.primaryColor}
+                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
+                          className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={personalizationForm.primaryColor}
+                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
+                          placeholder="#92400e"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Cor principal para headers, botões e destaques
+                      </p>
+                    </div>
+
+                    {/* Cor Secundária */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Cor Secundária
+                      </label>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="color"
+                          value={personalizationForm.secondaryColor}
+                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                          className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={personalizationForm.secondaryColor}
+                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                          placeholder="#fffbeb"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Cor de fundo e elementos secundários
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Preview */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Prévia do Cardápio
+                    </label>
+                    <div 
+                      className="border rounded-lg p-0 overflow-hidden"
+                      style={{ backgroundColor: personalizationForm.secondaryColor }}
+                    >
+                      {/* Header */}
+                      <div 
+                        className="text-white p-4 text-center font-serif text-xl font-bold"
+                        style={{ backgroundColor: personalizationForm.primaryColor }}
+                      >
+                        {personalizationForm.restaurantName || 'Nome do Restaurante'}
+                      </div>
+                      
+                      {/* Categorias */}
+                      <div className="p-4">
+                        <div className="flex gap-2 mb-4">
+                          <span 
+                            className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                            style={{ backgroundColor: personalizationForm.primaryColor }}
+                          >
+                            Lanches
+                          </span>
+                          <span 
+                            className="px-3 py-1 rounded-full text-sm font-medium"
+                            style={{ 
+                              backgroundColor: `${personalizationForm.secondaryColor}dd`,
+                              color: personalizationForm.primaryColor 
+                            }}
+                          >
+                            Bebidas
+                          </span>
+                        </div>
+                        
+                        {/* Produto */}
+                        <div className="bg-white p-3 rounded border-l-4" style={{ borderLeftColor: personalizationForm.primaryColor }}>
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium" style={{ color: personalizationForm.primaryColor }}>
+                              X-Burger Especial
+                            </span>
+                            <span className="font-bold" style={{ color: personalizationForm.primaryColor }}>
+                              R$ 25,90
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Hambúrguer artesanal com queijo, alface e tomate
+                          </p>
+                          <div className="mt-2">
+                            <span 
+                              className="text-xs px-2 py-1 rounded-full" 
+                              style={{ 
+                                backgroundColor: `${personalizationForm.secondaryColor}aa`,
+                                color: personalizationForm.primaryColor 
+                              }}
+                            >
+                              15 min
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
