@@ -6,11 +6,13 @@ import Staff from './pages/Staff';
 import Settings from './pages/Settings';
 import PrivateRoute from './components/PrivateRoute';
 import { OrderProvider } from './contexts/OrderContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 
 function App() {
   return (
-    <OrderProvider>
-      <BrowserRouter>
+    <SettingsProvider>
+      <OrderProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
@@ -23,8 +25,9 @@ function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
-      </BrowserRouter>
-    </OrderProvider>
+        </BrowserRouter>
+      </OrderProvider>
+    </SettingsProvider>
   );
 }
 

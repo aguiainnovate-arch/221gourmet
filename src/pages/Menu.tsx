@@ -1,9 +1,11 @@
 import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
+import { applyCustomColors } from '../utils/colorUtils';
 import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
@@ -24,6 +26,7 @@ interface ExpandedItem {
 export default function Menu() {
   const { mesaId } = useParams<{ mesaId: string }>();
   const { addOrder } = useOrders();
+  const { settings } = useSettings();
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -76,6 +79,13 @@ export default function Menu() {
     carregarProdutos();
     carregarCategorias();
   }, [mesaId]);
+
+  // Aplicar cores personalizadas
+  useEffect(() => {
+    if (settings) {
+      applyCustomColors(settings.primaryColor, settings.secondaryColor);
+    }
+  }, [settings]);
 
   const handleProductClick = (product: Product) => {
     if (expandedProduct === product.id) {
@@ -175,15 +185,15 @@ export default function Menu() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-amber-50 flex items-center justify-center">
-        <div className="text-xl text-amber-800">Carregando...</div>
+      <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
+        <div className="text-xl text-primary-800">Carregando...</div>
       </div>
     );
   }
 
   if (!mesaInfo) {
     return (
-      <div className="min-h-screen bg-amber-50 flex items-center justify-center">
+      <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
         <div className="text-xl text-red-600">Mesa não encontrada!</div>
       </div>
     );
@@ -192,13 +202,13 @@ export default function Menu() {
   // Tela de Confirmação do Pedido
   if (showConfirmation) {
     return (
-      <div className="min-h-screen bg-amber-50">
+      <div className="min-h-screen bg-secondary-50">
         {/* Header */}
-        <div className="bg-amber-900 text-amber-100 py-6 px-4">
+        <div className="bg-primary-900 text-primary-100 py-6 px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center">
-              <h1 className="text-4xl font-serif font-bold mb-2">221 Gourmet</h1>
-              <p className="text-amber-200 text-lg">Mesa {mesaInfo.numero}</p>
+              <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
+              <p className="text-primary-200 text-lg">Mesa {mesaInfo.numero}</p>
             </div>
           </div>
         </div>
@@ -208,7 +218,7 @@ export default function Menu() {
           <div className="mb-6">
             <button
               onClick={handleCancelarPedido}
-              className="flex items-center gap-2 text-amber-800 hover:text-amber-900 font-medium"
+              className="flex items-center gap-2 text-primary-800 hover:text-primary-900 font-medium"
             >
               <ArrowLeft size={20} />
               Voltar ao Cardápio
@@ -216,23 +226,23 @@ export default function Menu() {
           </div>
 
           {/* Card de Confirmação */}
-          <div className="bg-amber-50 rounded-lg p-8 border-2 border-amber-300 shadow-lg mb-6">
-            <h2 className="text-3xl font-serif font-bold text-amber-900 mb-6 text-center">
+          <div className="bg-secondary-100 rounded-lg p-8 border-2 border-secondary-300 shadow-lg mb-6">
+            <h2 className="text-3xl font-serif font-bold text-primary-900 mb-6 text-center">
               Confirme seu Pedido
             </h2>
             
             <div className="space-y-4 mb-8">
               {selectedItems.map((item) => (
-                <div key={item.product.id} className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm">
+                <div key={item.product.id} className="bg-white p-6 rounded-lg border border-secondary-300 shadow-sm">
                   <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-semibold text-amber-900 text-xl">
+                    <h3 className="font-semibold text-primary-900 text-xl">
                       {item.product.name}
                     </h3>
-                    <span className="text-amber-800 font-bold text-xl">
+                    <span className="text-primary-800 font-bold text-xl">
                       R$ {(item.product.price * item.quantity).toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-6 text-sm text-amber-700 mb-3">
+                  <div className="flex items-center gap-6 text-sm text-primary-700 mb-3">
                     <span className="flex items-center gap-1">
                       <Tag size={14} />
                       Quantidade: {item.quantity}
@@ -241,7 +251,7 @@ export default function Menu() {
                     <span>R$ {item.product.price.toFixed(2)} cada</span>
                   </div>
                   {item.observations && (
-                    <div className="bg-amber-100 p-3 rounded-lg text-sm text-amber-800 border border-amber-200">
+                    <div className="bg-secondary-200 p-3 rounded-lg text-sm text-primary-800 border border-secondary-300">
                       <strong>Observações:</strong> {item.observations}
                     </div>
                   )}
@@ -249,13 +259,14 @@ export default function Menu() {
               ))}
             </div>
 
-            <div className="border-t-2 border-amber-300 pt-6">
-              <div className="flex justify-between items-center text-2xl font-bold text-amber-900 mb-3">
+            <div className="border-t-2 border-secondary-400 pt-6">
+              <div className="flex justify-between items-center text-2xl font-bold text-primary-900 mb-3">
                 <span>Total do Pedido:</span>
                 <span>R$ {totalPrice.toFixed(2)}</span>
               </div>
-              <div className="text-center text-amber-700">
+              <div className="text-center text-primary-700">
                 <p className="text-lg">Mesa {mesaInfo.numero} • {totalItems} itens</p>
+                <p className="text-sm mt-1">Tempo estimado de preparo: 15-20 minutos</p>
               </div>
             </div>
           </div>
@@ -284,13 +295,13 @@ export default function Menu() {
 
   // Tela Normal do Menu
   return (
-    <div className="min-h-screen bg-amber-50">
+    <div className="min-h-screen bg-secondary-50">
       {/* Header */}
-      <div className="bg-amber-900 text-amber-100 py-6 px-4">
+      <div className="bg-primary-900 text-primary-100 py-6 px-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center">
-            <h1 className="text-4xl font-serif font-bold mb-2">221 Gourmet</h1>
-            <p className="text-amber-200 text-lg">Mesa {mesaInfo.numero}</p>
+            <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
+            <p className="text-primary-200 text-lg">Mesa {mesaInfo.numero}</p>
           </div>
         </div>
       </div>
@@ -301,10 +312,10 @@ export default function Menu() {
           <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
             <button
               onClick={() => setSelectedCategory('todos')}
-              className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
+                              className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
                 selectedCategory === 'todos'
-                  ? 'bg-amber-800 text-amber-100 shadow-lg'
-                  : 'bg-amber-200 text-amber-800 hover:bg-amber-300'
+                  ? 'bg-primary-800 text-primary-100 shadow-lg'
+                  : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
               }`}
             >
               Todos
@@ -315,8 +326,8 @@ export default function Menu() {
                 onClick={() => setSelectedCategory(category.name)}
                 className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
                   selectedCategory === category.name
-                    ? 'bg-amber-800 text-amber-100 shadow-lg'
-                    : 'bg-amber-200 text-amber-800 hover:bg-amber-300'
+                    ? 'bg-primary-800 text-primary-100 shadow-lg'
+                    : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
                 }`}
               >
                 {category.name}
@@ -328,11 +339,11 @@ export default function Menu() {
         {/* Lista de Produtos */}
         {loadingProducts ? (
           <div className="text-center py-12">
-            <div className="text-amber-700 text-lg">Carregando cardápio...</div>
+            <div className="text-primary-700 text-lg">Carregando cardápio...</div>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-amber-700 text-lg">
+            <div className="text-primary-700 text-lg">
               {selectedCategory === 'todos' 
                 ? 'Nenhum produto disponível no momento'
                 : `Nenhum produto disponível na categoria "${selectedCategory}"`
@@ -341,7 +352,7 @@ export default function Menu() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
-            <div className="divide-y divide-amber-200">
+            <div className="divide-y divide-secondary-200">
               {filteredProducts.map((product) => {
                 const expandedItem = expandedItems.find(item => item.productId === product.id);
                 const selectedItem = selectedItems.find(item => item.product.id === product.id);
@@ -350,23 +361,23 @@ export default function Menu() {
                   <div key={product.id}>
                     {/* Item Principal */}
                     <div 
-                      className="p-6 hover:bg-amber-50 transition-colors cursor-pointer"
+                      className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
                       onClick={() => handleProductClick(product)}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-2">
-                            <h3 className="text-xl font-serif font-semibold text-amber-900">
+                            <h3 className="text-xl font-serif font-semibold text-primary-900">
                               {product.name}
                             </h3>
-                            <span className="text-lg font-bold text-amber-800 ml-4">
+                            <span className="text-lg font-bold text-primary-800 ml-4">
                               R$ {product.price.toFixed(2)}
                             </span>
                           </div>
-                          <p className="text-amber-700 text-sm leading-relaxed mb-2">
+                          <p className="text-primary-700 text-sm leading-relaxed mb-2">
                             {product.description}
                           </p>
-                          <div className="flex items-center gap-4 text-xs text-amber-600">
+                          <div className="flex items-center gap-4 text-xs text-primary-600">
                             {product.preparationTime && (
                               <span className="flex items-center gap-1">
                                 <Clock size={12} />
@@ -374,7 +385,7 @@ export default function Menu() {
                               </span>
                             )}
                             {product.category && (
-                              <span className="bg-amber-100 px-2 py-1 rounded-full flex items-center gap-1">
+                              <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
                                 <Tag size={12} />
                                 {product.category}
                               </span>
@@ -383,9 +394,9 @@ export default function Menu() {
                         </div>
                         <div className="ml-4">
                           {expandedProduct === product.id ? (
-                            <ChevronDown size={20} className="text-amber-600" />
+                            <ChevronDown size={20} className="text-primary-600" />
                           ) : (
-                            <ChevronRight size={20} className="text-amber-600" />
+                            <ChevronRight size={20} className="text-primary-600" />
                           )}
                         </div>
                       </div>
@@ -393,10 +404,10 @@ export default function Menu() {
 
                     {/* Seção Expandida */}
                     {expandedProduct === product.id && expandedItem && (
-                      <div className="bg-amber-50 px-6 py-4 border-t border-amber-200">
+                      <div className="bg-secondary-100 px-6 py-4 border-t border-secondary-200">
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-amber-800 mb-2">
+                            <label className="block text-sm font-medium text-primary-800 mb-2">
                               Quantidade:
                             </label>
                             <div className="flex items-center gap-3">
@@ -407,11 +418,11 @@ export default function Menu() {
                                     updateExpandedItem(product.id, { quantity: expandedItem.quantity - 1 });
                                   }
                                 }}
-                                className="w-8 h-8 bg-amber-200 text-amber-800 rounded-full flex items-center justify-center hover:bg-amber-300 transition-colors"
+                                className="w-8 h-8 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors"
                               >
                                 <Minus size={16} />
                               </button>
-                              <span className="text-lg font-semibold text-amber-900 min-w-[2rem] text-center">
+                              <span className="text-lg font-semibold text-primary-900 min-w-[2rem] text-center">
                                 {expandedItem.quantity}
                               </span>
                               <button
@@ -419,7 +430,7 @@ export default function Menu() {
                                   e.stopPropagation();
                                   updateExpandedItem(product.id, { quantity: expandedItem.quantity + 1 });
                                 }}
-                                className="w-8 h-8 bg-amber-200 text-amber-800 rounded-full flex items-center justify-center hover:bg-amber-300 transition-colors"
+                                className="w-8 h-8 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors"
                               >
                                 <Plus size={16} />
                               </button>
@@ -427,7 +438,7 @@ export default function Menu() {
                           </div>
                           
                           <div>
-                            <label className="block text-sm font-medium text-amber-800 mb-2">
+                            <label className="block text-sm font-medium text-primary-800 mb-2">
                               Observações:
                             </label>
                             <textarea
@@ -436,7 +447,7 @@ export default function Menu() {
                               onChange={(e) => {
                                 updateExpandedItem(product.id, { observations: e.target.value });
                               }}
-                              className="w-full p-3 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                              className="w-full p-3 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                               rows={2}
                               onClick={(e) => e.stopPropagation()}
                             />
@@ -448,7 +459,7 @@ export default function Menu() {
                                 e.stopPropagation();
                                 handleAddToOrder(product);
                               }}
-                              className="flex-1 bg-amber-800 text-amber-100 py-2 px-4 rounded-lg font-medium hover:bg-amber-900 transition-colors flex items-center justify-center gap-2"
+                              className="flex-1 bg-primary-800 text-primary-100 py-2 px-4 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2"
                             >
                               <Plus size={16} />
                               Adicionar ao Pedido
@@ -477,14 +488,14 @@ export default function Menu() {
         )}
 
         {/* Botão de Ver Pedido */}
-        <div className="bg-amber-900 rounded-lg shadow-lg p-6">
+        <div className="bg-primary-900 rounded-lg shadow-lg p-6">
           <button
             onClick={handleVerPedido}
             disabled={selectedItems.length === 0}
             className={`w-full py-4 px-6 rounded-lg text-xl font-serif font-semibold transition-colors border-2 flex items-center justify-center gap-2 ${
               selectedItems.length === 0
                 ? 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed'
-                : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                : 'bg-primary-100 text-primary-900 border-primary-300 hover:bg-primary-200'
             }`}
           >
             <Eye size={20} />

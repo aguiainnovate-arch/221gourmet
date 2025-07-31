@@ -26,7 +26,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8">🍽️ 221 Gourmet</h1>
+        <h1 className="text-4xl font-bold text-center mb-8">221 Gourmet</h1>
         
         <div className="bg-white p-6 rounded-lg shadow mb-6">
           <h2 className="text-2xl font-bold mb-4">Teste de Mesas</h2>
@@ -72,7 +72,7 @@ export default function Home() {
             to="/staff" 
             className="inline-flex items-center space-x-2 bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600"
           >
-            <span className="text-2xl">🍳</span>
+            <span className="text-2xl"></span>
             <span className="font-semibold">Visão da Cozinha</span>
           </Link>
         </div>
