@@ -15,7 +15,7 @@ import type { Product } from '../types/product';
 // Adicionar novo produto
 export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product> => {
   try {
-    const docRef = await addDoc(collection(db, 'products'), {
+    const productData: any = {
       name: product.name,
       description: product.description,
       price: product.price,
@@ -26,7 +26,13 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
       preparationTime: product.preparationTime || 0,
       tags: product.tags || [],
       createdAt: new Date()
-    });
+    };
+    
+    if (product.translations) {
+      productData.translations = product.translations;
+    }
+    
+    const docRef = await addDoc(collection(db, 'products'), productData);
 
     return {
       id: docRef.id,
@@ -57,7 +63,8 @@ export const getProducts = async (): Promise<Product[]> => {
         image: data.image || '',
         allergens: data.allergens || [],
         preparationTime: data.preparationTime || 0,
-        tags: data.tags || []
+        tags: data.tags || [],
+        translations: data.translations
       });
     });
 
@@ -97,7 +104,8 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
         image: data.image || '',
         allergens: data.allergens || [],
         preparationTime: data.preparationTime || 0,
-        tags: data.tags || []
+        tags: data.tags || [],
+        translations: data.translations
       });
     });
 

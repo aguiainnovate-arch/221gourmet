@@ -1,0 +1,39 @@
+{
+  "menu": {
+    "loading": "Chargement...",
+    "tableNotFound": "Table non trouvée !",
+    "loadingMenu": "Chargement du menu...",
+    "noProducts": "Aucun produit disponible pour le moment",
+    "noProductsCategory": "Aucun produit disponible dans la catégorie \"{{category}}\"",
+    "all": "Tous",
+    "quantity": "Quantité :",
+    "observations": "Observations :",
+    "observationsPlaceholder": "Ex : Sans oignon, bien cuit, etc...",
+    "addToOrder": "Ajouter à la Commande",
+    "remove": "Supprimer",
+    "yourOrder": "Votre Commande ({{count}} articles)",
+    "total": "Total :",
+    "viewOrder": "Voir la Commande",
+    "viewOrderWithItems": "Voir la Commande ({{count}} articles)",
+    "confirmOrder": "Confirmez votre Commande",
+    "backToMenu": "Retour au Menu",
+    "orderTotal": "Total de la Commande :",
+    "table": "Table {{number}}",
+    "items": "{{count}} articles",
+    "estimatedTime": "Temps de préparation estimé : 15-20 minutes",
+    "cancel": "Annuler",
+    "confirmOrderButton": "Confirmer la Commande",
+    "min": "min",
+    "each": "chaque",
+    "observations": "Obs : {{text}}",
+    "selectAtLeastOne": "Sélectionnez au moins un article pour voir la commande !",
+    "tableInfoNotFound": "Informations de la table non trouvées !",
+    "orderSent": "Commande envoyée de la Table {{number}} ! Vérifiez la page de la cuisine."
+  },
+  "language": {
+    "portuguese": "Português",
+    "english": "English",
+    "spanish": "Español",
+    "french": "Français"
+  }
+}

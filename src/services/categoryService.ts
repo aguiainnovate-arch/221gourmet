@@ -10,24 +10,40 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 
+interface Translation {
+  'en-US': string;
+  // Adicionar outros idiomas aqui no futuro
+}
+
 export interface Category {
   id: string;
   name: string;
   createdAt: Date;
+  // Traduções
+  translations?: {
+    name?: Translation;
+  };
 }
 
 // Adicionar nova categoria
-export const addCategory = async (name: string): Promise<Category> => {
+export const addCategory = async (name: string, translations?: { name?: Translation }): Promise<Category> => {
   try {
-    const docRef = await addDoc(collection(db, 'categories'), {
+    const categoryData: any = {
       name: name,
       createdAt: new Date()
-    });
+    };
+    
+    if (translations) {
+      categoryData.translations = translations;
+    }
+
+    const docRef = await addDoc(collection(db, 'categories'), categoryData);
 
     return {
       id: docRef.id,
       name: name,
-      createdAt: new Date()
+      createdAt: new Date(),
+      translations
     };
   } catch (error) {
     throw new Error('Falha ao adicionar categoria');
@@ -46,7 +62,8 @@ export const getCategories = async (): Promise<Category[]> => {
       categories.push({
         id: doc.id,
         name: data.name,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date()
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+        translations: data.translations
       });
     });
 
@@ -58,13 +75,19 @@ export const getCategories = async (): Promise<Category[]> => {
 };
 
 // Atualizar categoria
-export const updateCategory = async (id: string, name: string): Promise<void> => {
+export const updateCategory = async (id: string, name: string, translations?: { name?: Translation }): Promise<void> => {
   try {
     const categoryRef = doc(db, 'categories', id);
-    await updateDoc(categoryRef, {
+    const updateData: any = {
       name: name,
       updatedAt: new Date()
-    });
+    };
+    
+    if (translations) {
+      updateData.translations = translations;
+    }
+    
+    await updateDoc(categoryRef, updateData);
   } catch (error) {
     throw new Error('Falha ao atualizar categoria');
   }
