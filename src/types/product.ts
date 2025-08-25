@@ -1,3 +1,8 @@
+interface Translation {
+  'en-US': string;
+  // Adicionar outros idiomas aqui no futuro
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -9,4 +14,9 @@ export interface Product {
   allergens?: string[];
   preparationTime?: number; // em minutos
   tags?: string[];
+  // Traduções
+  translations?: {
+    name?: Translation;
+    description?: Translation;
+  };
 }

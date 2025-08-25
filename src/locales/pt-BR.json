@@ -1,0 +1,39 @@
+{
+  "menu": {
+    "loading": "Carregando...",
+    "tableNotFound": "Mesa não encontrada!",
+    "loadingMenu": "Carregando cardápio...",
+    "noProducts": "Nenhum produto disponível no momento",
+    "noProductsCategory": "Nenhum produto disponível na categoria \"{{category}}\"",
+    "all": "Todos",
+    "quantity": "Quantidade:",
+    "observations": "Observações:",
+    "observationsPlaceholder": "Ex: Sem cebola, bem passado, etc...",
+    "addToOrder": "Adicionar ao Pedido",
+    "remove": "Remover",
+    "yourOrder": "Seu Pedido ({{count}} itens)",
+    "total": "Total:",
+    "viewOrder": "Ver Pedido",
+    "viewOrderWithItems": "Ver Pedido ({{count}} itens)",
+    "confirmOrder": "Confirme seu Pedido",
+    "backToMenu": "Voltar ao Cardápio",
+    "orderTotal": "Total do Pedido:",
+    "table": "Mesa {{number}}",
+    "items": "{{count}} itens",
+    "estimatedTime": "Tempo estimado de preparo: 15-20 minutos",
+    "cancel": "Cancelar",
+    "confirmOrderButton": "Confirmar Pedido",
+    "min": "min",
+    "each": "cada",
+    "observations": "Obs: {{text}}",
+    "selectAtLeastOne": "Selecione pelo menos um item para ver o pedido!",
+    "tableInfoNotFound": "Informações da mesa não encontradas!",
+    "orderSent": "Pedido enviado da Mesa {{number}}! Verifique na página da cozinha."
+  },
+  "language": {
+    "portuguese": "Português",
+    "english": "English",
+    "spanish": "Español",
+    "french": "Français"
+  }
+}

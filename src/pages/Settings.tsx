@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { testAllCollections } from '../services/firestoreTest';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
+import AdvancedTranslations from '../components/AdvancedTranslations';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
@@ -54,6 +55,16 @@ export default function Settings() {
     allergens: [] as string[],
     tags: [] as string[]
   });
+  
+  // Estados para traduções
+  const [productTranslations, setProductTranslations] = useState<{
+    name?: { 'en-US': string };
+    description?: { 'en-US': string };
+  }>({});
+  
+  const [categoryTranslations, setCategoryTranslations] = useState<{
+    name?: { 'en-US': string };
+  }>({});
   
   const [qrCodeModal, setQrCodeModal] = useState<{ show: boolean; url: string; numero: string }>({
     show: false,
@@ -235,6 +246,7 @@ export default function Settings() {
         allergens: product.allergens || [],
         tags: product.tags || []
       });
+      setProductTranslations(product.translations || {});
     } else {
       setEditingProduct(null);
       setProductForm({
@@ -247,6 +259,7 @@ export default function Settings() {
         allergens: [],
         tags: []
       });
+      setProductTranslations({});
     }
     setShowProductModal(true);
   };
@@ -266,7 +279,8 @@ export default function Settings() {
         preparationTime: productForm.preparationTime ? parseInt(productForm.preparationTime) : 0,
         available: productForm.available,
         allergens: productForm.allergens,
-        tags: productForm.tags
+        tags: productForm.tags,
+        translations: Object.keys(productTranslations).length > 0 ? productTranslations : undefined
       };
 
       if (editingProduct) {
@@ -303,9 +317,11 @@ export default function Settings() {
     if (category) {
       setEditingCategory(category.name);
       setCategoryForm(category.name);
+      setCategoryTranslations(category.translations || {});
     } else {
       setEditingCategory(null);
       setCategoryForm('');
+      setCategoryTranslations({});
     }
     setShowCategoryModal(true);
   };
@@ -321,7 +337,7 @@ export default function Settings() {
         // Encontrar a categoria no array
         const categoryToUpdate = categories.find(c => c.name === editingCategory);
         if (categoryToUpdate) {
-          await updateCategory(categoryToUpdate.id, categoryForm.trim());
+          await updateCategory(categoryToUpdate.id, categoryForm.trim(), Object.keys(categoryTranslations).length > 0 ? categoryTranslations : undefined);
           
           // Atualizar produtos que usam a categoria antiga
           const productsToUpdate = products.filter(p => p.category === editingCategory);
@@ -335,7 +351,7 @@ export default function Settings() {
         alert('Categoria atualizada com sucesso!');
       } else {
         // Nova categoria
-        const newCategory = await addCategory(categoryForm.trim());
+        const newCategory = await addCategory(categoryForm.trim(), Object.keys(categoryTranslations).length > 0 ? categoryTranslations : undefined);
         setCategories(prev => [...prev, newCategory]);
         alert('Categoria criada com sucesso!');
       }
@@ -1115,6 +1131,13 @@ export default function Settings() {
                 </div>
               </div>
               
+              {/* Configurações Avançadas - Traduções */}
+              <AdvancedTranslations
+                type="product"
+                translations={productTranslations}
+                onTranslationsChange={setProductTranslations}
+              />
+              
               <div className="flex space-x-2 justify-end">
                 <button
                   onClick={() => setShowProductModal(false)}
@@ -1176,6 +1199,14 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+              
+              {/* Configurações Avançadas - Traduções */}
+              <AdvancedTranslations
+                type="category"
+                translations={categoryTranslations}
+                onTranslationsChange={setCategoryTranslations}
+              />
+              
               <div className="flex space-x-2 justify-end">
                 <button
                   onClick={() => setShowCategoryModal(false)}

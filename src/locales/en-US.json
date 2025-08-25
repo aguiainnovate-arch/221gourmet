@@ -1,0 +1,39 @@
+{
+  "menu": {
+    "loading": "Loading...",
+    "tableNotFound": "Table not found!",
+    "loadingMenu": "Loading menu...",
+    "noProducts": "No products available at the moment",
+    "noProductsCategory": "No products available in category \"{{category}}\"",
+    "all": "All",
+    "quantity": "Quantity:",
+    "observations": "Notes:",
+    "observationsPlaceholder": "e.g.: No onions, well done, etc...",
+    "addToOrder": "Add to Order",
+    "remove": "Remove",
+    "yourOrder": "Your Order ({{count}} items)",
+    "total": "Total:",
+    "viewOrder": "View Order",
+    "viewOrderWithItems": "View Order ({{count}} items)",
+    "confirmOrder": "Confirm Your Order",
+    "backToMenu": "Back to Menu",
+    "orderTotal": "Order Total:",
+    "table": "Table {{number}}",
+    "items": "{{count}} items",
+    "estimatedTime": "Estimated preparation time: 15-20 minutes",
+    "cancel": "Cancel",
+    "confirmOrderButton": "Confirm Order",
+    "min": "min",
+    "each": "each",
+    "observations": "Notes: {{text}}",
+    "selectAtLeastOne": "Select at least one item to view the order!",
+    "tableInfoNotFound": "Table information not found!",
+    "orderSent": "Order sent from Table {{number}}! Check the kitchen page."
+  },
+  "language": {
+    "portuguese": "Português",
+    "english": "English",
+    "spanish": "Español",
+    "french": "Français"
+  }
+}

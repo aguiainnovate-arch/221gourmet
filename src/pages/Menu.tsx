@@ -1,11 +1,14 @@
 import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { applyCustomColors } from '../utils/colorUtils';
+import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
+import LanguageSelector from '../components/LanguageSelector';
 import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
@@ -27,6 +30,7 @@ export default function Menu() {
   const { mesaId } = useParams<{ mesaId: string }>();
   const { addOrder } = useOrders();
   const { settings } = useSettings();
+  const { t, i18n } = useTranslation();
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -141,7 +145,7 @@ export default function Menu() {
 
   const handleVerPedido = () => {
     if (selectedItems.length === 0) {
-      alert('Selecione pelo menos um item para ver o pedido!');
+      alert(t('menu.selectAtLeastOne'));
       return;
     }
     setShowConfirmation(true);
@@ -153,13 +157,14 @@ export default function Menu() {
 
   const handleConfirmarPedido = async () => {
     if (!mesaInfo) {
-      alert('Informações da mesa não encontradas!');
+      alert(t('menu.tableInfoNotFound'));
       return;
     }
 
-    const itensSelecionados = selectedItems.map(item => 
-      `${item.product.name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`
-    );
+    const itensSelecionados = selectedItems.map(item => {
+      const translatedProduct = getProductTranslation(item.product, i18n.language);
+      return `${translatedProduct.name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`;
+    });
     
     await addOrder({
       mesaId: mesaInfo.id,
@@ -173,7 +178,7 @@ export default function Menu() {
     setSelectedItems([]);
     setExpandedItems([]);
     setShowConfirmation(false);
-    alert(`Pedido enviado da Mesa ${mesaInfo.numero}! Verifique na página da cozinha.`);
+    alert(t('menu.orderSent', { number: mesaInfo.numero }));
   };
 
   const filteredProducts = selectedCategory === 'todos' 
@@ -186,7 +191,7 @@ export default function Menu() {
   if (loading) {
     return (
       <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
-        <div className="text-xl text-primary-800">Carregando...</div>
+        <div className="text-xl text-primary-800">{t('menu.loading')}</div>
       </div>
     );
   }
@@ -194,7 +199,7 @@ export default function Menu() {
   if (!mesaInfo) {
     return (
       <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
-        <div className="text-xl text-red-600">Mesa não encontrada!</div>
+        <div className="text-xl text-red-600">{t('menu.tableNotFound')}</div>
       </div>
     );
   }
@@ -206,9 +211,15 @@ export default function Menu() {
         {/* Header */}
         <div className="bg-primary-900 text-primary-100 py-6 px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="text-center">
-              <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
-              <p className="text-primary-200 text-lg">Mesa {mesaInfo.numero}</p>
+            <div className="flex justify-between items-center">
+              <div className="flex-1"></div>
+              <div className="text-center">
+                <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
+                <p className="text-primary-200 text-lg">{t('menu.table', { number: mesaInfo.numero })}</p>
+              </div>
+              <div className="flex-1 flex justify-end">
+                <LanguageSelector />
+              </div>
             </div>
           </div>
         </div>
@@ -221,22 +232,24 @@ export default function Menu() {
               className="flex items-center gap-2 text-primary-800 hover:text-primary-900 font-medium"
             >
               <ArrowLeft size={20} />
-              Voltar ao Cardápio
+              {t('menu.backToMenu')}
             </button>
           </div>
 
           {/* Card de Confirmação */}
           <div className="bg-secondary-100 rounded-lg p-8 border-2 border-secondary-300 shadow-lg mb-6">
             <h2 className="text-3xl font-serif font-bold text-primary-900 mb-6 text-center">
-              Confirme seu Pedido
+              {t('menu.confirmOrder')}
             </h2>
             
             <div className="space-y-4 mb-8">
-              {selectedItems.map((item) => (
+              {selectedItems.map((item) => {
+                const translatedProduct = getProductTranslation(item.product, i18n.language);
+                return (
                 <div key={item.product.id} className="bg-white p-6 rounded-lg border border-secondary-300 shadow-sm">
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="font-semibold text-primary-900 text-xl">
-                      {item.product.name}
+                      {translatedProduct.name}
                     </h3>
                     <span className="text-primary-800 font-bold text-xl">
                       R$ {(item.product.price * item.quantity).toFixed(2)}
@@ -245,28 +258,29 @@ export default function Menu() {
                   <div className="flex items-center gap-6 text-sm text-primary-700 mb-3">
                     <span className="flex items-center gap-1">
                       <Tag size={14} />
-                      Quantidade: {item.quantity}
+                      {t('menu.quantity')} {item.quantity}
                     </span>
                     <span>•</span>
-                    <span>R$ {item.product.price.toFixed(2)} cada</span>
+                    <span>R$ {item.product.price.toFixed(2)} {t('menu.each')}</span>
                   </div>
                   {item.observations && (
                     <div className="bg-secondary-200 p-3 rounded-lg text-sm text-primary-800 border border-secondary-300">
-                      <strong>Observações:</strong> {item.observations}
+                      <strong>{t('menu.observations')}</strong> {item.observations}
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="border-t-2 border-secondary-400 pt-6">
               <div className="flex justify-between items-center text-2xl font-bold text-primary-900 mb-3">
-                <span>Total do Pedido:</span>
+                <span>{t('menu.orderTotal')}</span>
                 <span>R$ {totalPrice.toFixed(2)}</span>
               </div>
               <div className="text-center text-primary-700">
-                <p className="text-lg">Mesa {mesaInfo.numero} • {totalItems} itens</p>
-                <p className="text-sm mt-1">Tempo estimado de preparo: 15-20 minutos</p>
+                <p className="text-lg">{t('menu.table', { number: mesaInfo.numero })} • {t('menu.items', { count: totalItems })}</p>
+                <p className="text-sm mt-1">{t('menu.estimatedTime')}</p>
               </div>
             </div>
           </div>
@@ -278,14 +292,14 @@ export default function Menu() {
               className="flex-1 bg-gray-500 text-white py-4 px-6 rounded-lg font-medium hover:bg-gray-600 transition-colors flex items-center justify-center gap-2 text-lg"
             >
               <X size={24} />
-              Cancelar
+              {t('menu.cancel')}
             </button>
             <button
               onClick={handleConfirmarPedido}
               className="flex-1 bg-green-600 text-white py-4 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-lg"
             >
               <Check size={24} />
-              Confirmar Pedido
+              {t('menu.confirmOrderButton')}
             </button>
           </div>
         </div>
@@ -299,9 +313,15 @@ export default function Menu() {
       {/* Header */}
       <div className="bg-primary-900 text-primary-100 py-6 px-4">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center">
-            <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
-            <p className="text-primary-200 text-lg">Mesa {mesaInfo.numero}</p>
+          <div className="flex justify-between items-center">
+            <div className="flex-1"></div>
+            <div className="text-center">
+              <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
+              <p className="text-primary-200 text-lg">{t('menu.table', { number: mesaInfo.numero })}</p>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <LanguageSelector />
+            </div>
           </div>
         </div>
       </div>
@@ -310,15 +330,15 @@ export default function Menu() {
         {/* Barra de Categorias */}
         <div className="mb-8">
           <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
-            <button
+                        <button
               onClick={() => setSelectedCategory('todos')}
-                              className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
+              className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
                 selectedCategory === 'todos'
                   ? 'bg-primary-800 text-primary-100 shadow-lg'
                   : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
               }`}
             >
-              Todos
+              {t('menu.all')}
             </button>
             {categories.map((category) => (
               <button
@@ -330,7 +350,7 @@ export default function Menu() {
                     : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
                 }`}
               >
-                {category.name}
+                {getCategoryTranslation(category, i18n.language)}
               </button>
             ))}
           </div>
@@ -339,14 +359,14 @@ export default function Menu() {
         {/* Lista de Produtos */}
         {loadingProducts ? (
           <div className="text-center py-12">
-            <div className="text-primary-700 text-lg">Carregando cardápio...</div>
+            <div className="text-primary-700 text-lg">{t('menu.loadingMenu')}</div>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-primary-700 text-lg">
               {selectedCategory === 'todos' 
-                ? 'Nenhum produto disponível no momento'
-                : `Nenhum produto disponível na categoria "${selectedCategory}"`
+                ? t('menu.noProducts')
+                : t('menu.noProductsCategory', { category: selectedCategory })
               }
             </div>
           </div>
@@ -356,6 +376,7 @@ export default function Menu() {
               {filteredProducts.map((product) => {
                 const expandedItem = expandedItems.find(item => item.productId === product.id);
                 const selectedItem = selectedItems.find(item => item.product.id === product.id);
+                const translatedProduct = getProductTranslation(product, i18n.language);
                 
                 return (
                   <div key={product.id}>
@@ -368,26 +389,29 @@ export default function Menu() {
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-2">
                             <h3 className="text-xl font-serif font-semibold text-primary-900">
-                              {product.name}
+                              {translatedProduct.name}
                             </h3>
                             <span className="text-lg font-bold text-primary-800 ml-4">
                               R$ {product.price.toFixed(2)}
                             </span>
                           </div>
                           <p className="text-primary-700 text-sm leading-relaxed mb-2">
-                            {product.description}
+                            {translatedProduct.description}
                           </p>
                           <div className="flex items-center gap-4 text-xs text-primary-600">
                             {product.preparationTime && (
                               <span className="flex items-center gap-1">
                                 <Clock size={12} />
-                                {product.preparationTime} min
+                                {product.preparationTime} {t('menu.min')}
                               </span>
                             )}
                             {product.category && (
                               <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
                                 <Tag size={12} />
-                                {product.category}
+                                {(() => {
+                                  const category = categories.find(c => c.name === product.category);
+                                  return category ? getCategoryTranslation(category, i18n.language) : product.category;
+                                })()}
                               </span>
                             )}
                           </div>
@@ -408,7 +432,7 @@ export default function Menu() {
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-primary-800 mb-2">
-                              Quantidade:
+                              {t('menu.quantity')}
                             </label>
                             <div className="flex items-center gap-3">
                               <button
@@ -439,10 +463,10 @@ export default function Menu() {
                           
                           <div>
                             <label className="block text-sm font-medium text-primary-800 mb-2">
-                              Observações:
+                              {t('menu.observations')}
                             </label>
                             <textarea
-                              placeholder="Ex: Sem cebola, bem passado, etc..."
+                              placeholder={t('menu.observationsPlaceholder')}
                               value={expandedItem.observations}
                               onChange={(e) => {
                                 updateExpandedItem(product.id, { observations: e.target.value });
@@ -462,7 +486,7 @@ export default function Menu() {
                               className="flex-1 bg-primary-800 text-primary-100 py-2 px-4 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2"
                             >
                               <Plus size={16} />
-                              Adicionar ao Pedido
+                              {t('menu.addToOrder')}
                             </button>
                             {selectedItem && (
                               <button
@@ -473,7 +497,7 @@ export default function Menu() {
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
                               >
                                 <X size={16} />
-                                Remover
+                                {t('menu.remove')}
                               </button>
                             )}
                           </div>
@@ -499,7 +523,10 @@ export default function Menu() {
             }`}
           >
             <Eye size={20} />
-            Ver Pedido {selectedItems.length > 0 && `(${totalItems} itens)`}
+            {selectedItems.length > 0 
+              ? t('menu.viewOrderWithItems', { count: totalItems })
+              : t('menu.viewOrder')
+            }
           </button>
         </div>
       </div>
