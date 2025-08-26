@@ -326,11 +326,22 @@ export default function Menu() {
         </div>
       </div>
 
+      <div className="bg-secondary-50 py-8 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="w-full h-32 bg-secondary-100 rounded-lg flex items-center justify-center">
+            <div className="text-center text-secondary-600">
+              <p className="text-lg font-medium">Banner do Restaurante</p>
+              <p className="text-sm opacity-70">Espaço para imagem promocional</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Barra de Categorias */}
         <div className="mb-8">
           <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
-                        <button
+            <button
               onClick={() => setSelectedCategory('todos')}
               className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
                 selectedCategory === 'todos'
@@ -385,9 +396,27 @@ export default function Menu() {
                       className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
                       onClick={() => handleProductClick(product)}
                     >
-                      <div className="flex justify-between items-start">
+                      <div className="flex gap-4">
+                        {/* Imagem do Produto */}
+                        <div className="flex-shrink-0">
+                          <div className="w-24 h-24 bg-secondary-200 rounded-lg flex items-center justify-center">
+                            {product.image ? (
+                              <img 
+                                src={product.image} 
+                                alt={translatedProduct.name}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : (
+                              <div className="text-center text-secondary-500">
+                                <p className="text-xs">Imagem</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Conteúdo do Produto */}
                         <div className="flex-1">
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex justify-between items-start mb-2">
                             <h3 className="text-xl font-serif font-semibold text-primary-900">
                               {translatedProduct.name}
                             </h3>
@@ -416,6 +445,7 @@ export default function Menu() {
                             )}
                           </div>
                         </div>
+                        
                         <div className="ml-4">
                           {expandedProduct === product.id ? (
                             <ChevronDown size={20} className="text-primary-600" />
@@ -518,16 +548,24 @@ export default function Menu() {
             disabled={selectedItems.length === 0}
             className={`w-full py-4 px-6 rounded-lg text-xl font-serif font-semibold transition-colors border-2 flex items-center justify-center gap-2 ${
               selectedItems.length === 0
-                ? 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed'
-                : 'bg-primary-100 text-primary-900 border-primary-300 hover:bg-primary-200'
+                ? 'bg-gray-400 text-gray-200 border-gray-300 cursor-not-allowed'
+                : 'bg-primary-800 text-primary-100 border-primary-700 hover:bg-primary-900 hover:border-primary-800'
             }`}
           >
-            <Eye size={20} />
-            {selectedItems.length > 0 
-              ? t('menu.viewOrderWithItems', { count: totalItems })
-              : t('menu.viewOrder')
+            <Eye size={24} />
+            {selectedItems.length === 0 
+              ? t('menu.selectAtLeastOne')
+              : t('menu.viewOrderWithItems', { count: totalItems })
             }
           </button>
+          
+          {selectedItems.length > 0 && (
+            <div className="mt-4 text-center text-primary-200">
+              <p className="text-lg font-medium">
+                {t('menu.total')} <span className="text-white font-bold">R$ {totalPrice.toFixed(2)}</span>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

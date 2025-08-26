@@ -52,18 +52,19 @@ export default function Settings() {
     category: '',
     preparationTime: '',
     available: true,
+    image: '',
     allergens: [] as string[],
     tags: [] as string[]
   });
   
   // Estados para traduções
   const [productTranslations, setProductTranslations] = useState<{
-    name?: { 'en-US': string };
-    description?: { 'en-US': string };
+    name?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
+    description?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
   }>({});
   
   const [categoryTranslations, setCategoryTranslations] = useState<{
-    name?: { 'en-US': string };
+    name?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
   }>({});
   
   const [qrCodeModal, setQrCodeModal] = useState<{ show: boolean; url: string; numero: string }>({
@@ -243,6 +244,7 @@ export default function Settings() {
         category: product.category,
         preparationTime: product.preparationTime?.toString() || '',
         available: product.available,
+        image: product.image || '',
         allergens: product.allergens || [],
         tags: product.tags || []
       });
@@ -256,6 +258,7 @@ export default function Settings() {
         category: '',
         preparationTime: '',
         available: true,
+        image: '',
         allergens: [],
         tags: []
       });
@@ -278,6 +281,7 @@ export default function Settings() {
         category: productForm.category,
         preparationTime: productForm.preparationTime ? parseInt(productForm.preparationTime) : 0,
         available: productForm.available,
+        image: productForm.image,
         allergens: productForm.allergens,
         tags: productForm.tags,
         translations: Object.keys(productTranslations).length > 0 ? productTranslations : undefined
@@ -1083,6 +1087,33 @@ export default function Settings() {
                   rows={3}
                   className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
+              </div>
+
+              {/* Campo de Imagem */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Imagem do Produto
+                </label>
+                <div className="w-full">
+                  <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors cursor-pointer">
+                    {productForm.image ? (
+                      <img 
+                        src={productForm.image} 
+                        alt="Preview"
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <div className="text-center text-gray-500">
+                        <div className="text-2xl mb-1">📷</div>
+                        <p className="text-xs">Clique para adicionar</p>
+                        <p className="text-xs">imagem</p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Clique no espaço acima para fazer upload de uma imagem
+                  </p>
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
