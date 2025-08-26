@@ -1,6 +1,7 @@
 interface Translation {
   'en-US': string;
-  // Adicionar outros idiomas aqui no futuro
+  'es-ES': string;
+  'fr-FR': string;
 }
 
 export interface Product {
