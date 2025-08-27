@@ -26,4 +26,38 @@ service cloud.firestore {
       allow read, write: if false;
     }
   }
+}
+
+// Regras para o Firebase Storage
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Permitir acesso às imagens de produtos
+    match /products/{imageId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Permitir acesso às imagens de categorias
+    match /categories/{imageId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Permitir acesso às imagens de mesas
+    match /tables/{imageId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Permitir acesso aos banners do restaurante
+    match /banners/{imageId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Regra padrão - negar acesso a outras pastas
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
 } 

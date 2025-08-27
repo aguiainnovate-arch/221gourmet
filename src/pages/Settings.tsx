@@ -6,6 +6,7 @@ import { addProduct, getProducts, updateProduct, deleteProduct } from '../servic
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
 import { useSettings } from '../contexts/SettingsContext';
 import { testAllCollections } from '../services/firestoreTest';
+import { uploadImage, deleteImage } from '../services/storageService';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
@@ -41,7 +42,8 @@ export default function Settings() {
   const [personalizationForm, setPersonalizationForm] = useState({
     restaurantName: '',
     primaryColor: '',
-    secondaryColor: ''
+    secondaryColor: '',
+    bannerUrl: ''
   });
   
   // Formulário de produto
@@ -127,7 +129,8 @@ export default function Settings() {
       setPersonalizationForm({
         restaurantName: settings.restaurantName,
         primaryColor: settings.primaryColor,
-        secondaryColor: settings.secondaryColor
+        secondaryColor: settings.secondaryColor,
+        bannerUrl: settings.bannerUrl || ''
       });
     }
   }, [settings]);
@@ -299,11 +302,11 @@ export default function Settings() {
       if (editingProduct) {
         await updateProduct(editingProduct.id, productData);
         setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
-        alert('Produto atualizado com sucesso!');
+        alert(`Produto "${productData.name}" atualizado com sucesso!`);
       } else {
         const newProduct = await addProduct(productData);
         setProducts(prev => [...prev, newProduct]);
-        alert('Produto adicionado com sucesso!');
+        alert(`Produto "${productData.name}" adicionado com sucesso!`);
       }
 
       setShowProductModal(false);
@@ -396,6 +399,134 @@ export default function Settings() {
   };
 
   // Função para salvar personalização
+  // Função para fazer upload do banner
+  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Validar tipo de arquivo
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecione apenas arquivos de imagem');
+        return;
+      }
+
+      // Validar tamanho (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Arquivo muito grande. Máximo 5MB permitido.');
+        return;
+      }
+
+      // Fazer upload para o Firebase Storage
+      const result = await uploadImage(file, 'banners', 'restaurant-banner');
+      
+      if (result.success) {
+        // Atualizar o formulário com a nova URL
+        setPersonalizationForm(prev => ({
+          ...prev,
+          bannerUrl: result.url
+        }));
+        alert(`Banner enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
+      } else {
+        alert(`Erro ao enviar banner: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Erro no upload do banner:', error);
+      alert('Erro ao enviar banner. Tente novamente.');
+    }
+  };
+
+  // Função para remover o banner
+  const handleBannerRemove = async () => {
+    if (!personalizationForm.bannerUrl) return;
+
+    try {
+      // Extrair o path da URL para deletar do Storage
+      const url = new URL(personalizationForm.bannerUrl);
+      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
+      
+      if (pathMatch) {
+        const imagePath = decodeURIComponent(pathMatch[1]);
+        await deleteImage(imagePath);
+      }
+
+      // Limpar o formulário
+      setPersonalizationForm(prev => ({
+        ...prev,
+        bannerUrl: ''
+      }));
+      
+      alert('Banner removido com sucesso!');
+    } catch (error) {
+      console.error('Erro ao remover banner:', error);
+      alert('Erro ao remover banner. Tente novamente.');
+    }
+  };
+
+  // Função para fazer upload da imagem do produto
+  const handleProductImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Validar tipo de arquivo
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecione apenas arquivos de imagem');
+        return;
+      }
+
+      // Validar tamanho (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Arquivo muito grande. Máximo 5MB permitido.');
+        return;
+      }
+
+      // Fazer upload para o Firebase Storage
+      const result = await uploadImage(file, 'products', 'product-image');
+      
+      if (result.success) {
+        // Atualizar o formulário com a nova URL
+        setProductForm(prev => ({
+          ...prev,
+          image: result.url
+        }));
+        alert(`Imagem enviada com sucesso! URL: ${result.url.substring(0, 50)}...`);
+      } else {
+        alert(`Erro ao enviar imagem: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Erro no upload da imagem:', error);
+      alert('Erro ao enviar imagem. Tente novamente.');
+    }
+  };
+
+  // Função para remover a imagem do produto
+  const handleProductImageRemove = async () => {
+    if (!productForm.image) return;
+
+    try {
+      // Extrair o path da URL para deletar do Storage
+      const url = new URL(productForm.image);
+      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
+      
+      if (pathMatch) {
+        const imagePath = decodeURIComponent(pathMatch[1]);
+        await deleteImage(imagePath);
+      }
+
+      // Limpar o formulário
+      setProductForm(prev => ({
+        ...prev,
+        image: ''
+      }));
+      
+      alert('Imagem removida com sucesso!');
+    } catch (error) {
+      console.error('Erro ao remover imagem:', error);
+      alert('Erro ao remover imagem. Tente novamente.');
+    }
+  };
+
   const savePersonalization = async () => {
     if (!personalizationForm.restaurantName.trim()) {
       alert('Por favor, digite o nome do restaurante');
@@ -406,7 +537,8 @@ export default function Settings() {
       await updateSettings({
         restaurantName: personalizationForm.restaurantName.trim(),
         primaryColor: personalizationForm.primaryColor,
-        secondaryColor: personalizationForm.secondaryColor
+        secondaryColor: personalizationForm.secondaryColor,
+        bannerUrl: personalizationForm.bannerUrl
       });
       alert('Configurações salvas com sucesso!');
     } catch (error) {
@@ -679,7 +811,12 @@ export default function Settings() {
               {/* Lista de Produtos */}
               <div className="bg-white rounded-lg shadow">
                 <div className="p-6 border-b">
-                  <h3 className="text-lg font-semibold">Produtos do Cardápio</h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">Produtos do Cardápio</h3>
+                    <span className="text-sm text-gray-500">
+                      {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
                 {loadingProducts ? (
                   <div className="p-6 text-center text-gray-500">
@@ -706,9 +843,25 @@ export default function Settings() {
                         {filteredProducts.map((product) => (
                           <tr key={product.id} className="hover:bg-gray-50">
                             <td className="p-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{product.name}</div>
-                                <div className="text-sm text-gray-500">{product.description}</div>
+                              <div className="flex items-center space-x-3">
+                                {/* Imagem do Produto */}
+                                <div className="flex-shrink-0">
+                                  {product.image ? (
+                                    <img 
+                                      src={product.image} 
+                                      alt={product.name}
+                                      className="w-12 h-12 object-cover rounded-lg border"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                      <span className="text-gray-400 text-xs">📷</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="font-medium text-gray-900">{product.name}</div>
+                                  <div className="text-sm text-gray-500">{product.description}</div>
+                                </div>
                               </div>
                             </td>
                             <td className="p-4">
@@ -735,7 +888,8 @@ export default function Settings() {
                               <div className="flex space-x-2">
                                 <button
                                   onClick={() => openProductModal(product)}
-                                  className="bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-blue-600"
+                                  className="bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-blue-600 transition-colors"
+                                  title={`Editar ${product.name}`}
                                 >
                                   <Edit className="w-4 h-4" />
                                   <span>Editar</span>
@@ -906,6 +1060,62 @@ export default function Settings() {
                     </div>
                   </div>
 
+                  {/* Banner do Restaurante */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Banner do Restaurante
+                    </label>
+                    <div className="space-y-4">
+                      {/* Banner atual */}
+                      {personalizationForm.bannerUrl && (
+                        <div className="relative">
+                          <img 
+                            src={personalizationForm.bannerUrl} 
+                            alt="Banner atual" 
+                            className="w-full h-32 object-cover rounded-lg border"
+                          />
+                          <button
+                            onClick={handleBannerRemove}
+                            className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
+                            title="Remover banner"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Upload de novo banner */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBannerUpload}
+                          className="hidden"
+                          id="banner-upload"
+                        />
+                        <label 
+                          htmlFor="banner-upload"
+                          className="cursor-pointer flex flex-col items-center space-y-2"
+                        >
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                            <Plus className="w-6 h-6 text-gray-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">
+                              {personalizationForm.bannerUrl ? 'Alterar Banner' : 'Adicionar Banner'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Clique para selecionar uma imagem (máx. 5MB)
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        O banner aparecerá no topo do cardápio dos clientes
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Preview */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -915,6 +1125,17 @@ export default function Settings() {
                       className="border rounded-lg p-0 overflow-hidden"
                       style={{ backgroundColor: personalizationForm.secondaryColor }}
                     >
+                      {/* Banner */}
+                      {personalizationForm.bannerUrl && (
+                        <div className="w-full h-20 overflow-hidden">
+                          <img 
+                            src={personalizationForm.bannerUrl} 
+                            alt="Banner" 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      
                       {/* Header */}
                       <div 
                         className="text-white p-4 text-center font-serif text-xl font-bold"
@@ -1042,9 +1263,16 @@ export default function Settings() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">
-                {editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold">
+                  {editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}
+                </h3>
+                {editingProduct && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Editando: {editingProduct.name}
+                  </p>
+                )}
+              </div>
               <button
                 onClick={() => setShowProductModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -1104,23 +1332,49 @@ export default function Settings() {
                   Imagem do Produto
                 </label>
                 <div className="w-full">
-                  <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors cursor-pointer">
-                    {productForm.image ? (
-                      <img 
-                        src={productForm.image} 
-                        alt="Preview"
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                    ) : (
-                      <div className="text-center text-gray-500">
-                        <div className="text-2xl mb-1">📷</div>
-                        <p className="text-xs">Clique para adicionar</p>
-                        <p className="text-xs">imagem</p>
-                      </div>
-                    )}
-                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProductImageUpload}
+                    className="hidden"
+                    id="product-image-upload"
+                  />
+                  <label 
+                    htmlFor="product-image-upload"
+                    className="cursor-pointer"
+                  >
+                    <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors">
+                      {productForm.image ? (
+                        <div className="relative w-full h-full">
+                          <img 
+                            src={productForm.image} 
+                            alt="Preview"
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleProductImageRemove();
+                            }}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                            title="Remover imagem"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center text-gray-500">
+                          <div className="text-2xl mb-1">📷</div>
+                          <p className="text-xs">Clique para adicionar</p>
+                          <p className="text-xs">imagem</p>
+                        </div>
+                      )}
+                    </div>
+                  </label>
                   <p className="text-xs text-gray-500 mt-2">
-                    Clique no espaço acima para fazer upload de uma imagem
+                    Clique no espaço acima para fazer upload de uma imagem (máx. 5MB)
                   </p>
                 </div>
               </div>

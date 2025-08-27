@@ -335,16 +335,19 @@ export default function Menu() {
         </div>
       </div>
 
-      <div className="bg-secondary-50 py-8 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="w-full h-32 bg-secondary-100 rounded-lg flex items-center justify-center">
-            <div className="text-center text-secondary-600">
-              <p className="text-lg font-medium">Banner do Restaurante</p>
-              <p className="text-sm opacity-70">Espaço para imagem promocional</p>
+      {settings?.bannerUrl && (
+        <div className="bg-secondary-50 py-8 px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="w-full h-32 rounded-lg overflow-hidden shadow-lg">
+              <img 
+                src={settings.bannerUrl} 
+                alt="Banner do restaurante" 
+                className="w-full h-full object-cover"
+              />
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Barra de Categorias */}
