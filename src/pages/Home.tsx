@@ -37,6 +37,19 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-4xl mx-auto">
+        {/* Banner do Restaurante */}
+        {settings?.bannerUrl && (
+          <div className="mb-8">
+            <div className="w-full h-48 rounded-lg overflow-hidden shadow-lg">
+              <img 
+                src={settings.bannerUrl} 
+                alt="Banner do restaurante" 
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+        )}
+        
         <h1 className="text-4xl font-bold text-center mb-8">{settings?.restaurantName || '221 Gourmet'}</h1>
         
         <div className="bg-white p-6 rounded-lg shadow mb-6">

@@ -12,6 +12,7 @@ export interface RestaurantSettings {
   restaurantName: string;
   primaryColor: string;
   secondaryColor: string;
+  bannerUrl?: string;
   updatedAt: Date;
 }
 
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: Omit<RestaurantSettings, 'id' | 'updatedAt'> = {
   restaurantName: '221 Gourmet',
   primaryColor: '#92400e', // amber-800
   secondaryColor: '#fffbeb', // amber-50
+  bannerUrl: '',
 };
 
 // Buscar configurações do restaurante
@@ -37,6 +39,7 @@ export const getRestaurantSettings = async (): Promise<RestaurantSettings> => {
         restaurantName: data.restaurantName,
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
+        bannerUrl: data.bannerUrl || '',
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
       };
     } else {
@@ -106,6 +109,7 @@ export const subscribeToSettings = (
         restaurantName: data.restaurantName,
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
+        bannerUrl: data.bannerUrl || '',
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
       });
     } else {
