@@ -91,6 +91,15 @@ export default function Menu() {
     }
   }, [settings]);
 
+  // Atualizar título da aba do navegador
+  useEffect(() => {
+    if (settings?.restaurantName) {
+      document.title = `${settings.restaurantName} - Mesa ${mesaInfo?.numero || ''}`;
+    } else {
+      document.title = '221 Gourmet - Menu';
+    }
+  }, [settings?.restaurantName, mesaInfo?.numero]);
+
   const handleProductClick = (product: Product) => {
     if (expandedProduct === product.id) {
       setExpandedProduct(null);

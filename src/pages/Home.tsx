@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
+import { useSettings } from '../contexts/SettingsContext';
 import type { Table } from '../services/tableService';
 
 export default function Home() {
+  const { settings } = useSettings();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,10 +25,19 @@ export default function Home() {
     loadTables();
   }, []);
 
+  // Atualizar título da aba do navegador
+  useEffect(() => {
+    if (settings?.restaurantName) {
+      document.title = settings.restaurantName;
+    } else {
+      document.title = '221 Gourmet';
+    }
+  }, [settings?.restaurantName]);
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8">221 Gourmet</h1>
+        <h1 className="text-4xl font-bold text-center mb-8">{settings?.restaurantName || '221 Gourmet'}</h1>
         
         <div className="bg-white p-6 rounded-lg shadow mb-6">
           <h2 className="text-2xl font-bold mb-4">Teste de Mesas</h2>
