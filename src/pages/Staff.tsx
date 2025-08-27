@@ -1,4 +1,5 @@
 import { useOrders } from '../contexts/OrderContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { 
   Clock, 
   CheckCircle, 
@@ -12,9 +13,20 @@ import {
   Timer
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 
 export default function Staff() {
   const { orders, updateOrderStatus, deleteOrder, refreshOrders } = useOrders();
+  const { settings } = useSettings();
+
+  // Atualizar título da aba do navegador
+  useEffect(() => {
+    if (settings?.restaurantName) {
+      document.title = `${settings.restaurantName} - Cozinha`;
+    } else {
+      document.title = '221 Gourmet - Cozinha';
+    }
+  }, [settings?.restaurantName]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

@@ -85,6 +85,15 @@ export default function Settings() {
     }
   }, []);
 
+  // Atualizar título da aba do navegador
+  useEffect(() => {
+    if (settings?.restaurantName) {
+      document.title = `${settings.restaurantName} - Configurações`;
+    } else {
+      document.title = '221 Gourmet - Configurações';
+    }
+  }, [settings?.restaurantName]);
+
   // Função para testar a conectividade com o Firestore
   const testFirestoreConnection = async () => {
     try {
