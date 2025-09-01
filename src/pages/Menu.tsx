@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, Arro
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
+import ProductImage from '../components/ProductImage';
 
 interface SelectedItem {
   product: Product;
@@ -255,8 +256,8 @@ export default function Menu() {
               {selectedItems.map((item) => {
                 const translatedProduct = getProductTranslation(item.product, i18n.language);
                 return (
-                <div key={item.product.id} className="bg-white p-6 rounded-lg border border-secondary-300 shadow-sm">
-                  <div className="flex justify-between items-start mb-3">
+                <div key={item.product.id} className="bg-white p-6 rounded-xl border-2 border-secondary-300 shadow-lg hover:shadow-xl transition-all duration-200">
+                  <div className="flex justify-between items-start mb-4">
                     <h3 className="font-semibold text-primary-900 text-xl">
                       {translatedProduct.name}
                     </h3>
@@ -264,7 +265,7 @@ export default function Menu() {
                       R$ {(item.product.price * item.quantity).toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-6 text-sm text-primary-700 mb-3">
+                  <div className="flex items-center gap-6 text-sm text-primary-700 mb-4">
                     <span className="flex items-center gap-1">
                       <Tag size={14} />
                       {t('menu.quantity')} {item.quantity}
@@ -273,7 +274,7 @@ export default function Menu() {
                     <span>R$ {item.product.price.toFixed(2)} {t('menu.each')}</span>
                   </div>
                   {item.observations && (
-                    <div className="bg-secondary-200 p-3 rounded-lg text-sm text-primary-800 border border-secondary-300">
+                    <div className="bg-gradient-to-r from-secondary-100 to-secondary-200 p-4 rounded-lg text-sm text-primary-800 border border-secondary-300">
                       <strong>{t('menu.observations')}</strong> {item.observations}
                     </div>
                   )}
@@ -352,7 +353,7 @@ export default function Menu() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Barra de Categorias */}
         <div className="mb-8">
-          <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+          <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
             <button
               onClick={() => setSelectedCategory('todos')}
               className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
@@ -394,162 +395,161 @@ export default function Menu() {
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
-            <div className="divide-y divide-secondary-200">
-              {filteredProducts.map((product) => {
-                const expandedItem = expandedItems.find(item => item.productId === product.id);
-                const selectedItem = selectedItems.find(item => item.product.id === product.id);
-                const translatedProduct = getProductTranslation(product, i18n.language);
-                
-                return (
-                  <div key={product.id}>
-                    {/* Item Principal */}
-                    <div 
-                      className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
-                      onClick={() => handleProductClick(product)}
-                    >
-                      <div className="flex gap-4">
-                        {/* Imagem do Produto */}
-                        <div className="flex-shrink-0">
-                          <div className="w-24 h-24 bg-secondary-200 rounded-lg flex items-center justify-center">
-                            {product.image ? (
-                              <img 
-                                src={product.image} 
-                                alt={translatedProduct.name}
-                                className="w-full h-full object-cover rounded-lg"
-                              />
-                            ) : (
-                              <div className="text-center text-secondary-500">
-                                <p className="text-xs">Imagem</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Conteúdo do Produto */}
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-xl font-serif font-semibold text-primary-900">
-                              {translatedProduct.name}
-                            </h3>
-                            <span className="text-lg font-bold text-primary-800 ml-4">
-                              R$ {product.price.toFixed(2)}
-                            </span>
-                          </div>
-                          <p className="text-primary-700 text-sm leading-relaxed mb-2">
-                            {translatedProduct.description}
-                          </p>
-                          <div className="flex items-center gap-4 text-xs text-primary-600">
-                            {product.preparationTime && (
-                              <span className="flex items-center gap-1">
-                                <Clock size={12} />
-                                {product.preparationTime} {t('menu.min')}
-                              </span>
-                            )}
-                            {product.category && (
-                              <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
-                                <Tag size={12} />
-                                {(() => {
-                                  const category = categories.find(c => c.name === product.category);
-                                  return category ? getCategoryTranslation(category, i18n.language) : product.category;
-                                })()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="ml-4">
-                          {expandedProduct === product.id ? (
-                            <ChevronDown size={20} className="text-primary-600" />
+          <div className="space-y-4 mb-8">
+            {filteredProducts.map((product) => {
+              const expandedItem = expandedItems.find(item => item.productId === product.id);
+              const selectedItem = selectedItems.find(item => item.product.id === product.id);
+              const translatedProduct = getProductTranslation(product, i18n.language);
+              
+              return (
+                <div key={product.id} className="bg-white rounded-xl shadow-lg border border-secondary-200 overflow-hidden hover:shadow-xl transition-all duration-200">
+                  {/* Item Principal */}
+                  <div 
+                    className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
+                    onClick={() => handleProductClick(product)}
+                  >
+                    <div className="flex gap-4">
+                      {/* Imagem do Produto */}
+                      <div className="flex-shrink-0">
+                        <div className="w-24 h-24 bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden">
+                          {product.image ? (
+                            <ProductImage 
+                              src={product.image} 
+                              alt={translatedProduct.name}
+                              className="w-full h-full"
+                              containerClassName="w-24 h-24"
+                            />
                           ) : (
-                            <ChevronRight size={20} className="text-primary-600" />
+                            <div className="text-center text-secondary-500">
+                              <p className="text-xs">Imagem</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Conteúdo do Produto */}
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-3">
+                          <h3 className="text-xl font-serif font-semibold text-primary-900">
+                            {translatedProduct.name}
+                          </h3>
+                          <span className="text-lg font-bold text-primary-800 ml-4">
+                            R$ {product.price.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-primary-700 text-sm leading-relaxed mb-3">
+                          {translatedProduct.description}
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-primary-600">
+                          {product.preparationTime && (
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} />
+                              {product.preparationTime} {t('menu.min')}
+                            </span>
+                          )}
+                          {product.category && (
+                            <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
+                              <Tag size={12} />
+                              {(() => {
+                                const category = categories.find(c => c.name === product.category);
+                                return category ? getCategoryTranslation(category, i18n.language) : product.category;
+                              })()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="ml-4">
+                        {expandedProduct === product.id ? (
+                          <ChevronDown size={20} className="text-primary-600" />
+                        ) : (
+                          <ChevronRight size={20} className="text-primary-600" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Seção Expandida */}
+                  {expandedProduct === product.id && expandedItem && (
+                    <div className="bg-gradient-to-r from-secondary-50 to-secondary-100 px-6 py-6 border-t-2 border-secondary-200">
+                      <div className="space-y-5">
+                        <div>
+                          <label className="block text-sm font-medium text-primary-800 mb-3">
+                            {t('menu.quantity')}
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (expandedItem.quantity > 1) {
+                                  updateExpandedItem(product.id, { quantity: expandedItem.quantity - 1 });
+                                }
+                              }}
+                              className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
+                            >
+                              <Minus size={18} />
+                            </button>
+                            <span className="text-xl font-semibold text-primary-900 min-w-[3rem] text-center">
+                              {expandedItem.quantity}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateExpandedItem(product.id, { quantity: expandedItem.quantity + 1 });
+                              }}
+                              className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
+                            >
+                              <Plus size={18} />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-primary-800 mb-3">
+                            {t('menu.observations')}
+                          </label>
+                          <textarea
+                            placeholder={t('menu.observationsPlaceholder')}
+                            value={expandedItem.observations}
+                            onChange={(e) => {
+                              updateExpandedItem(product.id, { observations: e.target.value });
+                            }}
+                            className="w-full p-4 border-2 border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none shadow-sm"
+                            rows={3}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+
+                        <div className="flex gap-4 pt-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToOrder(product);
+                            }}
+                            className="flex-1 bg-primary-800 text-primary-100 py-3 px-6 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                          >
+                            <Plus size={18} />
+                            {t('menu.addToOrder')}
+                          </button>
+                          {selectedItem && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveFromOrder(product.id);
+                              }}
+                              className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg"
+                            >
+                              <X size={18} />
+                              {t('menu.remove')}
+                            </button>
                           )}
                         </div>
                       </div>
                     </div>
-
-                    {/* Seção Expandida */}
-                    {expandedProduct === product.id && expandedItem && (
-                      <div className="bg-secondary-100 px-6 py-4 border-t border-secondary-200">
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-primary-800 mb-2">
-                              {t('menu.quantity')}
-                            </label>
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (expandedItem.quantity > 1) {
-                                    updateExpandedItem(product.id, { quantity: expandedItem.quantity - 1 });
-                                  }
-                                }}
-                                className="w-8 h-8 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors"
-                              >
-                                <Minus size={16} />
-                              </button>
-                              <span className="text-lg font-semibold text-primary-900 min-w-[2rem] text-center">
-                                {expandedItem.quantity}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateExpandedItem(product.id, { quantity: expandedItem.quantity + 1 });
-                                }}
-                                className="w-8 h-8 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors"
-                              >
-                                <Plus size={16} />
-                              </button>
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-primary-800 mb-2">
-                              {t('menu.observations')}
-                            </label>
-                            <textarea
-                              placeholder={t('menu.observationsPlaceholder')}
-                              value={expandedItem.observations}
-                              onChange={(e) => {
-                                updateExpandedItem(product.id, { observations: e.target.value });
-                              }}
-                              className="w-full p-3 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                              rows={2}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-
-                          <div className="flex gap-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddToOrder(product);
-                              }}
-                              className="flex-1 bg-primary-800 text-primary-100 py-2 px-4 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Plus size={16} />
-                              {t('menu.addToOrder')}
-                            </button>
-                            {selectedItem && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveFromOrder(product.id);
-                                }}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
-                              >
-                                <X size={16} />
-                                {t('menu.remove')}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -558,10 +558,10 @@ export default function Menu() {
           <button
             onClick={handleVerPedido}
             disabled={selectedItems.length === 0}
-            className={`w-full py-4 px-6 rounded-lg text-xl font-serif font-semibold transition-colors border-2 flex items-center justify-center gap-2 ${
+            className={`w-full py-4 px-6 rounded-lg text-xl font-serif font-semibold transition-all duration-200 border-2 flex items-center justify-center gap-2 ${
               selectedItems.length === 0
                 ? 'bg-gray-400 text-gray-200 border-gray-300 cursor-not-allowed'
-                : 'bg-primary-800 text-primary-100 border-primary-700 hover:bg-primary-900 hover:border-primary-800'
+                : 'bg-primary-800 text-primary-100 border-primary-600 hover:bg-primary-900 hover:border-primary-700 hover:shadow-xl'
             }`}
           >
             <Eye size={24} />

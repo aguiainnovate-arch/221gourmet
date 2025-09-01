@@ -116,6 +116,10 @@ export const applyCustomColors = (primaryColor: string, secondaryColor: string) 
     .border-primary-200 { border-color: var(--primary-200) !important; }
     .border-primary-300 { border-color: var(--primary-300) !important; }
     .border-primary-400 { border-color: var(--primary-400) !important; }
+    .border-primary-500 { border-color: var(--primary-500) !important; }
+    .border-primary-600 { border-color: var(--primary-600) !important; }
+    .border-primary-700 { border-color: var(--primary-700) !important; }
+    .border-primary-800 { border-color: var(--primary-800) !important; }
     
     .divide-primary-200 > :not([hidden]) ~ :not([hidden]) {
       border-color: var(--primary-200) !important;
@@ -156,6 +160,7 @@ export const applyCustomColors = (primaryColor: string, secondaryColor: string) 
     .hover\\:bg-primary-200:hover { background-color: var(--primary-200) !important; }
     .hover\\:bg-primary-300:hover { background-color: var(--primary-300) !important; }
     .hover\\:bg-primary-900:hover { background-color: var(--primary-900) !important; }
+    .hover\\:border-primary-800:hover { border-color: var(--primary-800) !important; }
     .hover\\:bg-secondary-200:hover { background-color: var(--secondary-200) !important; }
     .hover\\:bg-secondary-300:hover { background-color: var(--secondary-300) !important; }
     .hover\\:bg-secondary-400:hover { background-color: var(--secondary-400) !important; }

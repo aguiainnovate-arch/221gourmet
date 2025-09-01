@@ -14,6 +14,7 @@ import { extractColorsFromImage } from '../utils/colorExtractor';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
+import ProductImage from '../components/ProductImage';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
@@ -892,10 +893,11 @@ export default function Settings() {
                                 {/* Imagem do Produto */}
                                 <div className="flex-shrink-0">
                                   {product.image ? (
-                                    <img 
+                                    <ProductImage 
                                       src={product.image} 
                                       alt={product.name}
-                                      className="w-12 h-12 object-cover rounded-lg border"
+                                      className="w-12 h-12"
+                                      containerClassName="w-12 h-12"
                                     />
                                   ) : (
                                     <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -1477,10 +1479,11 @@ export default function Settings() {
                     <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors">
                       {productForm.image ? (
                         <div className="relative w-full h-full">
-                          <img 
+                          <ProductImage 
                             src={productForm.image} 
                             alt="Preview"
-                            className="w-full h-full object-cover rounded-lg"
+                            className="w-full h-full"
+                            containerClassName="w-full h-full"
                           />
                           <button
                             type="button"
