@@ -318,7 +318,7 @@ export default function Settings() {
         description: productForm.description.trim(),
         price: parseFloat(productForm.price),
         category: productForm.category,
-        preparationTime: productForm.preparationTime ? parseInt(productForm.preparationTime) : 0,
+        preparationTime: productForm.preparationTime.trim() ? parseInt(productForm.preparationTime) : undefined,
         available: productForm.available,
         image: productForm.image,
         allergens: productForm.allergens,
@@ -495,7 +495,7 @@ export default function Settings() {
         }));
         alert(`Banner enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
         
-        // Deletar a imagem antiga se existir
+
         if (oldBannerUrl) {
           try {
             const imagePath = extractImagePathFromUrl(oldBannerUrl);
@@ -1000,7 +1000,7 @@ export default function Settings() {
                               R$ {product.price.toFixed(2)}
                             </td>
                             <td className="p-4 text-sm text-gray-600">
-                              {product.preparationTime || 0} min
+                              {product.preparationTime ? `${product.preparationTime} min` : '-'}
                             </td>
                             <td className="p-4">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

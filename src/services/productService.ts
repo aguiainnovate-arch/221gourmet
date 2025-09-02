@@ -23,7 +23,7 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
       available: product.available,
       image: product.image || '',
       allergens: product.allergens || [],
-      preparationTime: product.preparationTime || 0,
+      preparationTime: product.preparationTime,
       tags: product.tags || [],
       createdAt: new Date()
     };
@@ -62,7 +62,7 @@ export const getProducts = async (): Promise<Product[]> => {
         available: data.available,
         image: data.image || '',
         allergens: data.allergens || [],
-        preparationTime: data.preparationTime || 0,
+        preparationTime: data.preparationTime,
         tags: data.tags || [],
         translations: data.translations
       });
@@ -103,7 +103,7 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
         available: data.available,
         image: data.image || '',
         allergens: data.allergens || [],
-        preparationTime: data.preparationTime || 0,
+        preparationTime: data.preparationTime,
         tags: data.tags || [],
         translations: data.translations
       });
@@ -160,7 +160,7 @@ export const filterProductsByPrice = (products: Product[], maxPrice?: number, mi
 // Filtrar produtos por tempo de preparo
 export const filterProductsByPreparationTime = (products: Product[], maxTime?: number): Product[] => {
   return products.filter(product => {
-    if (maxTime && (product.preparationTime || 0) > maxTime) return false;
+    if (maxTime && product.preparationTime && product.preparationTime > maxTime) return false;
     return true;
   });
 }; 
