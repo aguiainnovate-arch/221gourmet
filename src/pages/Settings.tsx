@@ -85,6 +85,23 @@ export default function Settings() {
     numero: ''
   });
 
+  // Função utilitária para extrair o path da URL do Firebase Storage
+  // Esta função é usada para deletar imagens antigas quando são substituídas
+  const extractImagePathFromUrl = (imageUrl: string): string | null => {
+    try {
+      const url = new URL(imageUrl);
+      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
+      
+      if (pathMatch) {
+        return decodeURIComponent(pathMatch[1]);
+      }
+      return null;
+    } catch (error) {
+      console.warn('Erro ao extrair path da URL:', error);
+      return null;
+    }
+  };
+
   // Verificar se o Firebase está inicializado
   useEffect(() => {
     console.log('Firebase db inicializado:', !!db);
@@ -310,8 +327,26 @@ export default function Settings() {
       };
 
       if (editingProduct) {
+        // Armazenar a URL da imagem antiga para deletar depois
+        const oldImageUrl = editingProduct.image;
+        
         await updateProduct(editingProduct.id, productData);
         setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+        
+        // Deletar a imagem antiga se foi alterada
+        if (oldImageUrl && oldImageUrl !== productForm.image) {
+          try {
+            const imagePath = extractImagePathFromUrl(oldImageUrl);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem antiga do produto deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem antiga do produto:', deleteError);
+            // Não mostrar erro para o usuário, pois o produto foi atualizado com sucesso
+          }
+        }
+        
         alert(`Produto "${productData.name}" atualizado com sucesso!`);
       } else {
         const newProduct = await addProduct(productData);
@@ -329,8 +364,27 @@ export default function Settings() {
   const deleteProductItem = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este produto?')) {
       try {
+        // Encontrar o produto para obter a URL da imagem
+        const productToDelete = products.find(p => p.id === id);
+        
+        // Deletar o produto do Firestore
         await deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
+        
+        // Deletar a imagem do Storage se existir
+        if (productToDelete?.image) {
+          try {
+            const imagePath = extractImagePathFromUrl(productToDelete.image);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem do produto deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem do produto:', deleteError);
+            // Não mostrar erro para o usuário, pois o produto foi deletado com sucesso
+          }
+        }
+        
         alert('Produto excluído com sucesso!');
       } catch (error) {
         alert('Erro ao excluir produto. Tente novamente.');
@@ -427,6 +481,9 @@ export default function Settings() {
         return;
       }
 
+      // Armazenar URL da imagem antiga para deletar depois
+      const oldBannerUrl = personalizationForm.bannerUrl;
+
       // Fazer upload para o Firebase Storage
       const result = await uploadImage(file, 'banners', 'restaurant-banner');
       
@@ -437,6 +494,20 @@ export default function Settings() {
           bannerUrl: result.url
         }));
         alert(`Banner enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
+        
+        // Deletar a imagem antiga se existir
+        if (oldBannerUrl) {
+          try {
+            const imagePath = extractImagePathFromUrl(oldBannerUrl);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem antiga do banner deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem antiga do banner:', deleteError);
+
+          }
+        }
         
         // Não extrair cores automaticamente para evitar loops infinitos
         // O usuário pode usar o botão "Extrair Cores" quando desejar
@@ -454,12 +525,8 @@ export default function Settings() {
     if (!personalizationForm.bannerUrl) return;
 
     try {
-      // Extrair o path da URL para deletar do Storage
-      const url = new URL(personalizationForm.bannerUrl);
-      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-      
-      if (pathMatch) {
-        const imagePath = decodeURIComponent(pathMatch[1]);
+      const imagePath = extractImagePathFromUrl(personalizationForm.bannerUrl);
+      if (imagePath) {
         await deleteImage(imagePath);
       }
 
@@ -527,6 +594,9 @@ export default function Settings() {
         return;
       }
 
+      // Armazenar URL da imagem antiga para deletar depois
+      const oldProductImageUrl = productForm.image;
+
       // Fazer upload para o Firebase Storage
       const result = await uploadImage(file, 'products', 'product-image');
       
@@ -537,6 +607,20 @@ export default function Settings() {
           image: result.url
         }));
         alert(`Imagem enviada com sucesso! URL: ${result.url.substring(0, 50)}...`);
+        
+        // Deletar a imagem antiga se existir
+        if (oldProductImageUrl) {
+          try {
+            const imagePath = extractImagePathFromUrl(oldProductImageUrl);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem antiga do produto deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem antiga do produto:', deleteError);
+            // Não mostrar erro para o usuário, pois o upload foi bem-sucedido
+          }
+        }
       } else {
         alert(`Erro ao enviar imagem: ${result.error}`);
       }
@@ -551,12 +635,8 @@ export default function Settings() {
     if (!productForm.image) return;
 
     try {
-      // Extrair o path da URL para deletar do Storage
-      const url = new URL(productForm.image);
-      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-      
-      if (pathMatch) {
-        const imagePath = decodeURIComponent(pathMatch[1]);
+      const imagePath = extractImagePathFromUrl(productForm.image);
+      if (imagePath) {
         await deleteImage(imagePath);
       }
 

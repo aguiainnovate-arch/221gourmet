@@ -14,6 +14,7 @@ import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import ProductImage from '../components/ProductImage';
+import ImageModal from '../components/ImageModal';
 
 interface SelectedItem {
   product: Product;
@@ -39,7 +40,13 @@ export default function Menu() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<ExpandedItem[]>([]);
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [imageModal, setImageModal] = useState<{ isOpen: boolean; src: string; alt: string }>({
+    isOpen: false,
+    src: '',
+    alt: ''
+  });
   const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
@@ -104,8 +111,10 @@ export default function Menu() {
   const handleProductClick = (product: Product) => {
     if (expandedProduct === product.id) {
       setExpandedProduct(null);
+      setExpandedImage(null);
     } else {
       setExpandedProduct(product.id);
+      setExpandedImage(product.id);
       // Inicializa o item expandido se não existir
       if (!expandedItems.find(item => item.productId === product.id)) {
         const existingSelected = selectedItems.find(item => item.product.id === product.id);
@@ -116,6 +125,23 @@ export default function Menu() {
         }]);
       }
     }
+  };
+
+  const handleImageClick = (e: React.MouseEvent, imageSrc: string, imageAlt: string) => {
+    e.stopPropagation();
+    setImageModal({
+      isOpen: true,
+      src: imageSrc,
+      alt: imageAlt
+    });
+  };
+
+  const closeImageModal = () => {
+    setImageModal({
+      isOpen: false,
+      src: '',
+      alt: ''
+    });
   };
 
   const updateExpandedItem = (productId: string, updates: Partial<ExpandedItem>) => {
@@ -147,6 +173,7 @@ export default function Menu() {
     }
     
     setExpandedProduct(null);
+    setExpandedImage(null);
   };
 
   const handleRemoveFromOrder = (productId: string) => {
@@ -311,11 +338,19 @@ export default function Menu() {
               <Check size={24} />
               {t('menu.confirmOrderButton')}
             </button>
-          </div>
-        </div>
+                  </div>
       </div>
-    );
-  }
+      
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={imageModal.isOpen}
+        onClose={closeImageModal}
+        imageSrc={imageModal.src}
+        imageAlt={imageModal.alt}
+      />
+    </div>
+  );
+}
 
   // Tela Normal do Menu
   return (
@@ -339,11 +374,14 @@ export default function Menu() {
       {settings?.bannerUrl && (
         <div className="bg-secondary-50 py-8 px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="w-full h-32 rounded-lg overflow-hidden shadow-lg">
+            <div 
+              className="w-full h-32 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-300"
+              onClick={(e) => handleImageClick(e, settings.bannerUrl!, 'Banner do restaurante')}
+            >
               <img 
                 src={settings.bannerUrl} 
                 alt="Banner do restaurante" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
               />
             </div>
           </div>
@@ -400,6 +438,7 @@ export default function Menu() {
               const expandedItem = expandedItems.find(item => item.productId === product.id);
               const selectedItem = selectedItems.find(item => item.product.id === product.id);
               const translatedProduct = getProductTranslation(product, i18n.language);
+              const isImageExpanded = expandedImage === product.id;
               
               return (
                 <div key={product.id} className="bg-white rounded-xl shadow-lg border border-secondary-200 overflow-hidden hover:shadow-xl transition-all duration-200">
@@ -408,16 +447,28 @@ export default function Menu() {
                     className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
                     onClick={() => handleProductClick(product)}
                   >
-                    <div className="flex gap-4">
+                    <div className={`flex gap-4 ${isImageExpanded ? 'flex-col' : ''}`}>
                       {/* Imagem do Produto */}
-                      <div className="flex-shrink-0">
-                        <div className="w-24 h-24 bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden">
+                      <div className={`flex-shrink-0 ${isImageExpanded ? 'w-full' : ''}`}>
+                        <div 
+                          className={`${isImageExpanded ? 'w-full h-48 image-expanded' : 'w-24 h-24'} bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden image-expand-transition ${isImageExpanded ? 'cursor-pointer hover:shadow-lg transition-shadow duration-300' : ''}`}
+                          onClick={(e) => {
+                            if (isImageExpanded && product.image) {
+                              handleImageClick(e, product.image!, translatedProduct.name);
+                            }
+                          }}
+                        >
                           {product.image ? (
                             <ProductImage 
                               src={product.image} 
                               alt={translatedProduct.name}
-                              className="w-full h-full"
-                              containerClassName="w-24 h-24"
+                              className={`w-full h-full transition-transform duration-300 ${isImageExpanded ? 'hover:scale-105' : ''}`}
+                              containerClassName={isImageExpanded ? 'w-full h-48' : 'w-24 h-24'}
+                              onClick={(e) => {
+                                if (isImageExpanded) {
+                                  handleImageClick(e, product.image!, translatedProduct.name);
+                                }
+                              }}
                             />
                           ) : (
                             <div className="text-center text-secondary-500">
@@ -428,7 +479,7 @@ export default function Menu() {
                       </div>
                       
                       {/* Conteúdo do Produto */}
-                      <div className="flex-1">
+                      <div className={`flex-1 ${isImageExpanded ? 'mt-4' : ''}`}>
                         <div className="flex justify-between items-start mb-3">
                           <h3 className="text-xl font-serif font-semibold text-primary-900">
                             {translatedProduct.name}
@@ -580,6 +631,14 @@ export default function Menu() {
           )}
         </div>
       </div>
+      
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={imageModal.isOpen}
+        onClose={closeImageModal}
+        imageSrc={imageModal.src}
+        imageAlt={imageModal.alt}
+      />
     </div>
   );
 } 

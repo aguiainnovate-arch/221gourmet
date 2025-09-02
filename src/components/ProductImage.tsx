@@ -5,13 +5,15 @@ interface ProductImageProps {
   alt: string;
   className?: string;
   containerClassName?: string;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export default function ProductImage({ 
   src, 
   alt, 
   className = '', 
-  containerClassName = '' 
+  containerClassName = '',
+  onClick
 }: ProductImageProps) {
   const [isGif, setIsGif] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -79,6 +81,7 @@ export default function ProductImage({
           alt={alt}
           className={`w-full h-full object-cover rounded-lg ${className}`}
           onLoad={handleImageLoad}
+          onClick={onClick}
         />
       </div>
     );
@@ -112,6 +115,7 @@ export default function ProductImage({
           getAnimationClass()
         } ${className}`}
         onLoad={handleImageLoad}
+        onClick={onClick}
         style={{
           transform: shouldAnimate && imageLoaded ? 'scale(1.1)' : 'scale(1)'
         }}

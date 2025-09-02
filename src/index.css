@@ -80,3 +80,40 @@
 .animate-image-movement-vertical {
   animation: image-movement-vertical 8s ease-in-out infinite;
 }
+
+/* Efeito de expansão da imagem */
+.image-expand-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.image-expand-transition:hover {
+  transform: scale(1.02);
+}
+
+/* Efeito de sombra quando expandido */
+.image-expanded {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Modal de imagem */
+.image-modal-enter {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.image-modal-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.image-modal-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.image-modal-exit-active {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 200ms ease-in, transform 200ms ease-in;
+}
