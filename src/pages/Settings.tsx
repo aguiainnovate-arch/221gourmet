@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
@@ -10,9 +10,11 @@ import { uploadImage, deleteImage } from '../services/storageService';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
+import { extractColorsFromImage } from '../utils/colorExtractor';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
+import ProductImage from '../components/ProductImage';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
@@ -46,6 +48,14 @@ export default function Settings() {
     bannerUrl: ''
   });
   
+  // Estados para extração de cores
+  const [extractedColors, setExtractedColors] = useState<{
+    primaryColor: string;
+    secondaryColor: string;
+    palette: string[];
+  } | null>(null);
+  const [isExtractingColors, setIsExtractingColors] = useState(false);
+  
   // Formulário de produto
   const [productForm, setProductForm] = useState({
     name: '',
@@ -74,6 +84,23 @@ export default function Settings() {
     url: '',
     numero: ''
   });
+
+  // Função utilitária para extrair o path da URL do Firebase Storage
+  // Esta função é usada para deletar imagens antigas quando são substituídas
+  const extractImagePathFromUrl = (imageUrl: string): string | null => {
+    try {
+      const url = new URL(imageUrl);
+      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
+      
+      if (pathMatch) {
+        return decodeURIComponent(pathMatch[1]);
+      }
+      return null;
+    } catch (error) {
+      console.warn('Erro ao extrair path da URL:', error);
+      return null;
+    }
+  };
 
   // Verificar se o Firebase está inicializado
   useEffect(() => {
@@ -300,8 +327,26 @@ export default function Settings() {
       };
 
       if (editingProduct) {
+        // Armazenar a URL da imagem antiga para deletar depois
+        const oldImageUrl = editingProduct.image;
+        
         await updateProduct(editingProduct.id, productData);
         setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+        
+        // Deletar a imagem antiga se foi alterada
+        if (oldImageUrl && oldImageUrl !== productForm.image) {
+          try {
+            const imagePath = extractImagePathFromUrl(oldImageUrl);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem antiga do produto deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem antiga do produto:', deleteError);
+            // Não mostrar erro para o usuário, pois o produto foi atualizado com sucesso
+          }
+        }
+        
         alert(`Produto "${productData.name}" atualizado com sucesso!`);
       } else {
         const newProduct = await addProduct(productData);
@@ -319,8 +364,27 @@ export default function Settings() {
   const deleteProductItem = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este produto?')) {
       try {
+        // Encontrar o produto para obter a URL da imagem
+        const productToDelete = products.find(p => p.id === id);
+        
+        // Deletar o produto do Firestore
         await deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
+        
+        // Deletar a imagem do Storage se existir
+        if (productToDelete?.image) {
+          try {
+            const imagePath = extractImagePathFromUrl(productToDelete.image);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem do produto deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem do produto:', deleteError);
+            // Não mostrar erro para o usuário, pois o produto foi deletado com sucesso
+          }
+        }
+        
         alert('Produto excluído com sucesso!');
       } catch (error) {
         alert('Erro ao excluir produto. Tente novamente.');
@@ -417,6 +481,9 @@ export default function Settings() {
         return;
       }
 
+      // Armazenar URL da imagem antiga para deletar depois
+      const oldBannerUrl = personalizationForm.bannerUrl;
+
       // Fazer upload para o Firebase Storage
       const result = await uploadImage(file, 'banners', 'restaurant-banner');
       
@@ -427,6 +494,23 @@ export default function Settings() {
           bannerUrl: result.url
         }));
         alert(`Banner enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
+        
+        // Deletar a imagem antiga se existir
+        if (oldBannerUrl) {
+          try {
+            const imagePath = extractImagePathFromUrl(oldBannerUrl);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem antiga do banner deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem antiga do banner:', deleteError);
+
+          }
+        }
+        
+        // Não extrair cores automaticamente para evitar loops infinitos
+        // O usuário pode usar o botão "Extrair Cores" quando desejar
       } else {
         alert(`Erro ao enviar banner: ${result.error}`);
       }
@@ -441,12 +525,8 @@ export default function Settings() {
     if (!personalizationForm.bannerUrl) return;
 
     try {
-      // Extrair o path da URL para deletar do Storage
-      const url = new URL(personalizationForm.bannerUrl);
-      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-      
-      if (pathMatch) {
-        const imagePath = decodeURIComponent(pathMatch[1]);
+      const imagePath = extractImagePathFromUrl(personalizationForm.bannerUrl);
+      if (imagePath) {
         await deleteImage(imagePath);
       }
 
@@ -456,12 +536,45 @@ export default function Settings() {
         bannerUrl: ''
       }));
       
+      // Limpar cores extraídas
+      setExtractedColors(null);
+      
       alert('Banner removido com sucesso!');
     } catch (error) {
       console.error('Erro ao remover banner:', error);
       alert('Erro ao remover banner. Tente novamente.');
     }
   };
+
+  // Função para extrair cores do banner
+  const handleExtractColors = async () => {
+    if (!personalizationForm.bannerUrl) {
+      alert('Primeiro faça upload de um banner para extrair as cores.');
+      return;
+    }
+
+    setIsExtractingColors(true);
+    try {
+      const colors = await extractColorsFromImage(personalizationForm.bannerUrl);
+      setExtractedColors(colors);
+      
+      // Atualizar o formulário com as cores extraídas
+      setPersonalizationForm(prev => ({
+        ...prev,
+        primaryColor: colors.primaryColor,
+        secondaryColor: colors.secondaryColor
+      }));
+      
+      alert('Cores extraídas com sucesso! As cores foram aplicadas automaticamente.');
+    } catch (error) {
+      console.error('Erro ao extrair cores:', error);
+      alert('Erro ao extrair cores. Verifique se a imagem é válida e tente novamente.');
+    } finally {
+      setIsExtractingColors(false);
+    }
+  };
+
+
 
   // Função para fazer upload da imagem do produto
   const handleProductImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -481,6 +594,9 @@ export default function Settings() {
         return;
       }
 
+      // Armazenar URL da imagem antiga para deletar depois
+      const oldProductImageUrl = productForm.image;
+
       // Fazer upload para o Firebase Storage
       const result = await uploadImage(file, 'products', 'product-image');
       
@@ -491,6 +607,20 @@ export default function Settings() {
           image: result.url
         }));
         alert(`Imagem enviada com sucesso! URL: ${result.url.substring(0, 50)}...`);
+        
+        // Deletar a imagem antiga se existir
+        if (oldProductImageUrl) {
+          try {
+            const imagePath = extractImagePathFromUrl(oldProductImageUrl);
+            if (imagePath) {
+              await deleteImage(imagePath);
+              console.log('Imagem antiga do produto deletada com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar imagem antiga do produto:', deleteError);
+            // Não mostrar erro para o usuário, pois o upload foi bem-sucedido
+          }
+        }
       } else {
         alert(`Erro ao enviar imagem: ${result.error}`);
       }
@@ -505,12 +635,8 @@ export default function Settings() {
     if (!productForm.image) return;
 
     try {
-      // Extrair o path da URL para deletar do Storage
-      const url = new URL(productForm.image);
-      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-      
-      if (pathMatch) {
-        const imagePath = decodeURIComponent(pathMatch[1]);
+      const imagePath = extractImagePathFromUrl(productForm.image);
+      if (imagePath) {
         await deleteImage(imagePath);
       }
 
@@ -847,10 +973,11 @@ export default function Settings() {
                                 {/* Imagem do Produto */}
                                 <div className="flex-shrink-0">
                                   {product.image ? (
-                                    <img 
+                                    <ProductImage 
                                       src={product.image} 
                                       alt={product.name}
-                                      className="w-12 h-12 object-cover rounded-lg border"
+                                      className="w-12 h-12"
+                                      containerClassName="w-12 h-12"
                                     />
                                   ) : (
                                     <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -1008,55 +1135,141 @@ export default function Settings() {
                   </div>
 
                   {/* Cores */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Cor Primária */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Cor Primária
-                      </label>
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="color"
-                          value={personalizationForm.primaryColor}
-                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
-                          className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={personalizationForm.primaryColor}
-                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
-                          placeholder="#92400e"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+                  <div className="space-y-6">
+                    {/* Botão de Extração Automática */}
+                    {personalizationForm.bannerUrl && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-medium text-blue-800 mb-1">
+                              🎨 Extração Automática de Cores
+                            </h4>
+                            <p className="text-xs text-blue-600">
+                              Extraia automaticamente as cores dominantes do seu banner
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleExtractColors}
+                            disabled={isExtractingColors}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-colors ${
+                              isExtractingColors
+                                ? 'bg-blue-300 text-blue-600 cursor-not-allowed'
+                                : 'bg-blue-500 text-white hover:bg-blue-600'
+                            }`}
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            <span>
+                              {isExtractingColors ? 'Extraindo...' : 'Extrair Cores'}
+                            </span>
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Cor principal para headers, botões e destaques
-                      </p>
-                    </div>
+                    )}
 
-                    {/* Cor Secundária */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Cor Secundária
-                      </label>
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="color"
-                          value={personalizationForm.secondaryColor}
-                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
-                          className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={personalizationForm.secondaryColor}
-                          onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
-                          placeholder="#fffbeb"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+                    {/* Paleta de Cores Extraídas */}
+                    {extractedColors && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-green-800 mb-3">
+                          ✨ Cores Extraídas do Banner
+                        </h4>
+                        <div className="space-y-3">
+                          {/* Paleta completa */}
+                          <div>
+                            <p className="text-xs text-green-600 mb-2">Paleta completa:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {extractedColors.palette.map((color, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center space-x-2"
+                                >
+                                  <div
+                                    className="w-6 h-6 rounded border border-gray-300"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                  <span className="text-xs font-mono text-green-700">
+                                    {color}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Cores selecionadas */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className="w-4 h-4 rounded border border-gray-300"
+                                style={{ backgroundColor: extractedColors.primaryColor }}
+                              />
+                              <span className="text-xs text-green-700">
+                                <strong>Primária:</strong> {extractedColors.primaryColor}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className="w-4 h-4 rounded border border-gray-300"
+                                style={{ backgroundColor: extractedColors.secondaryColor }}
+                              />
+                              <span className="text-xs text-green-700">
+                                <strong>Secundária:</strong> {extractedColors.secondaryColor}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Cor de fundo e elementos secundários
-                      </p>
+                    )}
+
+                    {/* Seleção Manual de Cores */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Cor Primária */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Cor Primária
+                        </label>
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="color"
+                            value={personalizationForm.primaryColor}
+                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
+                            className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={personalizationForm.primaryColor}
+                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
+                            placeholder="#92400e"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Cor principal para headers, botões e destaques
+                        </p>
+                      </div>
+
+                      {/* Cor Secundária */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Cor Secundária
+                        </label>
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="color"
+                            value={personalizationForm.secondaryColor}
+                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                            className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                          />
+                                                      <input
+                              type="text"
+                              value={personalizationForm.secondaryColor}
+                              onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                              placeholder="#fffbeb"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Cor de fundo e elementos secundários
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -1346,10 +1559,11 @@ export default function Settings() {
                     <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors">
                       {productForm.image ? (
                         <div className="relative w-full h-full">
-                          <img 
+                          <ProductImage 
                             src={productForm.image} 
                             alt="Preview"
-                            className="w-full h-full object-cover rounded-lg"
+                            className="w-full h-full"
+                            containerClassName="w-full h-full"
                           />
                           <button
                             type="button"

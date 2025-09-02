@@ -1,6 +1,7 @@
 interface Translation {
   'en-US': string;
-  // Adicionar outros idiomas aqui no futuro
+  'es-ES': string;
+  'fr-FR': string;
 }
 
 interface ProductTranslations {
@@ -31,10 +32,10 @@ export const getProductTranslation = (
     };
   }
   
-  const supportedLanguage = language as 'en-US';
+  const supportedLanguages = ['en-US', 'es-ES', 'fr-FR'];
   
   // Se não tem traduções ou idioma não suportado, retorna valores originais
-  if (!product.translations || !['en-US'].includes(supportedLanguage)) {
+  if (!product.translations || !supportedLanguages.includes(language)) {
     return {
       name: product.name,
       description: product.description
@@ -42,8 +43,8 @@ export const getProductTranslation = (
   }
   
   return {
-    name: product.translations.name?.[supportedLanguage] || product.name,
-    description: product.translations.description?.[supportedLanguage] || product.description
+    name: product.translations.name?.[language as keyof Translation] || product.name,
+    description: product.translations.description?.[language as keyof Translation] || product.description
   };
 };
 
@@ -62,12 +63,12 @@ export const getCategoryTranslation = (
     return category.name;
   }
   
-  const supportedLanguage = language as 'en-US';
+  const supportedLanguages = ['en-US', 'es-ES', 'fr-FR'];
   
   // Se não tem traduções ou idioma não suportado, retorna valor original
-  if (!category.translations || !['en-US'].includes(supportedLanguage)) {
+  if (!category.translations || !supportedLanguages.includes(language)) {
     return category.name;
   }
   
-  return category.translations.name?.[supportedLanguage] || category.name;
+  return category.translations.name?.[language as keyof Translation] || category.name;
 };
