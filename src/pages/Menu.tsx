@@ -218,9 +218,31 @@ export default function Menu() {
     alert(t('menu.orderSent', { number: mesaInfo.numero }));
   };
 
-  const filteredProducts = selectedCategory === 'todos' 
-    ? products 
-    : products.filter(product => product.category === selectedCategory);
+  // Agrupar produtos por categoria quando "Todos" estiver selecionado
+  const getGroupedProducts = () => {
+    if (selectedCategory === 'todos') {
+      // Agrupar produtos por categoria
+      const grouped = products.reduce((acc, product) => {
+        const category = product.category || 'Sem Categoria';
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(product);
+        return acc;
+      }, {} as Record<string, Product[]>);
+      
+      // Ordenar categorias alfabeticamente
+      return Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([category, products]) => ({ category, products }));
+    } else {
+      // Retornar produtos filtrados por categoria específica
+      const filtered = products.filter(product => product.category === selectedCategory);
+      return [{ category: selectedCategory, products: filtered }];
+    }
+  };
+
+  const groupedProducts = getGroupedProducts();
 
   const totalItems = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
@@ -423,7 +445,7 @@ export default function Menu() {
           <div className="text-center py-12">
             <div className="text-primary-700 text-lg">{t('menu.loadingMenu')}</div>
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : groupedProducts.length === 0 || groupedProducts.every(group => group.products.length === 0) ? (
           <div className="text-center py-12">
             <div className="text-primary-700 text-lg">
               {selectedCategory === 'todos' 
@@ -433,174 +455,191 @@ export default function Menu() {
             </div>
           </div>
         ) : (
-          <div className="space-y-4 mb-8">
-            {filteredProducts.map((product) => {
-              const expandedItem = expandedItems.find(item => item.productId === product.id);
-              const selectedItem = selectedItems.find(item => item.product.id === product.id);
-              const translatedProduct = getProductTranslation(product, i18n.language);
-              const isImageExpanded = expandedImage === product.id;
-              
-              return (
-                <div key={product.id} className="bg-white rounded-xl shadow-lg border border-secondary-200 overflow-hidden hover:shadow-xl transition-all duration-200">
-                  {/* Item Principal */}
-                  <div 
-                    className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
-                    onClick={() => handleProductClick(product)}
-                  >
-                    <div className={`flex gap-4 ${isImageExpanded ? 'flex-col' : ''}`}>
-                      {/* Imagem do Produto */}
-                      <div className={`flex-shrink-0 ${isImageExpanded ? 'w-full' : ''}`}>
+          <div className="space-y-8 mb-8">
+            {groupedProducts.map((group) => (
+              <div key={group.category} className="space-y-4">
+                {/* Cabeçalho da Categoria */}
+                <div className="border-b-2 border-primary-200 pb-2">
+                  <h2 className="text-2xl font-serif font-bold text-primary-900">
+                    {(() => {
+                      const category = categories.find(c => c.name === group.category);
+                      return category ? getCategoryTranslation(category, i18n.language) : group.category;
+                    })()}
+                  </h2>
+                </div>
+                
+                {/* Produtos da Categoria */}
+                <div className="space-y-4">
+                  {group.products.map((product) => {
+                    const expandedItem = expandedItems.find(item => item.productId === product.id);
+                    const selectedItem = selectedItems.find(item => item.product.id === product.id);
+                    const translatedProduct = getProductTranslation(product, i18n.language);
+                    const isImageExpanded = expandedImage === product.id;
+                    
+                    return (
+                      <div key={product.id} className="bg-white rounded-xl shadow-lg border border-secondary-200 overflow-hidden hover:shadow-xl transition-all duration-200">
+                        {/* Item Principal */}
                         <div 
-                          className={`${isImageExpanded ? 'w-full h-48 image-expanded' : 'w-24 h-24'} bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden image-expand-transition ${isImageExpanded ? 'cursor-pointer hover:shadow-lg transition-shadow duration-300' : ''}`}
-                          onClick={(e) => {
-                            if (isImageExpanded && product.image) {
-                              handleImageClick(e, product.image!, translatedProduct.name);
-                            }
-                          }}
+                          className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
+                          onClick={() => handleProductClick(product)}
                         >
-                          {product.image ? (
-                            <ProductImage 
-                              src={product.image} 
-                              alt={translatedProduct.name}
-                              className={`w-full h-full transition-transform duration-300 ${isImageExpanded ? 'hover:scale-105' : ''}`}
-                              containerClassName={isImageExpanded ? 'w-full h-48' : 'w-24 h-24'}
-                              onClick={(e) => {
-                                if (isImageExpanded) {
-                                  handleImageClick(e, product.image!, translatedProduct.name);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <div className="text-center text-secondary-500">
-                              <p className="text-xs">Imagem</p>
+                          <div className={`flex gap-4 ${isImageExpanded ? 'flex-col' : ''}`}>
+                            {/* Imagem do Produto */}
+                            <div className={`flex-shrink-0 ${isImageExpanded ? 'w-full' : ''}`}>
+                              <div 
+                                className={`${isImageExpanded ? 'w-full h-48 image-expanded' : 'w-24 h-24'} bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden image-expand-transition ${isImageExpanded ? 'cursor-pointer hover:shadow-lg transition-shadow duration-300' : ''}`}
+                                onClick={(e) => {
+                                  if (isImageExpanded && product.image) {
+                                    handleImageClick(e, product.image!, translatedProduct.name);
+                                  }
+                                }}
+                              >
+                                {product.image ? (
+                                  <ProductImage 
+                                    src={product.image} 
+                                    alt={translatedProduct.name}
+                                    className={`w-full h-full transition-transform duration-300 ${isImageExpanded ? 'hover:scale-105' : ''}`}
+                                    containerClassName={isImageExpanded ? 'w-full h-48' : 'w-24 h-24'}
+                                    onClick={(e) => {
+                                      if (isImageExpanded) {
+                                        handleImageClick(e, product.image!, translatedProduct.name);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="text-center text-secondary-500">
+                                    <p className="text-xs">Imagem</p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Conteúdo do Produto */}
-                      <div className={`flex-1 ${isImageExpanded ? 'mt-4' : ''}`}>
-                        <div className="flex justify-between items-start mb-3">
-                          <h3 className="text-xl font-serif font-semibold text-primary-900">
-                            {translatedProduct.name}
-                          </h3>
-                          <span className="text-lg font-bold text-primary-800 ml-4">
-                            R$ {product.price.toFixed(2)}
-                          </span>
-                        </div>
-                        <p className="text-primary-700 text-sm leading-relaxed mb-3">
-                          {translatedProduct.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-primary-600">
-                          {product.preparationTime && (
-                            <span className="flex items-center gap-1">
-                              <Clock size={12} />
-                              {product.preparationTime} {t('menu.min')}
-                            </span>
-                          )}
-                          {product.category && (
-                            <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
-                              <Tag size={12} />
-                              {(() => {
-                                const category = categories.find(c => c.name === product.category);
-                                return category ? getCategoryTranslation(category, i18n.language) : product.category;
-                              })()}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="ml-4">
-                        {expandedProduct === product.id ? (
-                          <ChevronDown size={20} className="text-primary-600" />
-                        ) : (
-                          <ChevronRight size={20} className="text-primary-600" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Seção Expandida */}
-                  {expandedProduct === product.id && expandedItem && (
-                    <div className="bg-gradient-to-r from-secondary-50 to-secondary-100 px-6 py-6 border-t-2 border-secondary-200">
-                      <div className="space-y-5">
-                        <div>
-                          <label className="block text-sm font-medium text-primary-800 mb-3">
-                            {t('menu.quantity')}
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (expandedItem.quantity > 1) {
-                                  updateExpandedItem(product.id, { quantity: expandedItem.quantity - 1 });
-                                }
-                              }}
-                              className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
-                            >
-                              <Minus size={18} />
-                            </button>
-                            <span className="text-xl font-semibold text-primary-900 min-w-[3rem] text-center">
-                              {expandedItem.quantity}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateExpandedItem(product.id, { quantity: expandedItem.quantity + 1 });
-                              }}
-                              className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
-                            >
-                              <Plus size={18} />
-                            </button>
+                            
+                            {/* Conteúdo do Produto */}
+                            <div className={`flex-1 ${isImageExpanded ? 'mt-4' : ''}`}>
+                              <div className="flex justify-between items-start mb-3">
+                                <h3 className="text-xl font-serif font-semibold text-primary-900">
+                                  {translatedProduct.name}
+                                </h3>
+                                <span className="text-lg font-bold text-primary-800 ml-4">
+                                  R$ {product.price.toFixed(2)}
+                                </span>
+                              </div>
+                              <p className="text-primary-700 text-sm leading-relaxed mb-3">
+                                {translatedProduct.description}
+                              </p>
+                              <div className="flex items-center gap-4 text-xs text-primary-600">
+                                {product.preparationTime !== undefined && product.preparationTime !== null && product.preparationTime > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock size={12} />
+                                    {product.preparationTime} {t('menu.min')}
+                                  </span>
+                                )}
+                                {product.category && (
+                                  <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
+                                    <Tag size={12} />
+                                    {(() => {
+                                      const category = categories.find(c => c.name === product.category);
+                                      return category ? getCategoryTranslation(category, i18n.language) : product.category;
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="ml-4">
+                              {expandedProduct === product.id ? (
+                                <ChevronDown size={20} className="text-primary-600" />
+                              ) : (
+                                <ChevronRight size={20} className="text-primary-600" />
+                              )}
+                            </div>
                           </div>
                         </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-primary-800 mb-3">
-                            {t('menu.observations')}
-                          </label>
-                          <textarea
-                            placeholder={t('menu.observationsPlaceholder')}
-                            value={expandedItem.observations}
-                            onChange={(e) => {
-                              updateExpandedItem(product.id, { observations: e.target.value });
-                            }}
-                            className="w-full p-4 border-2 border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none shadow-sm"
-                            rows={3}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
 
-                        <div className="flex gap-4 pt-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddToOrder(product);
-                            }}
-                            className="flex-1 bg-primary-800 text-primary-100 py-3 px-6 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                          >
-                            <Plus size={18} />
-                            {t('menu.addToOrder')}
-                          </button>
-                          {selectedItem && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveFromOrder(product.id);
-                              }}
-                              className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg"
-                            >
-                              <X size={18} />
-                              {t('menu.remove')}
-                            </button>
-                          )}
-                        </div>
+                        {/* Seção Expandida */}
+                        {expandedProduct === product.id && expandedItem && (
+                          <div className="bg-gradient-to-r from-secondary-50 to-secondary-100 px-6 py-6 border-t-2 border-secondary-200">
+                            <div className="space-y-5">
+                              <div>
+                                <label className="block text-sm font-medium text-primary-800 mb-3">
+                                  {t('menu.quantity')}
+                                </label>
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (expandedItem.quantity > 1) {
+                                        updateExpandedItem(product.id, { quantity: expandedItem.quantity - 1 });
+                                      }
+                                    }}
+                                    className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
+                                  >
+                                    <Minus size={18} />
+                                  </button>
+                                  <span className="text-xl font-semibold text-primary-900 min-w-[3rem] text-center">
+                                    {expandedItem.quantity}
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateExpandedItem(product.id, { quantity: expandedItem.quantity + 1 });
+                                    }}
+                                    className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
+                                  >
+                                    <Plus size={18} />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-sm font-medium text-primary-800 mb-3">
+                                  {t('menu.observations')}
+                                </label>
+                                <textarea
+                                  placeholder={t('menu.observationsPlaceholder')}
+                                  value={expandedItem.observations}
+                                  onChange={(e) => {
+                                    updateExpandedItem(product.id, { observations: e.target.value });
+                                  }}
+                                  className="w-full p-4 border-2 border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none shadow-sm"
+                                  rows={3}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+
+                              <div className="flex gap-4 pt-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddToOrder(product);
+                                  }}
+                                  className="flex-1 bg-primary-800 text-primary-100 py-3 px-6 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                                >
+                                  <Plus size={18} />
+                                  {t('menu.addToOrder')}
+                                </button>
+                                {selectedItem && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveFromOrder(product.id);
+                                    }}
+                                    className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg"
+                                  >
+                                    <X size={18} />
+                                    {t('menu.remove')}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
 
