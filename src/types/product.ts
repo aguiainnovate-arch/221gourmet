@@ -12,9 +12,7 @@ export interface Product {
   category: string;
   available: boolean;
   image?: string;
-  allergens?: string[];
   preparationTime?: number; // em minutos
-  tags?: string[];
   // Traduções
   translations?: {
     name?: Translation;

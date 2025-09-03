@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
 import { useSettings } from '../contexts/SettingsContext';
 import { testAllCollections } from '../services/firestoreTest';
 import { uploadImage, deleteImage } from '../services/storageService';
+import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
@@ -64,9 +65,7 @@ export default function Settings() {
     category: '',
     preparationTime: '',
     available: true,
-    image: '',
-    allergens: [] as string[],
-    tags: [] as string[]
+    image: ''
   });
   
   // Estados para traduções
@@ -84,6 +83,18 @@ export default function Settings() {
     url: '',
     numero: ''
   });
+
+  // Estados para importação CSV
+  const [showCSVModal, setShowCSVModal] = useState(false);
+  const [csvContent, setCsvContent] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    message: string;
+    importedProducts: number;
+    createdCategories: number;
+    errors: string[];
+  } | null>(null);
 
   // Função utilitária para extrair o path da URL do Firebase Storage
   // Esta função é usada para deletar imagens antigas quando são substituídas
@@ -283,9 +294,7 @@ export default function Settings() {
         category: product.category,
         preparationTime: product.preparationTime?.toString() || '',
         available: product.available,
-        image: product.image || '',
-        allergens: product.allergens || [],
-        tags: product.tags || []
+        image: product.image || ''
       });
       setProductTranslations(product.translations || {});
     } else {
@@ -297,9 +306,7 @@ export default function Settings() {
         category: '',
         preparationTime: '',
         available: true,
-        image: '',
-        allergens: [],
-        tags: []
+        image: ''
       });
       setProductTranslations({});
     }
@@ -321,8 +328,7 @@ export default function Settings() {
         preparationTime: productForm.preparationTime.trim() ? parseInt(productForm.preparationTime) : undefined,
         available: productForm.available,
         image: productForm.image,
-        allergens: productForm.allergens,
-        tags: productForm.tags,
+
         translations: Object.keys(productTranslations).length > 0 ? productTranslations : undefined
       };
 
@@ -572,6 +578,73 @@ export default function Settings() {
     } finally {
       setIsExtractingColors(false);
     }
+  };
+
+  // Funções para importação CSV
+  const handleCSVFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert('Por favor, selecione um arquivo CSV válido.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setCsvContent(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportCSV = async () => {
+    if (!csvContent.trim()) {
+      alert('Por favor, cole ou faça upload do conteúdo CSV.');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await importProductsFromCSV(csvContent);
+      setImportResult(result);
+      
+      if (result.success) {
+        // Recarregar produtos e categorias
+        await loadProducts();
+      }
+    } catch (error) {
+      setImportResult({
+        success: false,
+        message: `Erro inesperado: ${error}`,
+        importedProducts: 0,
+        createdCategories: 0,
+        errors: [`Erro inesperado: ${error}`]
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    const template = generateCSVTemplate();
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'template-produtos.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const resetCSVModal = () => {
+    setCsvContent('');
+    setImportResult(null);
+    setShowCSVModal(false);
   };
 
 
@@ -860,13 +933,22 @@ export default function Settings() {
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Gerenciar Cardápio</h2>
-                <button
-                  onClick={() => openProductModal()}
-                  className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Adicionar Produto</span>
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setShowCSVModal(true)}
+                    className="bg-blue-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-blue-600"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Importar CSV</span>
+                  </button>
+                  <button
+                    onClick={() => openProductModal()}
+                    className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar Produto</span>
+                  </button>
+                </div>
               </div>
 
               {/* Filtros */}
@@ -1774,6 +1856,136 @@ export default function Settings() {
                   className="bg-gray-500 text-white px-4 py-2 rounded"
                 >
                   Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Importação CSV */}
+      {showCSVModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">Importar Produtos via CSV</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Faça upload de um arquivo CSV ou cole o conteúdo diretamente
+                </p>
+              </div>
+              <button
+                onClick={resetCSVModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Informações sobre a estrutura do CSV */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">
+                  📋 Estrutura do CSV
+                </h4>
+                <div className="text-sm text-blue-700 space-y-1">
+                  <p><strong>Campos obrigatórios:</strong> name, description, price, category</p>
+                  <p><strong>Campos opcionais:</strong> preparationTime, available, traduções</p>
+                  <p><strong>Formato:</strong> Use vírgulas para separar campos, aspas para valores com vírgulas</p>
+                </div>
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="mt-3 bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-blue-600"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Baixar Template</span>
+                </button>
+              </div>
+
+              {/* Upload de arquivo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload de Arquivo CSV
+                </label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCSVFileUpload}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Editor de texto */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ou cole o conteúdo CSV aqui
+                </label>
+                <textarea
+                  value={csvContent}
+                  onChange={(e) => setCsvContent(e.target.value)}
+                  placeholder="Cole aqui o conteúdo do CSV..."
+                  rows={10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+              </div>
+
+              {/* Resultado da importação */}
+              {importResult && (
+                <div className={`border rounded-lg p-4 ${
+                  importResult.success 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <h4 className={`text-sm font-medium mb-2 ${
+                    importResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {importResult.success ? '✅ Importação Concluída' : '❌ Erro na Importação'}
+                  </h4>
+                  <p className={`text-sm ${
+                    importResult.success ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {importResult.message}
+                  </p>
+                  
+                  {importResult.success && (
+                    <div className="mt-2 text-sm text-green-700">
+                      <p>• Produtos importados: {importResult.importedProducts}</p>
+                      <p>• Categorias criadas: {importResult.createdCategories}</p>
+                    </div>
+                  )}
+                  
+                  {importResult.errors.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-sm font-medium text-red-800 mb-1">Erros encontrados:</p>
+                      <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
+                        {importResult.errors.map((error, index) => (
+                          <li key={index} className="text-xs">• {error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Botões de ação */}
+              <div className="flex space-x-2 justify-end">
+                <button
+                  onClick={resetCSVModal}
+                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleImportCSV}
+                  disabled={!csvContent.trim() || isImporting}
+                  className={`px-4 py-2 rounded flex items-center space-x-2 ${
+                    csvContent.trim() && !isImporting
+                      ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>{isImporting ? 'Importando...' : 'Importar Produtos'}</span>
                 </button>
               </div>
             </div>

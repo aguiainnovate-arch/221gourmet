@@ -1,0 +1,5 @@
+name,description,price,category,preparationTime,available,name_en,name_es,name_fr,description_en,description_es,description_fr
+Hambúrguer Clássico,Hambúrguer artesanal com queijo alface e tomate,25.90,Lanches,15,true,Classic Burger,Hamburguesa Clásica,Burger Classique,"Artisanal burger with cheese lettuce and tomato","Hamburguesa artesanal con queso lechuga y tomate","Burger artisanale avec fromage laitue et tomate"
+X-Bacon,X-Bacon com bacon crocante e queijo derretido,32.50,Lanches,20,true,X-Bacon,X-Bacon,X-Bacon,"X-Bacon with crispy bacon and melted cheese","X-Bacon con tocino crujiente y queso derretido","X-Bacon avec bacon croustillant et fromage fondu"
+Refrigerante Cola,Refrigerante cola 350ml,8.90,Bebidas,2,true,Cola Soda,Refresco de Cola,Soda Cola,"Cola soda 350ml","Refresco de cola 350ml","Soda cola 350ml"
+Batata Frita,Batata frita crocante porção individual,12.50,Acompanhamentos,8,true,French Fries,Papas Fritas,Frites,"Crispy french fries individual portion","Papas fritas crujientes porción individual","Frites croustillantes portion individuelle"
