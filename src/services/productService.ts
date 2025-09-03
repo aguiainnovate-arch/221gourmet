@@ -22,11 +22,13 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
       category: product.category,
       available: product.available,
       image: product.image || '',
-      allergens: product.allergens || [],
-      preparationTime: product.preparationTime,
-      tags: product.tags || [],
       createdAt: new Date()
     };
+
+    // Adicionar preparationTime apenas se não for undefined
+    if (product.preparationTime !== undefined) {
+      productData.preparationTime = product.preparationTime;
+    }
     
     if (product.translations) {
       productData.translations = product.translations;
@@ -39,7 +41,8 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
       ...product
     };
   } catch (error) {
-    throw new Error('Falha ao adicionar produto');
+    console.error('Erro detalhado ao adicionar produto:', error);
+    throw new Error(`Falha ao adicionar produto: ${error}`);
   }
 };
 
@@ -61,9 +64,7 @@ export const getProducts = async (): Promise<Product[]> => {
         category: data.category,
         available: data.available,
         image: data.image || '',
-        allergens: data.allergens || [],
         preparationTime: data.preparationTime,
-        tags: data.tags || [],
         translations: data.translations
       });
     });
@@ -102,9 +103,7 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
         category: data.category,
         available: data.available,
         image: data.image || '',
-        allergens: data.allergens || [],
         preparationTime: data.preparationTime,
-        tags: data.tags || [],
         translations: data.translations
       });
     });

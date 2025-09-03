@@ -1,0 +1,2 @@
+name,description,price,category,preparationTime,available,name_en,name_es,name_fr,description_en,description_es,description_fr
+Teste Produto,Produto de teste para verificar importação,15.50,Teste,10,true,Test Product,Producto de Prueba,Produit de Test,"Test product to verify import","Producto de prueba para verificar importación","Produit de test pour vérifier l'importation"
