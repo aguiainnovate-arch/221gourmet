@@ -16,6 +16,7 @@ import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import ProductImage from '../components/ProductImage';
+import MenuPreview from '../components/MenuPreview';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
@@ -1416,76 +1417,18 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Prévia do Cardápio
                     </label>
-                    <div 
-                      className="border rounded-lg p-0 overflow-hidden"
-                      style={{ backgroundColor: personalizationForm.secondaryColor }}
-                    >
-                      {/* Banner */}
-                      {personalizationForm.bannerUrl && (
-                        <div className="w-full h-20 overflow-hidden">
-                          <img 
-                            src={personalizationForm.bannerUrl} 
-                            alt="Banner" 
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      
-                      {/* Header */}
-                      <div 
-                        className="text-white p-4 text-center font-serif text-xl font-bold"
-                        style={{ backgroundColor: personalizationForm.primaryColor }}
-                      >
-                        {personalizationForm.restaurantName || 'Nome do Restaurante'}
-                      </div>
-                      
-                      {/* Categorias */}
-                      <div className="p-4">
-                        <div className="flex gap-2 mb-4">
-                          <span 
-                            className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                            style={{ backgroundColor: personalizationForm.primaryColor }}
-                          >
-                            Lanches
-                          </span>
-                          <span 
-                            className="px-3 py-1 rounded-full text-sm font-medium"
-                            style={{ 
-                              backgroundColor: `${personalizationForm.secondaryColor}dd`,
-                              color: personalizationForm.primaryColor 
-                            }}
-                          >
-                            Bebidas
-                          </span>
-                        </div>
-                        
-                        {/* Produto */}
-                        <div className="bg-white p-3 rounded border-l-4" style={{ borderLeftColor: personalizationForm.primaryColor }}>
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium" style={{ color: personalizationForm.primaryColor }}>
-                              X-Burger Especial
-                            </span>
-                            <span className="font-bold" style={{ color: personalizationForm.primaryColor }}>
-                              R$ 25,90
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Hambúrguer artesanal com queijo, alface e tomate
-                          </p>
-                          <div className="mt-2">
-                            <span 
-                              className="text-xs px-2 py-1 rounded-full" 
-                              style={{ 
-                                backgroundColor: `${personalizationForm.secondaryColor}aa`,
-                                color: personalizationForm.primaryColor 
-                              }}
-                            >
-                              15 min
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="max-h-[500px] overflow-y-auto bg-gray-100 p-4 rounded-lg">
+                      <MenuPreview
+                        restaurantName={personalizationForm.restaurantName || 'Nome do Restaurante'}
+                        primaryColor={personalizationForm.primaryColor || '#1e3a8a'}
+                        secondaryColor={personalizationForm.secondaryColor || '#f3f4f6'}
+                        bannerUrl={personalizationForm.bannerUrl}
+                        className="shadow-xl"
+                      />
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      📱 Esta é uma prévia em tamanho mobile de como o cardápio aparecerá para os clientes. As personalizações de cor e banner são aplicadas em tempo real.
+                    </p>
                   </div>
                 </div>
               </div>
