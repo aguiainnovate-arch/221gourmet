@@ -13,6 +13,7 @@ export interface RestaurantSettings {
   primaryColor: string;
   secondaryColor: string;
   bannerUrl?: string;
+  audioUrl?: string;
   updatedAt: Date;
 }
 
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS: Omit<RestaurantSettings, 'id' | 'updatedAt'> = {
   primaryColor: '#92400e', // amber-800
   secondaryColor: '#fffbeb', // amber-50
   bannerUrl: '',
+  audioUrl: '',
 };
 
 // Buscar configurações do restaurante
@@ -40,6 +42,7 @@ export const getRestaurantSettings = async (): Promise<RestaurantSettings> => {
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
         bannerUrl: data.bannerUrl || '',
+        audioUrl: data.audioUrl || '',
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
       };
     } else {
@@ -110,6 +113,7 @@ export const subscribeToSettings = (
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
         bannerUrl: data.bannerUrl || '',
+        audioUrl: data.audioUrl || '',
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
       });
     } else {

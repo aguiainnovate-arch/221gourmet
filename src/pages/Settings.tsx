@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2 } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
 import { useSettings } from '../contexts/SettingsContext';
 import { testAllCollections } from '../services/firestoreTest';
-import { uploadImage, deleteImage } from '../services/storageService';
+import { uploadImage, deleteImage, uploadAudio, deleteAudio } from '../services/storageService';
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
@@ -47,7 +47,8 @@ export default function Settings() {
     restaurantName: '',
     primaryColor: '',
     secondaryColor: '',
-    bannerUrl: ''
+    bannerUrl: '',
+    audioUrl: ''
   });
   
   // Estados para extração de cores
@@ -169,7 +170,8 @@ export default function Settings() {
         restaurantName: settings.restaurantName,
         primaryColor: settings.primaryColor,
         secondaryColor: settings.secondaryColor,
-        bannerUrl: settings.bannerUrl || ''
+        bannerUrl: settings.bannerUrl || '',
+        audioUrl: settings.audioUrl || ''
       });
     }
   }, [settings]);
@@ -553,6 +555,82 @@ export default function Settings() {
     }
   };
 
+  // Função para fazer upload do áudio
+  const handleAudioUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Validar tipo de arquivo
+      if (file.type !== 'audio/mpeg' && file.type !== 'audio/mp3') {
+        alert('Por favor, selecione apenas arquivos MP3');
+        return;
+      }
+
+      // Validar tamanho (máximo 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Arquivo muito grande. Máximo 10MB permitido.');
+        return;
+      }
+
+      // Armazenar URL do áudio antigo para deletar depois
+      const oldAudioUrl = personalizationForm.audioUrl;
+
+      // Fazer upload para o Firebase Storage
+      const result = await uploadAudio(file, 'audio', 'restaurant-audio');
+      
+      if (result.success) {
+        // Atualizar o formulário com a nova URL
+        setPersonalizationForm(prev => ({
+          ...prev,
+          audioUrl: result.url
+        }));
+        alert(`Áudio enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
+        
+        // Deletar o áudio antigo se existir
+        if (oldAudioUrl) {
+          try {
+            const audioPath = extractImagePathFromUrl(oldAudioUrl);
+            if (audioPath) {
+              await deleteAudio(audioPath);
+              console.log('Áudio antigo deletado com sucesso');
+            }
+          } catch (deleteError) {
+            console.warn('Erro ao deletar áudio antigo:', deleteError);
+          }
+        }
+      } else {
+        alert(`Erro ao enviar áudio: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Erro no upload do áudio:', error);
+      alert('Erro ao enviar áudio. Tente novamente.');
+    }
+  };
+
+  // Função para remover o áudio
+  const handleAudioRemove = async () => {
+    if (!personalizationForm.audioUrl) return;
+
+    try {
+      const audioPath = extractImagePathFromUrl(personalizationForm.audioUrl);
+      if (audioPath) {
+        await deleteAudio(audioPath);
+      }
+
+      // Limpar o formulário
+      setPersonalizationForm(prev => ({
+        ...prev,
+        audioUrl: ''
+      }));
+      
+      alert('Áudio removido com sucesso!');
+    } catch (error) {
+      console.error('Erro ao remover áudio:', error);
+      alert('Erro ao remover áudio. Tente novamente.');
+    }
+  };
+
   // Função para extrair cores do banner
   const handleExtractColors = async () => {
     if (!personalizationForm.bannerUrl) {
@@ -738,7 +816,8 @@ export default function Settings() {
         restaurantName: personalizationForm.restaurantName.trim(),
         primaryColor: personalizationForm.primaryColor,
         secondaryColor: personalizationForm.secondaryColor,
-        bannerUrl: personalizationForm.bannerUrl
+        bannerUrl: personalizationForm.bannerUrl,
+        audioUrl: personalizationForm.audioUrl
       });
       alert('Configurações salvas com sucesso!');
     } catch (error) {
@@ -1408,6 +1487,74 @@ export default function Settings() {
                       </div>
                       <p className="text-sm text-gray-500">
                         O banner aparecerá no topo do cardápio dos clientes
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Áudio do Restaurante */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Áudio de Boas-vindas
+                    </label>
+                    <div className="space-y-4">
+                      {/* Áudio atual */}
+                      {personalizationForm.audioUrl && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <Music className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">Áudio de Boas-vindas</p>
+                                <p className="text-xs text-gray-500">Arquivo MP3 carregado</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <audio controls className="h-8">
+                                <source src={personalizationForm.audioUrl} type="audio/mpeg" />
+                                Seu navegador não suporta o elemento de áudio.
+                              </audio>
+                              <button
+                                onClick={handleAudioRemove}
+                                className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
+                                title="Remover áudio"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Upload de novo áudio */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                        <input
+                          type="file"
+                          accept="audio/mpeg,audio/mp3"
+                          onChange={handleAudioUpload}
+                          className="hidden"
+                          id="audio-upload"
+                        />
+                        <label 
+                          htmlFor="audio-upload"
+                          className="cursor-pointer flex flex-col items-center space-y-2"
+                        >
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                            <Volume2 className="w-6 h-6 text-gray-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">
+                              {personalizationForm.audioUrl ? 'Alterar Áudio' : 'Adicionar Áudio'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Clique para selecionar um arquivo MP3 (máx. 10MB)
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        Este áudio será reproduzido automaticamente quando o cliente escanear o QR code
                       </p>
                     </div>
                   </div>

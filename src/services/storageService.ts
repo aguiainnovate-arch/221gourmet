@@ -163,3 +163,73 @@ export const getImagePreviewUrl = async (imagePath: string): Promise<string> => 
     return '';
   }
 };
+
+/**
+ * Faz upload de um arquivo de áudio para o Firebase Storage
+ * @param file - Arquivo de áudio para upload
+ * @param folder - Pasta onde salvar (ex: 'audio', 'sounds')
+ * @param fileName - Nome personalizado do arquivo (opcional)
+ */
+export const uploadAudio = async (
+  file: File, 
+  folder: string, 
+  fileName?: string
+): Promise<UploadResult> => {
+  try {
+    // Validar tipo de arquivo (aceitar apenas MP3)
+    if (file.type !== 'audio/mpeg' && file.type !== 'audio/mp3') {
+      throw new Error('Arquivo deve ser um MP3');
+    }
+
+    // Validar tamanho (máximo 10MB para áudio)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new Error('Arquivo muito grande. Máximo 10MB permitido.');
+    }
+
+    // Gerar nome único para o arquivo
+    const timestamp = Date.now();
+    const fileExtension = file.name.split('.').pop();
+    const finalFileName = fileName 
+      ? `${fileName}_${timestamp}.${fileExtension}`
+      : `${timestamp}_${file.name}`;
+
+    // Criar referência no Storage
+    const storageRef = ref(storage, `${folder}/${finalFileName}`);
+
+    // Fazer upload
+    const snapshot = await uploadBytes(storageRef, file);
+    
+    // Obter URL de download
+    const downloadURL = await getDownloadURL(snapshot.ref);
+
+    return {
+      url: downloadURL,
+      path: snapshot.ref.fullPath,
+      success: true
+    };
+  } catch (error) {
+    console.error('Erro no upload do áudio:', error);
+    return {
+      url: '',
+      path: '',
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido no upload'
+    };
+  }
+};
+
+/**
+ * Remove um arquivo de áudio do Firebase Storage
+ * @param audioPath - Caminho do áudio no Storage
+ */
+export const deleteAudio = async (audioPath: string): Promise<boolean> => {
+  try {
+    const audioRef = ref(storage, audioPath);
+    await deleteObject(audioRef);
+    return true;
+  } catch (error) {
+    console.error('Erro ao deletar áudio:', error);
+    return false;
+  }
+};
