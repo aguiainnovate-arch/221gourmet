@@ -9,6 +9,7 @@ import { getCategories } from '../services/categoryService';
 import { applyCustomColors } from '../utils/colorUtils';
 import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
 import LanguageSelector from '../components/LanguageSelector';
+import LoadingAnimation from '../components/LoadingAnimation';
 import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
@@ -49,6 +50,7 @@ export default function Menu() {
   });
   const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [showLoadingAnimation, setShowLoadingAnimation] = useState(true);
 
   useEffect(() => {
     const carregarMesaInfo = async () => {
@@ -98,6 +100,134 @@ export default function Menu() {
       applyCustomColors(settings.primaryColor, settings.secondaryColor);
     }
   }, [settings]);
+
+  // Reproduzir áudio de boas-vindas e controlar animação
+  useEffect(() => {
+    if (settings?.audioUrl && mesaInfo && showLoadingAnimation) {
+      // Criar um botão invisível para simular interação do usuário
+      const createInvisibleButton = () => {
+        const button = document.createElement('button');
+        button.style.position = 'fixed';
+        button.style.top = '0';
+        button.style.left = '0';
+        button.style.width = '1px';
+        button.style.height = '1px';
+        button.style.opacity = '0';
+        button.style.pointerEvents = 'none';
+        button.style.zIndex = '-1';
+        document.body.appendChild(button);
+        return button;
+      };
+
+      // Aguardar um pouco para garantir que a página carregou completamente
+      const timer = setTimeout(() => {
+        try {
+          const audio = new Audio(settings.audioUrl);
+          audio.volume = 0.7; // Volume moderado
+          audio.preload = 'auto';
+          
+          // Estratégias para contornar bloqueio de autoplay
+          const playAudio = async () => {
+            try {
+              // Tentativa 1: Reprodução direta
+              await audio.play();
+              console.log('Áudio reproduzido com sucesso (tentativa 1)');
+              return true;
+            } catch (error) {
+              console.warn('Tentativa 1 falhou:', error);
+              
+              try {
+                // Tentativa 2: Aguardar um pouco e tentar novamente
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await audio.play();
+                console.log('Áudio reproduzido com sucesso (tentativa 2)');
+                return true;
+              } catch (error2) {
+                console.warn('Tentativa 2 falhou:', error2);
+                
+                try {
+                  // Tentativa 3: Simular interação do usuário com botão invisível
+                  const invisibleButton = createInvisibleButton();
+                  invisibleButton.click();
+                  
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  await audio.play();
+                  console.log('Áudio reproduzido com sucesso (tentativa 3)');
+                  
+                  // Remover botão invisível
+                  document.body.removeChild(invisibleButton);
+                  return true;
+                } catch (error3) {
+                  console.warn('Tentativa 3 falhou:', error3);
+                  
+                  try {
+                    // Tentativa 4: Usar Web Audio API
+                    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    const response = await fetch(settings.audioUrl!);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioContext.destination);
+                    source.start();
+                    console.log('Áudio reproduzido com sucesso (Web Audio API)');
+                    return true;
+                  } catch (error4) {
+                    console.warn('Tentativa 4 falhou:', error4);
+                    
+                    try {
+                      // Tentativa 5: Aguardar mais tempo e tentar novamente
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      await audio.play();
+                      console.log('Áudio reproduzido com sucesso (tentativa 5)');
+                      return true;
+                    } catch (error5) {
+                      console.warn('Todas as tentativas falharam:', error5);
+                      return false;
+                    }
+                  }
+                }
+              }
+            }
+          };
+          
+          // Executar estratégias de reprodução
+          playAudio().then(success => {
+            if (!success) {
+              // Se todas as tentativas falharam, esconder animação após tempo padrão
+              setTimeout(() => {
+                setShowLoadingAnimation(false);
+              }, 5500);
+            }
+          });
+          
+          // Quando o áudio terminar, esconder a animação
+          audio.addEventListener('ended', () => {
+            setTimeout(() => {
+              setShowLoadingAnimation(false);
+            }, 500); // Pequeno delay para transição suave
+          });
+          
+        } catch (error) {
+          console.warn('Erro ao criar elemento de áudio:', error);
+          // Se houver erro, esconder animação após tempo padrão
+          setTimeout(() => {
+            setShowLoadingAnimation(false);
+          }, 5500);
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    } else if (!settings?.audioUrl && mesaInfo) {
+      // Se não há áudio, esconder animação após tempo menor
+      const timer = setTimeout(() => {
+        setShowLoadingAnimation(false);
+      }, 3000); // 3 segundos sem áudio
+      
+      return () => clearTimeout(timer);
+    }
+  }, [settings?.audioUrl, mesaInfo, showLoadingAnimation]);
+
 
   // Atualizar título da aba do navegador
   useEffect(() => {
@@ -247,6 +377,10 @@ export default function Menu() {
   const totalItems = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
 
+  const handleAnimationComplete = () => {
+    setShowLoadingAnimation(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
@@ -260,6 +394,20 @@ export default function Menu() {
       <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
         <div className="text-xl text-red-600">{t('menu.tableNotFound')}</div>
       </div>
+    );
+  }
+
+  // Mostrar animação de carregamento se necessário
+  if (showLoadingAnimation && settings) {
+    return (
+      <LoadingAnimation
+        restaurantName={settings.restaurantName}
+        bannerUrl={settings.bannerUrl}
+        primaryColor={settings.primaryColor}
+        secondaryColor={settings.secondaryColor}
+        audioUrl={settings.audioUrl}
+        onAnimationComplete={handleAnimationComplete}
+      />
     );
   }
 
@@ -376,7 +524,7 @@ export default function Menu() {
 
   // Tela Normal do Menu
   return (
-    <div className="min-h-screen bg-secondary-50">
+    <div className="min-h-screen bg-secondary-50 animate-fadeInUp">
       {/* Header */}
       <div className="bg-primary-900 text-primary-100 py-6 px-4">
         <div className="max-w-4xl mx-auto">
