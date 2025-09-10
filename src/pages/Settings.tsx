@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2 } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { testAllCollections } from '../services/firestoreTest';
 import { uploadImage, deleteImage, uploadAudio, deleteAudio } from '../services/storageService';
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
+import { getStatistics, type GeneralStats } from '../services/statisticsService';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
@@ -58,6 +59,11 @@ export default function Settings() {
     palette: string[];
   } | null>(null);
   const [isExtractingColors, setIsExtractingColors] = useState(false);
+  
+  // Estados para relatórios
+  const [statistics, setStatistics] = useState<GeneralStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('week');
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -130,9 +136,9 @@ export default function Settings() {
   // Atualizar título da aba do navegador
   useEffect(() => {
     if (settings?.restaurantName) {
-      document.title = `${settings.restaurantName} - Configurações`;
+      document.title = `${settings.restaurantName} - Gerenciamento`;
     } else {
-      document.title = '221 Gourmet - Configurações';
+      document.title = '221 Gourmet - Gerenciamento';
     }
   }, [settings?.restaurantName]);
 
@@ -860,6 +866,54 @@ export default function Settings() {
     return true;
   });
 
+  // Função para carregar estatísticas
+  const loadStatistics = async () => {
+    setLoadingStats(true);
+    try {
+      let period;
+      const now = new Date();
+      
+      switch (selectedPeriod) {
+        case 'today':
+          period = {
+            start: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+            end: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+          };
+          break;
+        case 'week':
+          period = {
+            start: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+            end: now
+          };
+          break;
+        case 'month':
+          period = {
+            start: new Date(now.getFullYear(), now.getMonth(), 1),
+            end: new Date(now.getFullYear(), now.getMonth() + 1, 0)
+          };
+          break;
+        case 'all':
+        default:
+          period = undefined;
+          break;
+      }
+      
+      const stats = await getStatistics(period);
+      setStatistics(stats);
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // Carregar estatísticas quando a aba for selecionada ou período mudado
+  useEffect(() => {
+    if (activeTab === 'relatorios') {
+      loadStatistics();
+    }
+  }, [activeTab, selectedPeriod]);
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -867,7 +921,7 @@ export default function Settings() {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <SettingsIcon className="w-8 h-8 text-gray-600" />
-            <h1 className="text-3xl font-bold">Configurações</h1>
+            <h1 className="text-3xl font-bold">Gerenciamento</h1>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -926,6 +980,17 @@ export default function Settings() {
               >
                 <Palette className="w-5 h-5" />
                 <span>Personalização</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('relatorios')}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
+                  activeTab === 'relatorios' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span>Relatórios</span>
               </button>
             </nav>
           </div>
@@ -1582,6 +1647,207 @@ export default function Settings() {
             </div>
           )}
 
+          {activeTab === 'relatorios' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Relatórios</h2>
+                <div className="flex items-center space-x-3">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value as 'today' | 'week' | 'month' | 'all')}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="today">Hoje</option>
+                    <option value="week">Última Semana</option>
+                    <option value="month">Este Mês</option>
+                    <option value="all">Todos os Períodos</option>
+                  </select>
+                  <button
+                    onClick={loadStatistics}
+                    disabled={loadingStats}
+                    className="bg-blue-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-blue-600 disabled:bg-blue-300"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    <span>{loadingStats ? 'Carregando...' : 'Atualizar'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {loadingStats ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Carregando estatísticas...</p>
+                </div>
+              ) : statistics ? (
+                <div className="space-y-6">
+                  {/* Cartões de Resumo */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Users className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total de Pedidos</p>
+                          <p className="text-2xl font-bold text-gray-900">{statistics.totalOrders}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                          <TrendingUp className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Receita Total</p>
+                          <p className="text-2xl font-bold text-gray-900">R$ {statistics.totalRevenue.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                          <Calendar className="w-6 h-6 text-yellow-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Pedidos Hoje</p>
+                          <p className="text-2xl font-bold text-gray-900">{statistics.ordersToday}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                          <BarChart3 className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Ticket Médio</p>
+                          <p className="text-2xl font-bold text-gray-900">R$ {statistics.averageOrderValue.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Produtos Mais Pedidos */}
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Top 10 Produtos Mais Pedidos</h3>
+                    </div>
+                    <div className="p-6">
+                      {statistics.topProducts.length > 0 ? (
+                        <div className="space-y-4">
+                          {statistics.topProducts.map((product, index) => (
+                            <div key={product.productId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{product.productName}</p>
+                                  <p className="text-sm text-gray-600">{product.categoryName}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-gray-900">{product.totalOrders} pedidos</p>
+                                <p className="text-sm text-gray-600">
+                                  {product.totalQuantity} itens • R$ {product.totalRevenue.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-center py-8">Nenhum produto encontrado no período selecionado</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Categorias Mais Populares */}
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Categorias Mais Populares</h3>
+                    </div>
+                    <div className="p-6">
+                      {statistics.topCategories.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {statistics.topCategories.map((category, index) => (
+                            <div key={category.categoryId} className="p-4 border border-gray-200 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-gray-900">{category.categoryName}</h4>
+                                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                                  #{index + 1}
+                                </span>
+                              </div>
+                              <div className="space-y-1 text-sm text-gray-600">
+                                <p>{category.totalOrders} pedidos</p>
+                                <p>{category.totalQuantity} itens vendidos</p>
+                                <p className="font-semibold text-green-600">R$ {category.totalRevenue.toFixed(2)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-center py-8">Nenhuma categoria encontrada no período selecionado</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Vendas por Dia */}
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Vendas dos Últimos 7 Dias</h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="space-y-3">
+                        {statistics.ordersByDay.map((day, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                            <div>
+                              <p className="font-medium text-gray-900">{day.date}</p>
+                              <p className="text-sm text-gray-600">{day.count} pedidos</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-green-600">R$ {day.revenue.toFixed(2)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vendas por Hora (Hoje) */}
+                  {selectedPeriod === 'today' && (
+                    <div className="bg-white rounded-lg shadow">
+                      <div className="p-6 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900">Pedidos por Hora (Hoje)</h3>
+                      </div>
+                      <div className="p-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                          {statistics.ordersByHour.filter(hour => hour.count > 0).map((hour, index) => (
+                            <div key={index} className="text-center p-3 border border-gray-200 rounded-lg">
+                              <p className="text-sm font-medium text-gray-900">{hour.hour}</p>
+                              <p className="text-lg font-bold text-blue-600">{hour.count}</p>
+                            </div>
+                          ))}
+                        </div>
+                        {statistics.ordersByHour.filter(hour => hour.count > 0).length === 0 && (
+                          <p className="text-gray-500 text-center py-8">Nenhum pedido hoje</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Clique em "Atualizar" para carregar as estatísticas</p>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -2082,6 +2348,7 @@ export default function Settings() {
           </div>
         </div>
       )}
+
     </div>
   );
 } 

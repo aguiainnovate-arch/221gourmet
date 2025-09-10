@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { addOrder as addOrderToFirestore, getOrders as getOrdersFromFirestore, updateOrderStatus as updateOrderStatusInFirestore, deleteOrder as deleteOrderFromFirestore } from '../services/orderService';
+import type { OrderItem } from '../services/statisticsService';
 
 export interface Order {
   id: string;
@@ -14,7 +15,7 @@ export interface Order {
 
 interface OrderContextType {
   orders: Order[];
-  addOrder: (order: Omit<Order, 'id'>) => Promise<void>;
+  addOrder: (order: Omit<Order, 'id'>, detailedItems?: OrderItem[]) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   refreshOrders: () => Promise<void>;
@@ -38,9 +39,9 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     loadOrders();
   }, []);
 
-  const addOrder = async (order: Omit<Order, 'id'>) => {
+  const addOrder = async (order: Omit<Order, 'id'>, detailedItems?: OrderItem[]) => {
     try {
-      const newOrder = await addOrderToFirestore(order);
+      const newOrder = await addOrderToFirestore(order, detailedItems);
       setOrders(prev => [newOrder, ...prev]);
     } catch (error) {
       // Se falhar no Firestore, adiciona apenas localmente

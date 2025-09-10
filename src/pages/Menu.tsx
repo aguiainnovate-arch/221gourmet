@@ -14,6 +14,7 @@ import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, Arro
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
+import type { OrderItem } from '../services/statisticsService';
 import ProductImage from '../components/ProductImage';
 import ImageModal from '../components/ImageModal';
 
@@ -332,6 +333,17 @@ export default function Menu() {
       const translatedProduct = getProductTranslation(item.product, i18n.language);
       return `${translatedProduct.name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`;
     });
+
+    // Preparar dados detalhados para estatísticas
+    const detailedItems: OrderItem[] = selectedItems.map(item => ({
+      productId: item.product.id,
+      productName: item.product.name,
+      categoryId: item.product.category || 'sem-categoria',
+      categoryName: item.product.category || 'Sem Categoria',
+      quantity: item.quantity,
+      price: item.product.price,
+      observations: item.observations
+    }));
     
     await addOrder({
       mesaId: mesaInfo.id,
@@ -340,7 +352,7 @@ export default function Menu() {
       status: 'novo',
       itens: itensSelecionados,
       tempoEspera: '15 min'
-    });
+    }, detailedItems);
 
     setSelectedItems([]);
     setExpandedItems([]);

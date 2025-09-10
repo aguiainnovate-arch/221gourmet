@@ -1,5 +1,6 @@
-import { collection, addDoc, getDocs, updateDoc, doc, query, orderBy, where, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, doc, query, orderBy, where, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { saveDetailedOrder, type OrderItem } from './statisticsService';
 
 export interface FirestoreOrder {
   id: string;
@@ -11,7 +12,7 @@ export interface FirestoreOrder {
   tempoEspera: string;
 }
 
-export const addOrder = async (order: Omit<FirestoreOrder, 'id'>): Promise<FirestoreOrder> => {
+export const addOrder = async (order: Omit<FirestoreOrder, 'id'>, detailedItems?: OrderItem[]): Promise<FirestoreOrder> => {
   try {
     const docRef = await addDoc(collection(db, 'orders'), {
       mesaId: order.mesaId,
@@ -21,6 +22,27 @@ export const addOrder = async (order: Omit<FirestoreOrder, 'id'>): Promise<Fires
       itens: order.itens,
       tempoEspera: order.tempoEspera
     });
+
+    // Salvar dados detalhados para estatísticas se fornecidos
+    if (detailedItems && detailedItems.length > 0) {
+      const totalValue = detailedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const totalItems = detailedItems.reduce((sum, item) => sum + item.quantity, 0);
+      
+      try {
+        await saveDetailedOrder({
+          mesaId: order.mesaId,
+          mesaNumero: order.mesaNumero,
+          timestamp: Timestamp.now(),
+          status: order.status,
+          items: detailedItems,
+          totalValue,
+          totalItems
+        });
+      } catch (error) {
+        console.error('Erro ao salvar estatísticas do pedido:', error);
+        // Não falha o pedido principal se as estatísticas falharem
+      }
+    }
 
     return {
       id: docRef.id,

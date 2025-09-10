@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Music, Utensils, Sparkles } from 'lucide-react';
+import { Beef, Utensils, Sparkles } from 'lucide-react';
 
 interface LoadingAnimationProps {
   restaurantName: string;
@@ -22,7 +22,7 @@ export default function LoadingAnimation({
   const [showContent, setShowContent] = useState(false);
 
   const steps = [
-    { icon: Music, text: 'Preparando sua experiência...', duration: 2000 },
+    { icon: Beef, text: 'Preparando sua experiência...', duration: 2000 },
     { icon: Utensils, text: 'Carregando o cardápio...', duration: 2000 },
     { icon: Sparkles, text: 'Quase pronto!', duration: 1500 }
   ];
@@ -77,7 +77,7 @@ export default function LoadingAnimation({
     };
   }, [showContent, onAnimationComplete]);
 
-  const CurrentIcon = steps[currentStep]?.icon || Music;
+  const CurrentIcon = steps[currentStep]?.icon || Beef;
 
   return (
     <div 
