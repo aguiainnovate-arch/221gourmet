@@ -93,7 +93,7 @@ export default function Home() {
 
         <div className="bg-white p-6 rounded-lg shadow">
           <Link 
-            to="/staff" 
+            to="/settings?tab=cozinha" 
             className="inline-flex items-center space-x-2 bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600"
           >
             <span className="text-2xl"></span>

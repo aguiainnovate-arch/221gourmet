@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
-import Staff from './pages/Staff';
 import Settings from './pages/Settings';
 import PrivateRoute from './components/PrivateRoute';
 import { OrderProvider } from './contexts/OrderContext';
@@ -21,7 +20,6 @@ function App() {
                 <Menu />
               </PrivateRoute>
             } />
-            <Route path="staff" element={<Staff />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
