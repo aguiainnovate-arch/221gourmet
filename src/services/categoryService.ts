@@ -6,7 +6,7 @@ import {
   deleteDoc, 
   doc, 
   query, 
-  orderBy
+  where
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -19,6 +19,7 @@ interface Translation {
 export interface Category {
   id: string;
   name: string;
+  restaurantId: string;
   createdAt: Date;
   // Traduções
   translations?: {
@@ -27,10 +28,12 @@ export interface Category {
 }
 
 // Adicionar nova categoria
-export const addCategory = async (name: string, translations?: { name?: Translation }): Promise<Category> => {
+export const addCategory = async (name: string, restaurantId?: string, translations?: { name?: Translation }): Promise<Category> => {
   try {
+    const targetRestaurantId = restaurantId || 'YcL3Q98o8zkWRT1ak4BD';
     const categoryData: any = {
       name: name,
+      restaurantId: targetRestaurantId,
       createdAt: new Date()
     };
     
@@ -43,6 +46,7 @@ export const addCategory = async (name: string, translations?: { name?: Translat
     return {
       id: docRef.id,
       name: name,
+      restaurantId: targetRestaurantId,
       createdAt: new Date(),
       translations
     };
@@ -52,9 +56,13 @@ export const addCategory = async (name: string, translations?: { name?: Translat
 };
 
 // Buscar todas as categorias
-export const getCategories = async (): Promise<Category[]> => {
+export const getCategories = async (restaurantId: string): Promise<Category[]> => {
   try {
-    const q = query(collection(db, 'categories'), orderBy('name'));
+    // SEMPRE filtrar por restaurantId específico (sem orderBy para evitar índice composto)
+    const q = query(
+      collection(db, 'categories'), 
+      where('restaurantId', '==', restaurantId)
+    );
     const querySnapshot = await getDocs(q);
     
     const categories: Category[] = [];
@@ -63,12 +71,14 @@ export const getCategories = async (): Promise<Category[]> => {
       categories.push({
         id: doc.id,
         name: data.name,
+        restaurantId: data.restaurantId,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
         translations: data.translations
       });
     });
 
-    return categories;
+    // Ordenar por nome no JavaScript
+    return categories.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error('Erro ao buscar categorias:', error);
     throw new Error('Falha ao buscar categorias');

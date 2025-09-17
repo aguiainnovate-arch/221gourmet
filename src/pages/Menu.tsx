@@ -4,8 +4,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
-import { getProducts } from '../services/productService';
-import { getCategories } from '../services/categoryService';
+import { useRestaurantData } from '../hooks/useRestaurantData';
 import { applyCustomColors } from '../utils/colorUtils';
 import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
 import LanguageSelector from '../components/LanguageSelector';
@@ -13,7 +12,6 @@ import LoadingAnimation from '../components/LoadingAnimation';
 import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
-import type { Category } from '../services/categoryService';
 import type { OrderItem } from '../services/statisticsService';
 import ProductImage from '../components/ProductImage';
 import ImageModal from '../components/ImageModal';
@@ -35,9 +33,8 @@ export default function Menu() {
   const { addOrder } = useOrders();
   const { settings } = useSettings();
   const { t, i18n } = useTranslation();
+  const { products, categories } = useRestaurantData();
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
@@ -50,7 +47,6 @@ export default function Menu() {
     alt: ''
   });
   const [loading, setLoading] = useState(true);
-  const [loadingProducts, setLoadingProducts] = useState(true);
   const [showLoadingAnimation, setShowLoadingAnimation] = useState(true);
 
   useEffect(() => {
@@ -69,30 +65,7 @@ export default function Menu() {
       }
     };
 
-    const carregarProdutos = async () => {
-      try {
-        setLoadingProducts(true);
-        const productsData = await getProducts();
-        setProducts(productsData.filter(p => p.available));
-      } catch (error) {
-        // Erro silencioso
-      } finally {
-        setLoadingProducts(false);
-      }
-    };
-
-    const carregarCategorias = async () => {
-      try {
-        const categoriesData = await getCategories();
-        setCategories(categoriesData);
-      } catch (error) {
-        // Erro silencioso
-      }
-    };
-
     carregarMesaInfo();
-    carregarProdutos();
-    carregarCategorias();
   }, [mesaId]);
 
   // Aplicar cores personalizadas
@@ -601,7 +574,7 @@ export default function Menu() {
         </div>
 
         {/* Lista de Produtos */}
-        {loadingProducts ? (
+        {false ? (
           <div className="text-center py-12">
             <div className="text-primary-700 text-lg">{t('menu.loadingMenu')}</div>
           </div>

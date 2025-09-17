@@ -140,14 +140,14 @@ const parseCSVLine = (line: string): string[] => {
 
 // Função para criar categorias que não existem
 const ensureCategoriesExist = async (categories: string[]): Promise<number> => {
-  const existingCategories = await getCategories();
+  const existingCategories = await getCategories('YcL3Q98o8zkWRT1ak4BD'); // Usar ID padrão
   const existingCategoryNames = existingCategories.map(c => c.name.toLowerCase());
   let createdCount = 0;
 
   for (const categoryName of categories) {
     if (!existingCategoryNames.includes(categoryName.toLowerCase())) {
       try {
-        await addCategory(categoryName);
+        await addCategory(categoryName, 'YcL3Q98o8zkWRT1ak4BD'); // Passar restaurantId
         createdCount++;
         console.log(`Categoria criada: ${categoryName}`);
       } catch (error) {
@@ -232,7 +232,7 @@ export const importProductsFromCSV = async (csvText: string): Promise<CSVImportR
 
         // Adicionar produto
         console.log('Dados do produto a serem enviados:', productData);
-        await addProduct(productData);
+        await addProduct(productData, 'YcL3Q98o8zkWRT1ak4BD'); // Passar restaurantId
         result.importedProducts++;
         console.log(`Produto importado: ${csvProduct.name}`);
 

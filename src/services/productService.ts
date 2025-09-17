@@ -5,15 +5,14 @@ import {
   updateDoc,
   deleteDoc, 
   doc, 
-  query, 
-  orderBy,
+  query,
   where 
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { Product } from '../types/product';
 
 // Adicionar novo produto
-export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product> => {
+export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: string): Promise<Product> => {
   try {
     const productData: any = {
       name: product.name,
@@ -22,6 +21,7 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
       category: product.category,
       available: product.available,
       image: product.image || '',
+      restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD', // Usar ID específico como padrão
       createdAt: new Date()
     };
 
@@ -38,7 +38,8 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
 
     return {
       id: docRef.id,
-      ...product
+      ...product,
+      restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD'
     };
   } catch (error) {
     console.error('Erro detalhado ao adicionar produto:', error);
@@ -47,48 +48,12 @@ export const addProduct = async (product: Omit<Product, 'id'>): Promise<Product>
 };
 
 // Buscar todos os produtos
-export const getProducts = async (): Promise<Product[]> => {
+export const getProducts = async (restaurantId: string): Promise<Product[]> => {
   try {
-    // Simplificar a query para evitar problemas com índices compostos
-    const q = query(collection(db, 'products'), orderBy('name'));
-    const querySnapshot = await getDocs(q);
-    
-    const products: Product[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      products.push({
-        id: doc.id,
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        category: data.category,
-        available: data.available,
-        image: data.image || '',
-        preparationTime: data.preparationTime,
-        translations: data.translations
-      });
-    });
-
-    // Ordenar por categoria e depois por nome no JavaScript
-    return products.sort((a, b) => {
-      if (a.category !== b.category) {
-        return a.category.localeCompare(b.category);
-      }
-      return a.name.localeCompare(b.name);
-    });
-  } catch (error) {
-    console.error('Erro ao buscar produtos:', error);
-    throw new Error('Falha ao buscar produtos');
-  }
-};
-
-// Buscar produtos por categoria
-export const getProductsByCategory = async (category: string): Promise<Product[]> => {
-  try {
+    // SEMPRE filtrar por restaurantId específico (sem orderBy para evitar índice composto)
     const q = query(
       collection(db, 'products'), 
-      where('category', '==', category),
-      orderBy('name')
+      where('restaurantId', '==', restaurantId)
     );
     const querySnapshot = await getDocs(q);
     
@@ -108,7 +73,43 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
       });
     });
 
-    return products;
+    // Ordenar por nome no JavaScript
+    return products.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error('Erro ao buscar produtos:', error);
+    throw new Error('Falha ao buscar produtos');
+  }
+};
+
+// Buscar produtos por categoria
+export const getProductsByCategory = async (category: string, restaurantId: string): Promise<Product[]> => {
+  try {
+    // SEMPRE filtrar por categoria E restaurantId específico (sem orderBy)
+    const q = query(
+      collection(db, 'products'), 
+      where('category', '==', category),
+      where('restaurantId', '==', restaurantId)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    const products: Product[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      products.push({
+        id: doc.id,
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        category: data.category,
+        available: data.available,
+        image: data.image || '',
+        preparationTime: data.preparationTime,
+        translations: data.translations
+      });
+    });
+
+    // Ordenar por nome no JavaScript
+    return products.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     throw new Error('Falha ao buscar produtos por categoria');
   }
@@ -137,9 +138,9 @@ export const deleteProduct = async (id: string): Promise<void> => {
 };
 
 // Buscar categorias únicas dos produtos (para compatibilidade)
-export const getProductCategories = async (): Promise<string[]> => {
+export const getProductCategories = async (restaurantId: string): Promise<string[]> => {
   try {
-    const products = await getProducts();
+    const products = await getProducts(restaurantId);
     const categories = [...new Set(products.map(p => p.category))];
     return categories.sort();
   } catch (error) {

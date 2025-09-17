@@ -15,7 +15,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar se há uma sessão ativa no localStorage
+   
     const authToken = localStorage.getItem('admin_auth_token');
     if (authToken) {
       setIsAuthenticated(true);
@@ -24,9 +24,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = (email: string, password: string): boolean => {
-    // Credenciais fixas para o administrador
+  
     if (email === 'admin@gmail.com' && password === '123456') {
-      const token = btoa(`${email}:${password}`); // Codificação simples
+      const token = btoa(`${email}:${password}`);
       localStorage.setItem('admin_auth_token', token);
       setIsAuthenticated(true);
       return true;

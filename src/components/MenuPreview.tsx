@@ -37,8 +37,8 @@ export default function MenuPreview({
       try {
         setLoading(true);
         const [productsData, categoriesData] = await Promise.all([
-          getProducts(),
-          getCategories()
+          getProducts('YcL3Q98o8zkWRT1ak4BD'), // Usar ID padrão
+          getCategories('YcL3Q98o8zkWRT1ak4BD') // Usar ID padrão
         ]);
         
         // Mostrar apenas produtos disponíveis e limitar a 5 para a prévia

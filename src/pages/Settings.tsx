@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
-import { addProduct, getProducts, updateProduct, deleteProduct } from '../services/productService';
-import { addCategory, getCategories, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
+import { addProduct, updateProduct, deleteProduct } from '../services/productService';
+import { addCategory, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
 import { useSettings } from '../contexts/SettingsContext';
 import { useOrders } from '../contexts/OrderContext';
+import { useRestaurantData } from '../hooks/useRestaurantData';
 import { testAllCollections } from '../services/firestoreTest';
 import { uploadImage, deleteImage, uploadAudio, deleteAudio } from '../services/storageService';
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
@@ -23,17 +24,13 @@ import MenuPreview from '../components/MenuPreview';
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { orders, updateOrderStatus, deleteOrder, refreshOrders } = useOrders();
+  const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  // Estados para produtos
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -203,19 +200,12 @@ export default function Settings() {
 
   const loadProducts = async () => {
     try {
-      setLoadingProducts(true);
-      console.log('Carregando produtos e categorias...');
-      const productsData = await getProducts();
-      const categoriesData = await getCategories();
-      console.log('Produtos carregados:', productsData);
-      console.log('Categorias carregadas:', categoriesData);
-      setProducts(productsData);
-      setCategories(categoriesData);
+      console.log('Recarregando dados do restaurante...');
+      // Usar o hook para recarregar dados
+      reloadRestaurantData();
     } catch (error) {
       console.error('Erro ao carregar produtos/categorias:', error);
       alert('Erro ao carregar dados. Verifique o console para mais detalhes.');
-    } finally {
-      setLoadingProducts(false);
     }
   };
 
@@ -350,7 +340,7 @@ export default function Settings() {
         const oldImageUrl = editingProduct.image;
         
         await updateProduct(editingProduct.id, productData);
-        setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+        reloadRestaurantData(); // Recarregar dados do restaurante
         
         // Deletar a imagem antiga se foi alterada
         if (oldImageUrl && oldImageUrl !== productForm.image) {
@@ -368,8 +358,8 @@ export default function Settings() {
         
         alert(`Produto "${productData.name}" atualizado com sucesso!`);
       } else {
-        const newProduct = await addProduct(productData);
-        setProducts(prev => [...prev, newProduct]);
+        await addProduct(productData, restaurantId);
+        reloadRestaurantData(); // Recarregar dados do restaurante
         alert(`Produto "${productData.name}" adicionado com sucesso!`);
       }
 
@@ -388,7 +378,7 @@ export default function Settings() {
         
         // Deletar o produto do Firestore
         await deleteProduct(id);
-        setProducts(prev => prev.filter(p => p.id !== id));
+        reloadRestaurantData(); // Recarregar dados do restaurante
         
         // Deletar a imagem do Storage se existir
         if (productToDelete?.image) {
@@ -443,15 +433,13 @@ export default function Settings() {
           for (const product of productsToUpdate) {
             await updateProduct(product.id, { category: categoryForm.trim() });
           }
-          setProducts(prev => prev.map(p => 
-            p.category === editingCategory ? { ...p, category: categoryForm.trim() } : p
-          ));
+          reloadRestaurantData(); // Recarregar dados do restaurante
         }
         alert('Categoria atualizada com sucesso!');
       } else {
         // Nova categoria
-        const newCategory = await addCategory(categoryForm.trim(), Object.keys(categoryTranslations).length > 0 ? categoryTranslations : undefined);
-        setCategories(prev => [...prev, newCategory]);
+        await addCategory(categoryForm.trim(), restaurantId, Object.keys(categoryTranslations).length > 0 ? categoryTranslations : undefined);
+        reloadRestaurantData(); // Recarregar dados do restaurante
         alert('Categoria criada com sucesso!');
       }
       
@@ -473,7 +461,7 @@ export default function Settings() {
     if (window.confirm(`Tem certeza que deseja excluir a categoria "${category.name}"?`)) {
       try {
         await deleteCategoryService(category.id);
-        setCategories(prev => prev.filter(c => c.id !== category.id));
+        reloadRestaurantData(); // Recarregar dados do restaurante
         alert('Categoria excluída com sucesso!');
       } catch (error) {
         alert('Erro ao excluir categoria. Tente novamente.');
@@ -1267,7 +1255,7 @@ export default function Settings() {
                     </span>
                   </div>
                 </div>
-                {loadingProducts ? (
+                {false ? (
                   <div className="p-6 text-center text-gray-500">
                     Carregando produtos...
                   </div>
