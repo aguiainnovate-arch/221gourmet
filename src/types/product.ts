@@ -12,6 +12,7 @@ export interface Product {
   category: string;
   available: boolean;
   image?: string;
+  restaurantId?: string; // Opcional para compatibilidade
   preparationTime?: number; // em minutos
   // Traduções
   translations?: {
