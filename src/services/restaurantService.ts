@@ -10,10 +10,10 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import type { Restaurant, CreateRestaurantData } from '../types/restaurant';
+import type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
 
 // Re-exportar os tipos para facilitar imports
-export type { Restaurant, CreateRestaurantData } from '../types/restaurant';
+export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
 
 // Adicionar novo restaurante
 export const addRestaurant = async (restaurantData: CreateRestaurantData): Promise<Restaurant> => {
@@ -24,9 +24,9 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       settings: {
-        maxTables: restaurantData.plan === 'basic' ? 10 : restaurantData.plan === 'premium' ? 50 : 999,
-        allowOnlineOrders: restaurantData.plan !== 'basic',
-        enableAnalytics: restaurantData.plan === 'premium' || restaurantData.plan === 'enterprise'
+        maxTables: 999, // Será definido baseado no plano posteriormente
+        allowOnlineOrders: true,
+        enableAnalytics: true
       }
     });
 
@@ -37,9 +37,9 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
       createdAt: new Date(),
       updatedAt: new Date(),
       settings: {
-        maxTables: restaurantData.plan === 'basic' ? 10 : restaurantData.plan === 'premium' ? 50 : 999,
-        allowOnlineOrders: restaurantData.plan !== 'basic',
-        enableAnalytics: restaurantData.plan === 'premium' || restaurantData.plan === 'enterprise'
+        maxTables: 999, // Será definido baseado no plano posteriormente
+        allowOnlineOrders: true,
+        enableAnalytics: true
       }
     };
   } catch (error) {
@@ -64,7 +64,7 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
         email: data.email,
         phone: data.phone,
         address: data.address,
-        plan: data.plan,
+        planId: data.planId,
         active: data.active,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -104,7 +104,7 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
       email: data.email,
       phone: data.phone,
       address: data.address,
-      plan: data.plan,
+      planId: data.planId,
       active: data.active,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -118,7 +118,7 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
 };
 
 // Atualizar restaurante
-export const updateRestaurant = async (id: string, updates: Partial<Restaurant>): Promise<void> => {
+export const updateRestaurant = async (id: string, updates: UpdateRestaurantData | CreateRestaurantData): Promise<void> => {
   try {
     const restaurantRef = doc(db, 'restaurants', id);
     await updateDoc(restaurantRef, {
@@ -167,11 +167,11 @@ export const checkDomainExists = async (domain: string, excludeId?: string): Pro
 };
 
 // Buscar restaurantes por plano
-export const getRestaurantsByPlan = async (plan: 'basic' | 'premium' | 'enterprise'): Promise<Restaurant[]> => {
+export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]> => {
   try {
     const q = query(
       collection(db, 'restaurants'), 
-      where('plan', '==', plan),
+      where('planId', '==', planId),
       where('active', '==', true),
       orderBy('name')
     );
@@ -187,7 +187,7 @@ export const getRestaurantsByPlan = async (plan: 'basic' | 'premium' | 'enterpri
         email: data.email,
         phone: data.phone,
         address: data.address,
-        plan: data.plan,
+        planId: data.planId,
         active: data.active,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -200,5 +200,19 @@ export const getRestaurantsByPlan = async (plan: 'basic' | 'premium' | 'enterpri
   } catch (error) {
     console.error('Erro ao buscar restaurantes por plano:', error);
     throw new Error('Falha ao buscar restaurantes por plano');
+  }
+};
+
+// Atualizar plano de um restaurante
+export const updateRestaurantPlan = async (restaurantId: string, planId: string): Promise<void> => {
+  try {
+    const restaurantRef = doc(db, 'restaurants', restaurantId);
+    await updateDoc(restaurantRef, {
+      planId,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar plano do restaurante:', error);
+    throw new Error('Falha ao atualizar plano do restaurante');
   }
 };

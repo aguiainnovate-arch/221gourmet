@@ -21,6 +21,14 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
+    match /restaurants/{document} {
+      allow read, write: if true;
+    }
+    
+    match /plans/{document} {
+      allow read, write: if true;
+    }
+    
     // Regra padrão - negar acesso a outras coleções
     match /{document=**} {
       allow read, write: if false;

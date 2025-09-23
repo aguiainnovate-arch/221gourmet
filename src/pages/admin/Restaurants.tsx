@@ -1,20 +1,25 @@
 
 import { useState, useEffect } from 'react';
-import { getRestaurants, deleteRestaurant, type Restaurant } from '../../services/restaurantService';
+import { getRestaurants, deleteRestaurant, type Restaurant, type UpdateRestaurantData } from '../../services/restaurantService';
 import { migrateProductsToRestaurant, countItemsWithoutRestaurant } from '../../services/migrationService';
+import { getPlans, type Plan } from '../../services/planService';
+import { migrateRestaurantsToPlans } from '../../utils/migrateRestaurantsToPlans';
 import RestaurantModal from '../../components/RestaurantModal';
 
 export default function Restaurants() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [migrationStats, setMigrationStats] = useState<{products: number, categories: number} | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isMigratingPlans, setIsMigratingPlans] = useState(false);
 
   useEffect(() => {
     loadRestaurants();
     loadMigrationStats();
+    loadPlans();
   }, []);
 
   const loadRestaurants = async () => {
@@ -26,6 +31,15 @@ export default function Restaurants() {
       console.error('Erro ao carregar restaurantes:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadPlans = async () => {
+    try {
+      const plansData = await getPlans();
+      setPlans(plansData);
+    } catch (error) {
+      console.error('Erro ao carregar planos:', error);
     }
   };
 
@@ -59,6 +73,12 @@ export default function Restaurants() {
 
   const handleModalSuccess = () => {
     loadRestaurants();
+  };
+
+  const getPlanName = (planId?: string) => {
+    if (!planId) return 'Sem plano';
+    const plan = plans.find(p => p.id === planId);
+    return plan ? plan.name : 'Plano não encontrado';
   };
 
   const loadMigrationStats = async () => {
@@ -96,22 +116,48 @@ export default function Restaurants() {
     }
   };
 
-  const getPlanBadgeColor = (plan: string) => {
-    switch (plan) {
-      case 'basic': return 'bg-gray-100 text-gray-800';
-      case 'premium': return 'bg-blue-100 text-blue-800';
-      case 'enterprise': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const handleMigratePlans = async () => {
+    if (!confirm('Tem certeza que deseja migrar todos os restaurantes sem plano para o plano mais barato disponível?')) {
+      return;
+    }
+
+    try {
+      setIsMigratingPlans(true);
+      const result = await migrateRestaurantsToPlans();
+      
+      if (result.success) {
+        if (result.migrated > 0) {
+          alert(`✅ Migração concluída com sucesso!\n- ${result.migrated} restaurantes migrados para o plano "${result.defaultPlan}"\n${result.errors && result.errors.length > 0 ? `- ${result.errors.length} erros encontrados (veja o console)` : ''}`);
+        } else {
+          alert('✅ Todos os restaurantes já possuem planos associados!');
+        }
+        
+        // Recarregar dados
+        await loadRestaurants();
+      } else {
+        alert(`❌ Erro na migração: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Erro na migração:', error);
+      alert('❌ Erro durante a migração. Verifique o console para detalhes.');
+    } finally {
+      setIsMigratingPlans(false);
     }
   };
 
-  const getPlanName = (plan: string) => {
-    switch (plan) {
-      case 'basic': return 'Básico';
-      case 'premium': return 'Premium';
-      case 'enterprise': return 'Enterprise';
-      default: return plan;
-    }
+  const getPlanBadgeColor = (planId?: string) => {
+    if (!planId) return 'bg-gray-100 text-gray-800';
+    
+    // Cores baseadas em hash do planId para consistência
+    const colors = [
+      'bg-blue-100 text-blue-800', 
+      'bg-purple-100 text-purple-800',
+      'bg-green-100 text-green-800',
+      'bg-yellow-100 text-yellow-800',
+      'bg-red-100 text-red-800'
+    ];
+    const index = planId.length % colors.length;
+    return colors[index];
   };
 
   if (isLoading) {
@@ -131,12 +177,25 @@ export default function Restaurants() {
           <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Restaurantes</h1>
           <p className="text-gray-600 mt-2">Gerencie todos os restaurantes e seus domínios personalizados</p>
         </div>
-        <button
-          onClick={handleAdd}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-        >
-          Adicionar Restaurante
-        </button>
+        <div className="flex space-x-3">
+          {/* Botão de migração de planos - só aparece se há restaurantes sem plano */}
+          {restaurants.some(r => !r.planId) && (
+            <button
+              onClick={handleMigratePlans}
+              disabled={isMigratingPlans}
+              className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium"
+              title="Migrar restaurantes sem plano para o plano mais barato"
+            >
+              {isMigratingPlans ? 'Migrando...' : '🔧 Migrar Planos'}
+            </button>
+          )}
+          <button
+            onClick={handleAdd}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Adicionar Restaurante
+          </button>
+        </div>
       </div>
 
       {/* Banner de Migração */}
@@ -219,8 +278,11 @@ export default function Restaurants() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPlanBadgeColor(restaurant.plan)}`}>
-                      {getPlanName(restaurant.plan)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPlanBadgeColor(restaurant.planId)}`}>
+                      {getPlanName(restaurant.planId)}
+                      {!restaurant.planId && (
+                        <span className="ml-1" title="Restaurante precisa ser atualizado">⚠️</span>
+                      )}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
