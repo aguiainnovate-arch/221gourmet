@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData } from '../services/restaurantService';
+import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData, type UpdateRestaurantData } from '../services/restaurantService';
+import { getActivePlans, getPlans, type Plan } from '../services/planService';
 
 interface RestaurantModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
     email: '',
     phone: '',
     address: '',
-    plan: 'basic',
+    planId: '',
     theme: {
       primaryColor: '#4f46e5',
       secondaryColor: '#6b7280'
@@ -23,16 +24,24 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  // Carregar planos quando o modal abrir
+  useEffect(() => {
+    if (isOpen) {
+      loadPlans();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (restaurant) {
       setFormData({
-        name: restaurant.name,
-        domain: restaurant.domain,
-        email: restaurant.email,
-        phone: restaurant.phone,
-        address: restaurant.address,
-        plan: restaurant.plan,
+        name: restaurant.name || '',
+        domain: restaurant.domain || '',
+        email: restaurant.email || '',
+        phone: restaurant.phone || '',
+        address: restaurant.address || '',
+        planId: restaurant.planId || (plans.length > 0 ? plans[0].id : ''),
         theme: restaurant.theme || {
           primaryColor: '#4f46e5',
           secondaryColor: '#6b7280'
@@ -45,7 +54,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
         email: '',
         phone: '',
         address: '',
-        plan: 'basic',
+        planId: plans.length > 0 ? plans[0].id : '',
         theme: {
           primaryColor: '#4f46e5',
           secondaryColor: '#6b7280'
@@ -53,17 +62,42 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
       });
     }
     setErrors({});
-  }, [restaurant, isOpen]);
+  }, [restaurant, isOpen, plans]);
+
+  const loadPlans = async () => {
+    try {
+      let plansData = await getActivePlans();
+      
+      // Se não há planos ativos, tenta carregar todos os planos
+      if (plansData.length === 0) {
+        const allPlans = await getPlans();
+        plansData = allPlans.filter(plan => plan.active);
+      }
+      
+      setPlans(plansData);
+    } catch (error) {
+      console.error('Erro ao carregar planos:', error);
+      // Tentar carregar todos os planos como último recurso
+      try {
+        const allPlans = await getPlans();
+        const activePlans = allPlans.filter(plan => plan.active);
+        setPlans(activePlans);
+      } catch (fallbackError) {
+        console.error('Falha no fallback:', fallbackError);
+      }
+    }
+  };
 
   const validateForm = async (): Promise<boolean> => {
     const newErrors: Record<string, string> = {};
 
     // Validações obrigatórias
-    if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório';
-    if (!formData.domain.trim()) newErrors.domain = 'Domínio é obrigatório';
-    if (!formData.email.trim()) newErrors.email = 'Email é obrigatório';
-    if (!formData.phone.trim()) newErrors.phone = 'Telefone é obrigatório';
-    if (!formData.address.trim()) newErrors.address = 'Endereço é obrigatório';
+    if (!formData.name?.trim()) newErrors.name = 'Nome é obrigatório';
+    if (!formData.domain?.trim()) newErrors.domain = 'Domínio é obrigatório';
+    if (!formData.email?.trim()) newErrors.email = 'Email é obrigatório';
+    if (!formData.phone?.trim()) newErrors.phone = 'Telefone é obrigatório';
+    if (!formData.address?.trim()) newErrors.address = 'Endereço é obrigatório';
+    if (!formData.planId?.trim()) newErrors.planId = 'Plano é obrigatório';
 
     // Validação de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -105,7 +139,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Erro ao salvar restaurante:', error);
+      console.error('❌ Erro ao salvar restaurante:', error);
       setErrors({ submit: 'Erro ao salvar restaurante. Tente novamente.' });
     } finally {
       setIsLoading(false);
@@ -236,33 +270,61 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
 
             {/* Plano */}
             <div>
-              <h4 className="text-md font-medium text-gray-900 mb-4">Plano de Assinatura</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { id: 'basic', name: 'Básico', desc: '10 mesas, funcionalidades básicas' },
-                  { id: 'premium', name: 'Premium', desc: '50 mesas, pedidos online, analytics' },
-                  { id: 'enterprise', name: 'Enterprise', desc: 'Ilimitado, todos os recursos' }
-                ].map((plan) => (
-                  <label key={plan.id} className="relative cursor-pointer">
-                    <input
-                      type="radio"
-                      name="plan"
-                      value={plan.id}
-                      checked={formData.plan === plan.id}
-                      onChange={(e) => handleInputChange('plan', e.target.value as any)}
-                      className="sr-only"
-                    />
-                    <div className={`p-4 border-2 rounded-lg ${
-                      formData.plan === plan.id 
-                        ? 'border-indigo-500 bg-indigo-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}>
-                      <div className="font-medium text-gray-900">{plan.name}</div>
-                      <div className="text-sm text-gray-500 mt-1">{plan.desc}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
+              <h4 className="text-md font-medium text-gray-900 mb-4">
+                Plano de Assinatura 
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  ({plans.length} planos disponíveis)
+                </span>
+              </h4>
+              {plans.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {plans.map((plan) => (
+                    <label key={plan.id} className="relative cursor-pointer">
+                      <input
+                        type="radio"
+                        name="planId"
+                        value={plan.id}
+                        checked={formData.planId === plan.id}
+                        onChange={(e) => handleInputChange('planId', e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className={`p-4 border-2 rounded-lg ${
+                        formData.planId === plan.id 
+                          ? 'border-indigo-500 bg-indigo-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}>
+                        <div className="font-medium text-gray-900">{plan.name}</div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          R$ {plan.price.toFixed(2)}/{plan.period === 'monthly' ? 'mês' : 'ano'}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Até {plan.maxTables === 999 ? '∞' : plan.maxTables} mesas
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                  <div className="text-sm text-gray-600">
+                    <p className="mb-2">⚠️ Nenhum plano ativo encontrado.</p>
+                    <p>Por favor:</p>
+                    <ol className="list-decimal list-inside mt-2 space-y-1">
+                      <li>Vá para a aba "Planos" no painel admin</li>
+                      <li>Crie pelo menos um plano</li>
+                      <li>Certifique-se de que o plano está marcado como "ativo"</li>
+                    </ol>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadPlans}
+                    className="mt-3 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    🔄 Recarregar Planos
+                  </button>
+                </div>
+              )}
+              {errors.planId && <p className="mt-1 text-sm text-red-600">{errors.planId}</p>}
             </div>
 
             {/* Tema */}
@@ -312,6 +374,27 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
                 </div>
               </div>
             </div>
+
+            {/* Aviso para restaurantes sem planId */}
+            {restaurant && !restaurant.planId && (
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-amber-800">
+                      Restaurante sem plano associado
+                    </h3>
+                    <div className="mt-2 text-sm text-amber-700">
+                      <p>Este restaurante foi criado antes da implementação dos planos. Selecione um plano para continuar.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {errors.submit && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
