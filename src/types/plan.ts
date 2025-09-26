@@ -1,3 +1,5 @@
+import type { PermissionKey } from './permission';
+
 export interface Plan {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface Plan {
   maxProducts: number;
   supportLevel: 'basic' | 'priority' | 'premium';
   active: boolean;
+  permissions?: Record<PermissionKey, boolean>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +26,7 @@ export interface CreatePlanData {
   maxProducts: number;
   supportLevel: 'basic' | 'priority' | 'premium';
   active: boolean;
+  permissions?: Record<PermissionKey, boolean>;
 }
 
 export interface UpdatePlanData extends Partial<CreatePlanData> {}

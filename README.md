@@ -1,11 +1,37 @@
-# React + TypeScript + Vite
+# 221gourmet - Sistema de Gerenciamento de Restaurantes
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema completo de gerenciamento de restaurantes com cardápio digital, controle de pedidos e tradução automática.
 
-Currently, two official plugins are available:
+## Configuração
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Variáveis de Ambiente
+
+Para usar a funcionalidade de tradução automática, crie um arquivo `.env` na raiz do projeto com:
+
+```bash
+VITE_OPENAI_API_KEY=sua_chave_openai_aqui
+```
+
+### Instalação
+
+```bash
+# Instalar dependências
+npm install
+
+# Criar arquivo .env com a chave da OpenAI
+echo "VITE_OPENAI_API_KEY=sua_chave_aqui" > .env
+
+# Iniciar servidor de desenvolvimento
+npm run dev
+```
+
+## Funcionalidades
+
+- **Sistema de Permissões**: Controle de acesso a funcionalidades por plano
+- **Tradução Automática**: Tradução de produtos e categorias usando IA
+- **Gerenciamento de Planos**: Diferentes níveis de acesso
+- **Cardápio Digital**: Interface responsiva para clientes
+- **Controle de Pedidos**: Sistema completo de gestão de pedidos
 
 ## Expanding the ESLint configuration
 

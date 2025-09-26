@@ -4,6 +4,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import Restaurants from './admin/Restaurants';
 import Permissions from './admin/Permissions';
 import Plans from './admin/Plans';
+import AIConfiguration from './owner/AIConfiguration';
 
 export default function Owner() {
   const { logout } = useAuth();
@@ -17,6 +18,8 @@ export default function Owner() {
         return <Permissions />;
       case 'plans':
         return <Plans />;
+      case 'ai-config':
+        return <AIConfiguration />;
       case 'dashboard':
       default:
         return renderDashboard();
@@ -61,7 +64,8 @@ export default function Owner() {
                   {activeSection === 'dashboard' ? 'Dashboard' : 
                    activeSection === 'restaurants' ? 'Restaurantes' :
                    activeSection === 'permissions' ? 'Permissões' :
-                   activeSection === 'plans' ? 'Planos' : 'Admin'}
+                   activeSection === 'plans' ? 'Planos' :
+                   activeSection === 'ai-config' ? 'Configuração de IA' : 'Admin'}
                 </h1>
               </div>
               <button

@@ -9,9 +9,14 @@ import {
 } from '../../services/planService';
 import { 
   getRestaurantsByPlan, 
-  updateRestaurantPlan,
-  getRestaurants 
+  updateRestaurantPlan
 } from '../../services/restaurantService';
+import { 
+  updatePlanPermissions,
+  applyPlanPermissionsToRestaurants,
+  type PermissionKey 
+} from '../../services/permissionService';
+import { PERMISSION_DEFINITIONS, DEFAULT_PERMISSIONS } from '../../types/permission';
 import type { Restaurant } from '../../types/restaurant';
 
 interface PlanWithCount extends Plan {
@@ -34,17 +39,61 @@ interface RestaurantMoveModalProps {
 }
 
 function PlanModal({ isOpen, onClose, onSave, plan }: PlanModalProps) {
-  const [formData, setFormData] = useState({
-    name: plan?.name || '',
-    description: plan?.description || '',
-    price: plan?.price || 0,
-    period: plan?.period || 'monthly' as const,
-    features: plan?.features.join('\n') || '',
-    maxTables: plan?.maxTables || 10,
-    maxProducts: plan?.maxProducts || 50,
-    supportLevel: plan?.supportLevel || 'basic' as const,
-    active: plan?.active ?? true
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    price: number;
+    period: 'monthly' | 'yearly';
+    features: string;
+    maxTables: number;
+    maxProducts: number;
+    supportLevel: 'basic' | 'priority' | 'premium';
+    active: boolean;
+    permissions: Record<PermissionKey, boolean>;
+  }>({
+    name: '',
+    description: '',
+    price: 0,
+    period: 'monthly',
+    features: '',
+    maxTables: 10,
+    maxProducts: 50,
+    supportLevel: 'basic',
+    active: true,
+    permissions: DEFAULT_PERMISSIONS
   });
+
+  // Atualizar dados do formulário quando o plano mudar
+  useEffect(() => {
+    if (plan) {
+      setFormData({
+        name: plan.name || '',
+        description: plan.description || '',
+        price: plan.price || 0,
+        period: (plan.period || 'monthly') as 'monthly' | 'yearly',
+        features: plan.features?.join('\n') || '',
+        maxTables: plan.maxTables || 10,
+        maxProducts: plan.maxProducts || 50,
+        supportLevel: (plan.supportLevel || 'basic') as 'basic' | 'priority' | 'premium',
+        active: plan.active ?? true,
+        permissions: plan.permissions || DEFAULT_PERMISSIONS
+      });
+    } else {
+      // Reset para valores padrão quando criando novo plano
+      setFormData({
+        name: '',
+        description: '',
+        price: 0,
+        period: 'monthly',
+        features: '',
+        maxTables: 10,
+        maxProducts: 50,
+        supportLevel: 'basic',
+        active: true,
+        permissions: DEFAULT_PERMISSIONS
+      });
+    }
+  }, [plan]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +105,16 @@ function PlanModal({ isOpen, onClose, onSave, plan }: PlanModalProps) {
     
     onSave(planData);
     onClose();
+  };
+
+  const handlePermissionChange = (permission: PermissionKey, enabled: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        [permission]: enabled
+      }
+    }));
   };
 
   if (!isOpen) return null;
@@ -186,6 +245,34 @@ function PlanModal({ isOpen, onClose, onSave, plan }: PlanModalProps) {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Permissões do Plano
+            </label>
+            <div className="space-y-3">
+              {Object.keys(PERMISSION_DEFINITIONS).map(key => {
+                const permission = key as PermissionKey;
+                return (
+                  <div key={key} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{PERMISSION_DEFINITIONS[permission].name}</h4>
+                      <p className="text-sm text-gray-500">{PERMISSION_DEFINITIONS[permission].description}</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={formData.permissions[permission]}
+                        onChange={(e) => handlePermissionChange(permission, e.target.checked)}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -225,7 +312,7 @@ function RestaurantMoveModal({ isOpen, onClose, restaurant, plans, onMove }: Res
 
   useEffect(() => {
     if (restaurant) {
-      setSelectedPlanId(restaurant.planId);
+      setSelectedPlanId(restaurant.planId || '');
     }
   }, [restaurant]);
 
@@ -351,10 +438,24 @@ export default function Plans() {
       if (editingPlan) {
         // Editando plano existente
         await updatePlan(editingPlan.id, planData);
-        alert('Plano atualizado com sucesso!');
+        
+        // Atualizar permissões do plano
+        if (planData.permissions) {
+          await updatePlanPermissions(editingPlan.id, planData.permissions);
+          // Aplicar permissões a todos os restaurantes do plano automaticamente
+          await applyPlanPermissionsToRestaurants(editingPlan.id);
+        }
+        
+        alert('Plano atualizado com sucesso! As permissões foram aplicadas automaticamente aos restaurantes.');
       } else {
         // Criando novo plano
-        await addPlan(planData);
+        const newPlan = await addPlan(planData);
+        
+        // Criar permissões do plano
+        if (planData.permissions) {
+          await updatePlanPermissions(newPlan.id, planData.permissions);
+        }
+        
         alert('Plano criado com sucesso!');
       }
       
@@ -384,8 +485,9 @@ export default function Plans() {
 
   const handleMoveRestaurant = async (restaurantId: string, newPlanId: string) => {
     try {
+      // updateRestaurantPlan já aplica as permissões automaticamente
       await updateRestaurantPlan(restaurantId, newPlanId);
-      alert('Restaurante movido com sucesso!');
+      alert('Restaurante movido com sucesso! As permissões foram aplicadas automaticamente.');
       
       // Recarregar dados
       await loadPlans();
@@ -540,6 +642,28 @@ export default function Plans() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">Permissões</h3>
+                    <div className="space-y-2">
+                      {Object.keys(PERMISSION_DEFINITIONS).map(key => {
+                        const permission = key as PermissionKey;
+                        const isEnabled = selectedPlanData.permissions?.[permission] || false;
+                        return (
+                          <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-gray-900">{PERMISSION_DEFINITIONS[permission].name}</span>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              isEnabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {isEnabled ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div>

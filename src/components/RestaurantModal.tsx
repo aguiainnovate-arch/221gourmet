@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData, type UpdateRestaurantData } from '../services/restaurantService';
+import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData } from '../services/restaurantService';
 import { getActivePlans, getPlans, type Plan } from '../services/planService';
 
 interface RestaurantModalProps {

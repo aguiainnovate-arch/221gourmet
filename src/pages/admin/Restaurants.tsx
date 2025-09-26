@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { getRestaurants, deleteRestaurant, type Restaurant, type UpdateRestaurantData } from '../../services/restaurantService';
+import { getRestaurants, deleteRestaurant, type Restaurant } from '../../services/restaurantService';
 import { migrateProductsToRestaurant, countItemsWithoutRestaurant } from '../../services/migrationService';
 import { getPlans, type Plan } from '../../services/planService';
 import { migrateRestaurantsToPlans } from '../../utils/migrateRestaurantsToPlans';
@@ -126,7 +126,7 @@ export default function Restaurants() {
       const result = await migrateRestaurantsToPlans();
       
       if (result.success) {
-        if (result.migrated > 0) {
+        if (result.migrated && result.migrated > 0) {
           alert(`✅ Migração concluída com sucesso!\n- ${result.migrated} restaurantes migrados para o plano "${result.defaultPlan}"\n${result.errors && result.errors.length > 0 ? `- ${result.errors.length} erros encontrados (veja o console)` : ''}`);
         } else {
           alert('✅ Todos os restaurantes já possuem planos associados!');
