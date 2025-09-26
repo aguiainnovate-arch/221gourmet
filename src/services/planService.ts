@@ -57,6 +57,7 @@ export const getPlans = async (): Promise<Plan[]> => {
         maxProducts: data.maxProducts,
         supportLevel: data.supportLevel,
         active: data.active,
+        permissions: data.permissions,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       });
@@ -92,6 +93,7 @@ export const getActivePlans = async (): Promise<Plan[]> => {
         maxProducts: data.maxProducts,
         supportLevel: data.supportLevel,
         active: data.active,
+        permissions: data.permissions,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       });
@@ -188,6 +190,34 @@ export const getPlansWithRestaurantCount = async (): Promise<(Plan & { restauran
     // Buscar todos os planos
     const plans = await getPlans();
     
+    // Buscar permissões de cada plano
+    const plansWithPermissions = await Promise.all(
+      plans.map(async (plan) => {
+        try {
+          // Buscar permissões do plano
+          const permissionsQuery = query(
+            collection(db, 'planPermissions'),
+            where('planId', '==', plan.id)
+          );
+          const permissionsSnapshot = await getDocs(permissionsQuery);
+          
+          let permissions = { automaticTranslation: false };
+          if (!permissionsSnapshot.empty) {
+            const permissionsData = permissionsSnapshot.docs[0].data();
+            permissions = permissionsData.permissions || { automaticTranslation: false };
+          }
+          
+          return {
+            ...plan,
+            permissions
+          };
+        } catch (error) {
+          console.error(`Erro ao buscar permissões do plano ${plan.id}:`, error);
+          return plan;
+        }
+      })
+    );
+    
     // Buscar todos os restaurantes para contar por plano
     const restaurantsQuery = query(
       collection(db, 'restaurants'),
@@ -205,7 +235,7 @@ export const getPlansWithRestaurantCount = async (): Promise<(Plan & { restauran
     });
     
     // Combinar dados dos planos com contagens
-    return plans.map(plan => ({
+    return plansWithPermissions.map(plan => ({
       ...plan,
       restaurantCount: planCounts[plan.id] || 0
     }));

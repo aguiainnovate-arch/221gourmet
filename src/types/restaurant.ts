@@ -19,6 +19,9 @@ export interface Restaurant {
     allowOnlineOrders: boolean;
     enableAnalytics: boolean;
   };
+  permissions?: {
+    automaticTranslation: boolean;
+  };
 }
 
 export interface CreateRestaurantData {
@@ -32,6 +35,9 @@ export interface CreateRestaurantData {
     primaryColor: string;
     secondaryColor: string;
     logo?: string;
+  };
+  permissions?: {
+    automaticTranslation: boolean;
   };
 }
 
@@ -48,4 +54,7 @@ export interface UpdateRestaurantData {
     logo?: string;
   };
   active?: boolean;
+  permissions?: {
+    automaticTranslation: boolean;
+  };
 }

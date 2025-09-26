@@ -10,6 +10,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
 import type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
 
 // Re-exportar os tipos para facilitar imports
@@ -27,11 +28,37 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
         maxTables: 999, // Será definido baseado no plano posteriormente
         allowOnlineOrders: true,
         enableAnalytics: true
+      },
+      permissions: {
+        automaticTranslation: false
       }
     });
 
+    const restaurantId = docRef.id;
+
+    // Aplicar permissões do plano ao restaurante
+    if (restaurantData.planId) {
+      try {
+        const planPermissions = await getPlanPermissions(restaurantData.planId);
+        
+        // Importar permissões padrão para garantir que todas as permissões sejam definidas
+        const { DEFAULT_PERMISSIONS } = await import('../types/permission');
+        
+        // Criar objeto de permissões completo, sobrescrevendo com as do plano
+        const completePermissions = {
+          ...DEFAULT_PERMISSIONS,
+          ...planPermissions
+        };
+        
+        await updateRestaurantPermissions(restaurantId, completePermissions);
+      } catch (error) {
+        console.warn('Erro ao aplicar permissões do plano ao restaurante:', error);
+        // Não falhar a criação do restaurante se houver erro nas permissões
+      }
+    }
+
     return {
-      id: docRef.id,
+      id: restaurantId,
       ...restaurantData,
       active: true,
       createdAt: new Date(),
@@ -40,6 +67,9 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
         maxTables: 999, // Será definido baseado no plano posteriormente
         allowOnlineOrders: true,
         enableAnalytics: true
+      },
+      permissions: {
+        automaticTranslation: false
       }
     };
   } catch (error) {
@@ -69,7 +99,8 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
         theme: data.theme,
-        settings: data.settings
+        settings: data.settings,
+        permissions: data.permissions
       });
     });
 
@@ -125,6 +156,27 @@ export const updateRestaurant = async (id: string, updates: UpdateRestaurantData
       ...updates,
       updatedAt: Timestamp.now()
     });
+
+    // Se o planId foi alterado, aplicar as permissões do novo plano
+    if (updates.planId) {
+      try {
+        const planPermissions = await getPlanPermissions(updates.planId);
+        
+        // Importar permissões padrão para garantir que todas as permissões sejam definidas
+        const { DEFAULT_PERMISSIONS } = await import('../types/permission');
+        
+        // Criar objeto de permissões completo, sobrescrevendo com as do plano
+        const completePermissions = {
+          ...DEFAULT_PERMISSIONS,
+          ...planPermissions
+        };
+        
+        await updateRestaurantPermissions(id, completePermissions);
+      } catch (error) {
+        console.warn('Erro ao aplicar permissões do plano ao restaurante:', error);
+        // Não falhar a atualização do restaurante se houver erro nas permissões
+      }
+    }
   } catch (error) {
     console.error('Erro ao atualizar restaurante:', error);
     throw new Error('Falha ao atualizar restaurante');
@@ -192,7 +244,8 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
         theme: data.theme,
-        settings: data.settings
+        settings: data.settings,
+        permissions: data.permissions
       });
     });
 
@@ -211,6 +264,25 @@ export const updateRestaurantPlan = async (restaurantId: string, planId: string)
       planId,
       updatedAt: Timestamp.now()
     });
+
+    // Aplicar permissões do novo plano ao restaurante
+    try {
+      const planPermissions = await getPlanPermissions(planId);
+      
+      // Importar permissões padrão para garantir que todas as permissões sejam definidas
+      const { DEFAULT_PERMISSIONS } = await import('../types/permission');
+      
+      // Criar objeto de permissões completo, sobrescrevendo com as do plano
+      const completePermissions = {
+        ...DEFAULT_PERMISSIONS,
+        ...planPermissions
+      };
+      
+      await updateRestaurantPermissions(restaurantId, completePermissions);
+    } catch (error) {
+      console.warn('Erro ao aplicar permissões do plano ao restaurante:', error);
+      // Não falhar a atualização do plano se houver erro nas permissões
+    }
   } catch (error) {
     console.error('Erro ao atualizar plano do restaurante:', error);
     throw new Error('Falha ao atualizar plano do restaurante');

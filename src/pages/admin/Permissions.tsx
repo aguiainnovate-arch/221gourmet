@@ -1,66 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getRestaurants, type Restaurant } from '../../services/restaurantService';
-
-type PermissionKey =
-  | 'automaticTranslation'
-  | 'deliveryIntegration'
-  | 'analyticsAdvanced'
-  | 'customDomain'
-  | 'multipleLanguages'
-  | 'prioritySupport'
-  | 'customThemes'
-  | 'bulkImport'
-  | 'apiAccess'
-  | 'whiteLabel';
-
-type PermissionMap = Record<PermissionKey, boolean>;
-
-const DEFAULT_PERMISSION_SET: PermissionMap = {
-  automaticTranslation: false,
-  deliveryIntegration: false,
-  analyticsAdvanced: false,
-  customDomain: false,
-  multipleLanguages: true,
-  prioritySupport: false,
-  customThemes: false,
-  bulkImport: false,
-  apiAccess: false,
-  whiteLabel: false,
-};
-
-const permissionLabels: Record<PermissionKey, string> = {
-  automaticTranslation: 'Tradução Automática',
-  deliveryIntegration: 'Integração com Delivery',
-  analyticsAdvanced: 'Analytics Avançado',
-  customDomain: 'Domínio Personalizado',
-  multipleLanguages: 'Múltiplos Idiomas',
-  prioritySupport: 'Suporte Prioritário',
-  customThemes: 'Temas Personalizados',
-  bulkImport: 'Importação em Lote',
-  apiAccess: 'Acesso à API',
-  whiteLabel: 'Solução White Label',
-};
-
-const permissionDescriptions: Record<PermissionKey, string> = {
-  automaticTranslation: 'Permite tradução automática de produtos e categorias',
-  deliveryIntegration: 'Integração com plataformas de delivery (iFood, Uber Eats)',
-  analyticsAdvanced: 'Relatórios detalhados de vendas e performance',
-  customDomain: 'Possibilidade de usar domínio próprio',
-  multipleLanguages: 'Suporte a múltiplos idiomas no menu',
-  prioritySupport: 'Suporte técnico com prioridade',
-  customThemes: 'Personalização avançada de cores e layout',
-  bulkImport: 'Importação de produtos via CSV/Excel',
-  apiAccess: 'Acesso à API para integrações customizadas',
-  whiteLabel: 'Remoção de branding da plataforma',
-};
+import { 
+  getRestaurantPermissions, 
+  updateRestaurantPermissions,
+  type PermissionKey 
+} from '../../services/permissionService';
+import { PERMISSION_DEFINITIONS, DEFAULT_PERMISSIONS } from '../../types/permission';
 
 export default function Permissions() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [isLoadingRestaurants, setIsLoadingRestaurants] = useState(true);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>('');
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
 
-  // Mock local de permissões por restaurante (não persiste)
-  const [permissionStore, setPermissionStore] = useState<Record<string, PermissionMap>>({});
+  // Permissões reais do banco de dados
+  const [permissionStore, setPermissionStore] = useState<Record<string, Record<PermissionKey, boolean>>>({});
 
   // Modal
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -85,10 +39,10 @@ export default function Permissions() {
     load();
   }, []);
 
-  // Permissões ativas do restaurante selecionado (mock)
-  const selectedPermissions: PermissionMap = useMemo(() => {
-    if (!selectedRestaurantId) return DEFAULT_PERMISSION_SET;
-    return permissionStore[selectedRestaurantId] ?? DEFAULT_PERMISSION_SET;
+  // Permissões ativas do restaurante selecionado
+  const selectedPermissions: Record<PermissionKey, boolean> = useMemo(() => {
+    if (!selectedRestaurantId) return DEFAULT_PERMISSIONS;
+    return permissionStore[selectedRestaurantId] ?? DEFAULT_PERMISSIONS;
   }, [permissionStore, selectedRestaurantId]);
 
   const selectedRestaurant = useMemo(
@@ -96,26 +50,60 @@ export default function Permissions() {
     [restaurants, selectedRestaurantId]
   );
 
+  // Carregar permissões quando um restaurante é selecionado
+  useEffect(() => {
+    if (selectedRestaurantId) {
+      loadRestaurantPermissions(selectedRestaurantId);
+    }
+  }, [selectedRestaurantId]);
+
+  const loadRestaurantPermissions = async (restaurantId: string) => {
+    try {
+      setIsLoadingPermissions(true);
+      const permissions = await getRestaurantPermissions(restaurantId);
+      setPermissionStore(prev => ({
+        ...prev,
+        [restaurantId]: permissions
+      }));
+    } catch (error) {
+      console.error('Erro ao carregar permissões:', error);
+    } finally {
+      setIsLoadingPermissions(false);
+    }
+  };
+
   const requestToggle = (key: PermissionKey, value: boolean) => {
     if (!selectedRestaurantId) return;
     setPendingChange({ restaurantId: selectedRestaurantId, key, value });
     setShowConfirmModal(true);
   };
 
-  const confirmToggle = () => {
+  const confirmToggle = async () => {
     if (confirmText.toLowerCase() !== 'confirmar' || !pendingChange) return;
 
-    setPermissionStore(prev => ({
-      ...prev,
-      [pendingChange.restaurantId]: {
-        ...(prev[pendingChange.restaurantId] ?? DEFAULT_PERMISSION_SET),
+    try {
+      // Atualizar no banco de dados
+      const currentPermissions = permissionStore[pendingChange.restaurantId] ?? DEFAULT_PERMISSIONS;
+      const newPermissions = {
+        ...currentPermissions,
         [pendingChange.key]: pendingChange.value,
-      },
-    }));
+      };
+      
+      await updateRestaurantPermissions(pendingChange.restaurantId, newPermissions);
+      
+      // Atualizar estado local
+      setPermissionStore(prev => ({
+        ...prev,
+        [pendingChange.restaurantId]: newPermissions,
+      }));
 
-    setShowConfirmModal(false);
-    setConfirmText('');
-    setPendingChange(null);
+      setShowConfirmModal(false);
+      setConfirmText('');
+      setPendingChange(null);
+    } catch (error) {
+      console.error('Erro ao atualizar permissões:', error);
+      alert('Erro ao atualizar permissões. Tente novamente.');
+    }
   };
 
   const cancelToggle = () => {
@@ -124,12 +112,13 @@ export default function Permissions() {
     setPendingChange(null);
   };
 
+
   return (
     <>
       <div className="p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Permissões</h1>
-          <p className="text-gray-600 mt-2">Configure permissões (mock) por restaurante</p>
+          <p className="text-gray-600 mt-2">Configure permissões por restaurante</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -164,9 +153,9 @@ export default function Permissions() {
                       </div>
                       <div className="flex flex-col items-end space-y-1">
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          r.plan === 'basic' ? 'bg-gray-100 text-gray-800' : r.plan === 'premium' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          r.planId ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {r.plan?.toUpperCase?.() || 'PLAN'}
+                          {r.planId ? 'PLANO' : 'SEM PLANO'}
                         </span>
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           r.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -181,48 +170,55 @@ export default function Permissions() {
             )}
           </div>
 
-          {/* Permissões (mock) */}
+          {/* Permissões */}
           <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
             {selectedRestaurant ? (
               <div>
                 <div className="mb-6">
                   <h2 className="text-lg font-semibold text-gray-900">Permissões - {selectedRestaurant.name}</h2>
-                  {selectedRestaurant.plan && (
-                    <p className="text-gray-600">Plano: {selectedRestaurant.plan}</p>
+                  {selectedRestaurant.planId && (
+                    <p className="text-gray-600">Plano ID: {selectedRestaurant.planId}</p>
                   )}
                 </div>
 
-                <div className="space-y-4">
-                  {Object.keys(permissionLabels).map(key => {
-                    const pKey = key as PermissionKey;
-                    return (
-                      <div key={key} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center">
-                              <h3 className="font-medium text-gray-900">{permissionLabels[pKey]}</h3>
-                              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                                selectedPermissions[pKey] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {selectedPermissions[pKey] ? 'Ativo' : 'Inativo'}
-                              </span>
+                {isLoadingPermissions ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-gray-600">Carregando permissões...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {Object.keys(PERMISSION_DEFINITIONS).map(key => {
+                      const pKey = key as PermissionKey;
+                      return (
+                        <div key={key} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <h3 className="font-medium text-gray-900">{PERMISSION_DEFINITIONS[pKey].name}</h3>
+                                <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                                  selectedPermissions[pKey] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {selectedPermissions[pKey] ? 'Ativo' : 'Inativo'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-500 mt-1">{PERMISSION_DEFINITIONS[pKey].description}</p>
                             </div>
-                            <p className="text-sm text-gray-500 mt-1">{permissionDescriptions[pKey]}</p>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={!!selectedPermissions[pKey]}
+                                onChange={(e) => requestToggle(pKey, e.target.checked)}
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="sr-only peer"
-                              checked={!!selectedPermissions[pKey]}
-                              onChange={(e) => requestToggle(pKey, e.target.checked)}
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                          </label>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-12">
@@ -248,7 +244,7 @@ export default function Permissions() {
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
                 <strong>Restaurante:</strong> {selectedRestaurant?.name}<br />
-                <strong>Permissão:</strong> {pendingChange ? permissionLabels[pendingChange.key] : ''}<br />
+                <strong>Permissão:</strong> {pendingChange ? PERMISSION_DEFINITIONS[pendingChange.key].name : ''}<br />
                 <strong>Novo Status:</strong> {pendingChange?.value ? 'Ativo' : 'Inativo'}
               </p>
             </div>

@@ -11,6 +11,8 @@ import { testAllCollections } from '../services/firestoreTest';
 import { uploadImage, deleteImage, uploadAudio, deleteAudio } from '../services/storageService';
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
 import { getStatistics, type GeneralStats } from '../services/statisticsService';
+import { hasRestaurantPermission } from '../services/permissionService';
+import { translateProduct } from '../services/openaiService';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
@@ -37,6 +39,10 @@ export default function Settings() {
   const [filterPrice, setFilterPrice] = useState<string>('all');
   const [filterTime, setFilterTime] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estados para permissões
+  const [hasAutomaticTranslation, setHasAutomaticTranslation] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   
   // Estados para categorias
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -169,6 +175,98 @@ export default function Settings() {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  // Verificar permissão de tradução automática
+  useEffect(() => {
+    const checkTranslationPermission = async () => {
+      if (restaurantId) {
+        try {
+          const hasPermission = await hasRestaurantPermission(restaurantId, 'automaticTranslation');
+          setHasAutomaticTranslation(hasPermission);
+        } catch (error) {
+          console.error('Erro ao verificar permissão de tradução:', error);
+          setHasAutomaticTranslation(false);
+        }
+      }
+    };
+
+    checkTranslationPermission();
+  }, [restaurantId]);
+
+  const handleAutoTranslateProduct = async () => {
+    if (!hasAutomaticTranslation || !productForm.name.trim() || !productForm.description.trim()) {
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const result = await translateProduct(productForm.name, productForm.description);
+      
+      if (result.success && result.translations) {
+        // Aplicar as traduções aos campos corretos
+        setProductTranslations(prev => ({
+          ...prev,
+          name: {
+            'en-US': result.translations!['en-US'].name,
+            'es-ES': result.translations!['es-ES'].name,
+            'fr-FR': result.translations!['fr-FR'].name
+          },
+          description: {
+            'en-US': result.translations!['en-US'].description,
+            'es-ES': result.translations!['es-ES'].description,
+            'fr-FR': result.translations!['fr-FR'].description
+          }
+        }));
+        
+        alert('Tradução automática concluída com sucesso!');
+      } else {
+        alert(`Erro na tradução: ${result.error || 'Erro desconhecido'}`);
+      }
+    } catch (error) {
+      console.error('Erro na tradução:', error);
+      alert('Erro ao traduzir produto. Tente novamente.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleAutoTranslateCategory = async () => {
+    if (!hasAutomaticTranslation || !categoryForm.trim()) {
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      // Para categorias, usamos o nome como descrição também
+      const result = await translateProduct(categoryForm, categoryForm);
+      
+      if (result.success && result.translations) {
+        // Aplicar as traduções aos campos corretos
+        setCategoryTranslations(prev => ({
+          ...prev,
+          name: {
+            'en-US': result.translations!['en-US'].name,
+            'es-ES': result.translations!['es-ES'].name,
+            'fr-FR': result.translations!['fr-FR'].name
+          },
+          description: {
+            'en-US': result.translations!['en-US'].name,
+            'es-ES': result.translations!['es-ES'].name,
+            'fr-FR': result.translations!['fr-FR'].name
+          }
+        }));
+        
+        alert('Tradução automática da categoria concluída com sucesso!');
+      } else {
+        alert(`Erro na tradução: ${result.error || 'Erro desconhecido'}`);
+      }
+    } catch (error) {
+      console.error('Erro na tradução:', error);
+      alert('Erro ao traduzir categoria. Tente novamente.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   // Carregar configurações no formulário
   useEffect(() => {
@@ -2272,6 +2370,43 @@ export default function Settings() {
                 </div>
               </div>
               
+              {/* Botão de Tradução Automática */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Tradução Automática</h3>
+                    <p className="text-sm text-gray-500">Traduza automaticamente este produto usando IA</p>
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={handleAutoTranslateProduct}
+                      disabled={!hasAutomaticTranslation || isTranslating || !productForm.name.trim() || !productForm.description.trim()}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        hasAutomaticTranslation && !isTranslating && productForm.name.trim() && productForm.description.trim()
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={
+                        !hasAutomaticTranslation
+                          ? 'Você não possui permissão para tradução automática. Entre em contato com o administrador.'
+                          : !productForm.name.trim() || !productForm.description.trim()
+                          ? 'Preencha o nome e descrição do produto antes de traduzir'
+                          : isTranslating
+                          ? 'Traduzindo...'
+                          : 'Traduzir automaticamente este produto para inglês, espanhol e francês'
+                      }
+                    >
+                      {isTranslating ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      <span>{isTranslating ? 'Traduzindo...' : 'Traduzir Automaticamente'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
               {/* Configurações Avançadas - Traduções */}
               <AdvancedTranslations
                 type="product"
@@ -2340,6 +2475,43 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+              
+              {/* Botão de Tradução Automática */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Tradução Automática</h3>
+                    <p className="text-sm text-gray-500">Traduza automaticamente esta categoria usando IA</p>
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={handleAutoTranslateCategory}
+                      disabled={!hasAutomaticTranslation || isTranslating || !categoryForm.trim()}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        hasAutomaticTranslation && !isTranslating && categoryForm.trim()
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={
+                        !hasAutomaticTranslation
+                          ? 'Você não possui permissão para tradução automática. Entre em contato com o administrador.'
+                          : !categoryForm.trim()
+                          ? 'Preencha o nome da categoria antes de traduzir'
+                          : isTranslating
+                          ? 'Traduzindo...'
+                          : 'Traduzir automaticamente esta categoria para inglês, espanhol e francês'
+                      }
+                    >
+                      {isTranslating ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      <span>{isTranslating ? 'Traduzindo...' : 'Traduzir Automaticamente'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
               
               {/* Configurações Avançadas - Traduções */}
               <AdvancedTranslations
