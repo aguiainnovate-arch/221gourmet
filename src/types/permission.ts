@@ -1,4 +1,4 @@
-export type PermissionKey = 'automaticTranslation';
+export type PermissionKey = 'automaticTranslation' | 'imageMenuTransfer';
 
 export interface Permission {
   key: PermissionKey;
@@ -23,9 +23,14 @@ export const PERMISSION_DEFINITIONS: Record<PermissionKey, { name: string; descr
   automaticTranslation: {
     name: 'Tradução Automática de Cardápio',
     description: 'Permite tradução automática de produtos e categorias usando IA'
+  },
+  imageMenuTransfer: {
+    name: 'Transferência de Cardápio por Imagem',
+    description: 'Permite extrair produtos de cardápios através de imagens usando IA'
   }
 };
 
 export const DEFAULT_PERMISSIONS: Record<PermissionKey, boolean> = {
-  automaticTranslation: false
+  automaticTranslation: false,
+  imageMenuTransfer: false
 };

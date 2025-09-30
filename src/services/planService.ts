@@ -201,10 +201,10 @@ export const getPlansWithRestaurantCount = async (): Promise<(Plan & { restauran
           );
           const permissionsSnapshot = await getDocs(permissionsQuery);
           
-          let permissions = { automaticTranslation: false };
+          let permissions = { automaticTranslation: false, imageMenuTransfer: false };
           if (!permissionsSnapshot.empty) {
             const permissionsData = permissionsSnapshot.docs[0].data();
-            permissions = permissionsData.permissions || { automaticTranslation: false };
+            permissions = permissionsData.permissions || { automaticTranslation: false, imageMenuTransfer: false };
           }
           
           return {

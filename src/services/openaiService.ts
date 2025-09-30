@@ -282,3 +282,129 @@ export const testOpenAIPrompt = (prompt: string, systemPrompt?: string) => {
 export const translateProduct = (name: string, description: string) => {
   return openaiService.translateProduct(name, description);
 };
+
+export interface MenuImageProduct {
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+}
+
+export interface MenuImageResult {
+  success: boolean;
+  products?: MenuImageProduct[];
+  error?: string;
+}
+
+export const processMenuImage = async (base64Image: string): Promise<MenuImageResult> => {
+  const client = (openaiService as any).client;
+  const config = (openaiService as any).config;
+
+  if (!client || !config) {
+    return {
+      success: false,
+      error: 'OpenAI não configurado. Verifique se a variável VITE_OPENAI_API_KEY está definida no arquivo .env'
+    };
+  }
+
+  const systemPrompt = `Você é um assistente especializado em extrair informações de cardápios de restaurantes através de imagens. 
+
+Sua tarefa é:
+1. Analisar a imagem do cardápio fornecida
+2. Identificar TODOS os produtos/pratos visíveis
+3. Extrair para cada produto: nome, descrição (se disponível), preço e categoria
+4. Organizar os produtos em categorias lógicas (Entradas, Pratos Principais, Bebidas, Sobremesas, etc.)
+5. Retornar um JSON válido com todos os produtos encontrados
+
+Regras importantes:
+- Se não houver descrição visível, use uma descrição genérica baseada no nome
+- Converta todos os preços para número (ex: "R$ 25,90" → 25.90)
+- Se não houver categoria explícita, infira uma categoria apropriada
+- Mantenha os nomes dos produtos exatamente como aparecem no cardápio
+- Se houver variações de tamanho/preço do mesmo produto, crie entradas separadas
+
+Formato de resposta (JSON):
+{
+  "products": [
+    {
+      "name": "Nome do Produto",
+      "description": "Descrição do produto",
+      "price": 25.90,
+      "category": "Categoria"
+    }
+  ]
+}`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Analise esta imagem de cardápio e extraia todos os produtos com suas informações no formato JSON especificado.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: base64Image
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 4000,
+      temperature: 0.3
+    });
+
+    const content = response.choices[0]?.message?.content;
+
+    if (!content) {
+      return { success: false, error: 'Erro ao processar imagem' };
+    }
+
+    try {
+      // Limpar o conteúdo removendo blocos de código markdown
+      let cleanContent = content.trim();
+      
+      // Remover ```json e ``` se existirem
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      const result = JSON.parse(cleanContent.trim());
+      
+      if (!result.products || !Array.isArray(result.products)) {
+        return { success: false, error: 'Formato de resposta inválido da IA' };
+      }
+
+      // Validar estrutura dos produtos
+      const validProducts = result.products.filter((p: any) => 
+        p.name && p.price !== undefined && p.category
+      );
+
+      if (validProducts.length === 0) {
+        return { success: false, error: 'Nenhum produto válido encontrado na imagem' };
+      }
+
+      return { success: true, products: validProducts };
+    } catch (parseError) {
+      console.error('Erro ao fazer parse da resposta:', content);
+      return { success: false, error: 'Resposta da IA não está em formato JSON válido' };
+    }
+  } catch (error) {
+    console.error('Erro ao processar imagem:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido ao processar imagem'
+    };
+  }
+};

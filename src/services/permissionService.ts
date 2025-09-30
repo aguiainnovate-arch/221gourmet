@@ -25,22 +25,19 @@ export const getRestaurantPermissions = async (restaurantId: string): Promise<Re
     
     if (querySnapshot.empty) {
       // Retornar permissões padrão se não existir registro
-      return {
-        automaticTranslation: false
-      };
+      return DEFAULT_PERMISSIONS;
     }
 
     const doc = querySnapshot.docs[0];
     const data = doc.data();
     
     return {
-      automaticTranslation: data.permissions?.automaticTranslation || false
+      ...DEFAULT_PERMISSIONS,
+      ...data.permissions
     };
   } catch (error) {
     console.error('Erro ao buscar permissões do restaurante:', error);
-    return {
-      automaticTranslation: false
-    };
+    return DEFAULT_PERMISSIONS;
   }
 };
 
@@ -89,22 +86,19 @@ export const getPlanPermissions = async (planId: string): Promise<Record<Permiss
     
     if (querySnapshot.empty) {
       // Retornar permissões padrão se não existir registro
-      return {
-        automaticTranslation: false
-      };
+      return DEFAULT_PERMISSIONS;
     }
 
     const doc = querySnapshot.docs[0];
     const data = doc.data();
     
     return {
-      automaticTranslation: data.permissions?.automaticTranslation || false
+      ...DEFAULT_PERMISSIONS,
+      ...data.permissions
     };
   } catch (error) {
     console.error('Erro ao buscar permissões do plano:', error);
-    return {
-      automaticTranslation: false
-    };
+    return DEFAULT_PERMISSIONS;
   }
 };
 
