@@ -50,6 +50,7 @@ export default function Settings() {
   const [imageImportFile, setImageImportFile] = useState<File | null>(null);
   const [imageImportPreview, setImageImportPreview] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [autoTranslateOnImport, setAutoTranslateOnImport] = useState(false);
   const [imageImportResult, setImageImportResult] = useState<{
     success: boolean;
     message: string;
@@ -211,6 +212,13 @@ export default function Settings() {
     checkPermissions();
   }, [restaurantId]);
 
+  // Atualizar checkbox de tradução automática quando o modal abrir ou a permissão mudar
+  useEffect(() => {
+    if (showImageImportModal) {
+      setAutoTranslateOnImport(hasAutomaticTranslation);
+    }
+  }, [showImageImportModal, hasAutomaticTranslation]);
+
   const handleAutoTranslateProduct = async () => {
     if (!hasAutomaticTranslation || !productForm.name.trim() || !productForm.description.trim()) {
       return;
@@ -315,6 +323,46 @@ export default function Settings() {
         // Agora importar todos os produtos
         for (const product of result.products) {
           try {
+            let productTranslations = {
+              name: {
+                'en-US': product.name,
+                'es-ES': product.name,
+                'fr-FR': product.name
+              },
+              description: {
+                'en-US': product.description || '',
+                'es-ES': product.description || '',
+                'fr-FR': product.description || ''
+              }
+            };
+
+            // Se a opção de tradução automática estiver ativada, traduzir o produto
+            if (autoTranslateOnImport) {
+              try {
+                const translationResult = await translateProduct(product.name, product.description || '');
+                
+                if (translationResult.success && translationResult.translations) {
+                  productTranslations = {
+                    name: {
+                      'en-US': translationResult.translations['en-US'].name,
+                      'es-ES': translationResult.translations['es-ES'].name,
+                      'fr-FR': translationResult.translations['fr-FR'].name
+                    },
+                    description: {
+                      'en-US': translationResult.translations['en-US'].description,
+                      'es-ES': translationResult.translations['es-ES'].description,
+                      'fr-FR': translationResult.translations['fr-FR'].description
+                    }
+                  };
+                } else {
+                  console.warn(`Não foi possível traduzir o produto "${product.name}":`, translationResult.error);
+                }
+              } catch (translationError) {
+                console.error(`Erro ao traduzir produto "${product.name}":`, translationError);
+                // Continuar com traduções padrão
+              }
+            }
+
             await addProduct(
               {
                 name: product.name,
@@ -324,18 +372,7 @@ export default function Settings() {
                 available: true,
                 image: '',
                 preparationTime: 0,
-                translations: {
-                  name: {
-                    'en-US': product.name,
-                    'es-ES': product.name,
-                    'fr-FR': product.name
-                  },
-                  description: {
-                    'en-US': product.description || '',
-                    'es-ES': product.description || '',
-                    'fr-FR': product.description || ''
-                  }
-                }
+                translations: productTranslations
               },
               restaurantId! // Segundo parâmetro
             );
@@ -2918,6 +2955,7 @@ export default function Settings() {
                     setImageImportFile(null);
                     setImageImportPreview(null);
                     setImageImportResult(null);
+                    setAutoTranslateOnImport(false);
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -3016,6 +3054,40 @@ export default function Settings() {
                 </ul>
               </div>
 
+              {/* Opção de Tradução Automática */}
+              <div className="mb-6">
+                <label className={`flex items-center space-x-3 p-4 border rounded-lg transition-colors ${
+                  hasAutomaticTranslation 
+                    ? 'bg-purple-50 border-purple-200 cursor-pointer hover:bg-purple-100' 
+                    : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={autoTranslateOnImport}
+                    onChange={(e) => setAutoTranslateOnImport(e.target.checked)}
+                    disabled={!hasAutomaticTranslation}
+                    className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className={`font-semibold ${hasAutomaticTranslation ? 'text-purple-900' : 'text-gray-600'}`}>
+                        Traduzir produtos automaticamente
+                      </span>
+                      <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">IA</span>
+                      {!hasAutomaticTranslation && (
+                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">Sem permissão</span>
+                      )}
+                    </div>
+                    <p className={`text-sm mt-1 ${hasAutomaticTranslation ? 'text-purple-700' : 'text-gray-500'}`}>
+                      {hasAutomaticTranslation 
+                        ? 'Os produtos importados serão traduzidos automaticamente para inglês, espanhol e francês'
+                        : 'Esta funcionalidade requer permissão de tradução automática no seu plano'
+                      }
+                    </p>
+                  </div>
+                </label>
+              </div>
+
               {/* Botões de Ação */}
               <div className="flex space-x-3 justify-end">
                 <button
@@ -3024,6 +3096,7 @@ export default function Settings() {
                     setImageImportFile(null);
                     setImageImportPreview(null);
                     setImageImportResult(null);
+                    setAutoTranslateOnImport(false);
                   }}
                   className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
                 >
