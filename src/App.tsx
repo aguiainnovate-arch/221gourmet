@@ -4,6 +4,8 @@ import Home from './pages/Home';
 import Menu from './pages/Menu';
 import Settings from './pages/Settings';
 import Owner from './pages/Owner';
+import Delivery from './pages/Delivery';
+import DeliveryMenu from './pages/DeliveryMenu';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import TestModeBanner from './components/TestModeBanner';
@@ -48,6 +50,10 @@ function App() {
                     <Owner />
                   </AdminRoute>
                 } />
+
+                {/* Rotas de delivery */}
+                <Route path="/delivery" element={<Delivery />} />
+                <Route path="/delivery/:restaurantId" element={<DeliveryMenu />} />
               </Routes>
             </BrowserRouter>
           </OrderProvider>
