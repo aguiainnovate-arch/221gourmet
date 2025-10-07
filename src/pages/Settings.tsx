@@ -43,6 +43,20 @@ export default function Settings() {
   // Estados para permissões
   const [hasAutomaticTranslation, setHasAutomaticTranslation] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [hasImageMenuTransfer, setHasImageMenuTransfer] = useState(false);
+  
+  // Estados para importação por imagem
+  const [showImageImportModal, setShowImageImportModal] = useState(false);
+  const [imageImportFile, setImageImportFile] = useState<File | null>(null);
+  const [imageImportPreview, setImageImportPreview] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [autoTranslateOnImport, setAutoTranslateOnImport] = useState(false);
+  const [imageImportResult, setImageImportResult] = useState<{
+    success: boolean;
+    message: string;
+    imported?: number;
+    errors?: string[];
+  } | null>(null);
   
   // Estados para categorias
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -176,22 +190,34 @@ export default function Settings() {
     loadProducts();
   }, []);
 
-  // Verificar permissão de tradução automática
+  // Verificar permissões
   useEffect(() => {
-    const checkTranslationPermission = async () => {
+    const checkPermissions = async () => {
       if (restaurantId) {
         try {
-          const hasPermission = await hasRestaurantPermission(restaurantId, 'automaticTranslation');
-          setHasAutomaticTranslation(hasPermission);
+          const [translationPermission, imageMenuPermission] = await Promise.all([
+            hasRestaurantPermission(restaurantId, 'automaticTranslation'),
+            hasRestaurantPermission(restaurantId, 'imageMenuTransfer')
+          ]);
+          setHasAutomaticTranslation(translationPermission);
+          setHasImageMenuTransfer(imageMenuPermission);
         } catch (error) {
-          console.error('Erro ao verificar permissão de tradução:', error);
+          console.error('Erro ao verificar permissões:', error);
           setHasAutomaticTranslation(false);
+          setHasImageMenuTransfer(false);
         }
       }
     };
 
-    checkTranslationPermission();
+    checkPermissions();
   }, [restaurantId]);
+
+  // Atualizar checkbox de tradução automática quando o modal abrir ou a permissão mudar
+  useEffect(() => {
+    if (showImageImportModal) {
+      setAutoTranslateOnImport(hasAutomaticTranslation);
+    }
+  }, [showImageImportModal, hasAutomaticTranslation]);
 
   const handleAutoTranslateProduct = async () => {
     if (!hasAutomaticTranslation || !productForm.name.trim() || !productForm.description.trim()) {
@@ -227,6 +253,175 @@ export default function Settings() {
       alert('Erro ao traduzir produto. Tente novamente.');
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  const handleImageImport = async () => {
+    if (!imageImportFile || !hasImageMenuTransfer) {
+      return;
+    }
+
+    setIsProcessingImage(true);
+    setImageImportResult(null);
+
+    try {
+      // Converter imagem para base64
+      const reader = new FileReader();
+      reader.readAsDataURL(imageImportFile);
+      
+      await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+
+      const base64Image = reader.result as string;
+
+      // Importar função de processamento de imagem
+      const openaiService = await import('../services/openaiService');
+      
+      const result = await openaiService.processMenuImage(base64Image);
+
+      if (result.success && result.products) {
+        // Importar produtos extraídos
+        let importedCount = 0;
+        const errors: string[] = [];
+        const createdCategories = new Set<string>();
+
+        // Primeiro, criar todas as categorias necessárias
+        for (const product of result.products) {
+          if (product.category.trim() && !createdCategories.has(product.category.toLowerCase())) {
+            const categoryExists = categories.some(c => 
+              c.name.toLowerCase() === product.category.toLowerCase()
+            );
+
+            if (!categoryExists) {
+              try {
+                await addCategory(
+                  product.category,
+                  restaurantId!,
+                  {
+                    name: {
+                      'en-US': product.category,
+                      'es-ES': product.category,
+                      'fr-FR': product.category
+                    }
+                  }
+                );
+                createdCategories.add(product.category.toLowerCase());
+              } catch (error) {
+                console.error('Erro ao criar categoria:', error);
+              }
+            }
+          }
+        }
+
+        // Recarregar categorias se alguma foi criada
+        if (createdCategories.size > 0) {
+          await reloadRestaurantData();
+        }
+
+        // Agora importar todos os produtos
+        for (const product of result.products) {
+          try {
+            let productTranslations = {
+              name: {
+                'en-US': product.name,
+                'es-ES': product.name,
+                'fr-FR': product.name
+              },
+              description: {
+                'en-US': product.description || '',
+                'es-ES': product.description || '',
+                'fr-FR': product.description || ''
+              }
+            };
+
+            // Se a opção de tradução automática estiver ativada, traduzir o produto
+            if (autoTranslateOnImport) {
+              try {
+                const translationResult = await translateProduct(product.name, product.description || '');
+                
+                if (translationResult.success && translationResult.translations) {
+                  productTranslations = {
+                    name: {
+                      'en-US': translationResult.translations['en-US'].name,
+                      'es-ES': translationResult.translations['es-ES'].name,
+                      'fr-FR': translationResult.translations['fr-FR'].name
+                    },
+                    description: {
+                      'en-US': translationResult.translations['en-US'].description,
+                      'es-ES': translationResult.translations['es-ES'].description,
+                      'fr-FR': translationResult.translations['fr-FR'].description
+                    }
+                  };
+                } else {
+                  console.warn(`Não foi possível traduzir o produto "${product.name}":`, translationResult.error);
+                }
+              } catch (translationError) {
+                console.error(`Erro ao traduzir produto "${product.name}":`, translationError);
+                // Continuar com traduções padrão
+              }
+            }
+
+            await addProduct(
+              {
+                name: product.name,
+                description: product.description || '',
+                price: product.price,
+                category: product.category,
+                available: true,
+                image: '',
+                preparationTime: 0,
+                translations: productTranslations
+              },
+              restaurantId! // Segundo parâmetro
+            );
+
+            importedCount++;
+          } catch (error) {
+            console.error('Erro ao importar produto:', error);
+            errors.push(`Erro ao importar "${product.name}": ${error}`);
+          }
+        }
+
+        setImageImportResult({
+          success: true,
+          message: `Importação concluída! ${importedCount} produtos importados${createdCategories.size > 0 ? ` e ${createdCategories.size} ${createdCategories.size === 1 ? 'categoria criada' : 'categorias criadas'}` : ''}.`,
+          imported: importedCount,
+          errors: errors.length > 0 ? errors : undefined
+        });
+
+        // Recarregar produtos e categorias
+        await loadProducts();
+        await reloadRestaurantData();
+      } else {
+        setImageImportResult({
+          success: false,
+          message: result.error || 'Erro ao processar imagem'
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao processar imagem:', error);
+      setImageImportResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Erro desconhecido ao processar imagem'
+      });
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageImportFile(file);
+      
+      // Criar preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageImportPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -1268,6 +1463,27 @@ export default function Settings() {
                     <Upload className="w-4 h-4" />
                     <span>Importar CSV</span>
                   </button>
+                  <div className="relative group">
+                    <button
+                      onClick={() => hasImageMenuTransfer ? setShowImageImportModal(true) : null}
+                      disabled={!hasImageMenuTransfer}
+                      className={`px-6 py-2 rounded-lg flex items-center space-x-2 font-semibold transition-all transform ${
+                        hasImageMenuTransfer
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={!hasImageMenuTransfer ? 'Você não possui permissão para importar cardápio por imagem' : 'Importar cardápio a partir de uma foto usando IA'}
+                    >
+                      <Sparkles className="w-5 h-5" />
+                      <span>Importar por Imagem</span>
+                      {hasImageMenuTransfer && <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-bold">IA</span>}
+                    </button>
+                    {!hasImageMenuTransfer && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                        Você não possui permissão para esta funcionalidade
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => openProductModal()}
                     className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600"
@@ -2716,6 +2932,202 @@ export default function Settings() {
         </div>
       )}
 
+      {/* Modal de Importação por Imagem */}
+      {showImageImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
+                    <Sparkles className="w-7 h-7 text-purple-600" />
+                    <span>Importar Cardápio por Imagem</span>
+                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs px-3 py-1 rounded-full font-bold">IA</span>
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Tire uma foto do seu cardápio e nossa IA extrairá automaticamente todos os produtos
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowImageImportModal(false);
+                    setImageImportFile(null);
+                    setImageImportPreview(null);
+                    setImageImportResult(null);
+                    setAutoTranslateOnImport(false);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Upload de Imagem */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Selecione a imagem do cardápio
+                </label>
+                
+                {!imageImportPreview ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-purple-500 transition-colors cursor-pointer"
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
+                    <Upload className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                    <p className="text-gray-600 mb-2">Clique para selecionar uma imagem</p>
+                    <p className="text-sm text-gray-500">JPG, PNG ou WEBP (máx. 10MB)</p>
+                    <input
+                      id="image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileSelect}
+                      className="hidden"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <img
+                        src={imageImportPreview}
+                        alt="Preview"
+                        className="w-full h-64 object-contain bg-gray-100 rounded-lg"
+                      />
+                      <button
+                        onClick={() => {
+                          setImageImportFile(null);
+                          setImageImportPreview(null);
+                          setImageImportResult(null);
+                        }}
+                        className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      <strong>Dica:</strong> Certifique-se de que o texto do cardápio está legível e bem iluminado
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Resultado da Importação */}
+              {imageImportResult && (
+                <div className={`mb-6 p-4 rounded-lg ${
+                  imageImportResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                }`}>
+                  <div className="flex items-start space-x-3">
+                    {imageImportResult.success ? (
+                      <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`font-medium ${imageImportResult.success ? 'text-green-900' : 'text-red-900'}`}>
+                        {imageImportResult.message}
+                      </p>
+                      {imageImportResult.errors && imageImportResult.errors.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-700 font-medium">Erros encontrados:</p>
+                          <ul className="mt-1 text-sm text-gray-600 space-y-1">
+                            {imageImportResult.errors.map((error, index) => (
+                              <li key={index}>• {error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Instruções */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Como funciona:
+                </h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• A IA irá analisar a imagem e identificar produtos, descrições e preços</li>
+                  <li>• Categorias serão criadas automaticamente se não existirem</li>
+                  <li>• Produtos com o mesmo nome não serão duplicados</li>
+                  <li>• Revise os produtos importados após o processo</li>
+                </ul>
+              </div>
+
+              {/* Opção de Tradução Automática */}
+              <div className="mb-6">
+                <label className={`flex items-center space-x-3 p-4 border rounded-lg transition-colors ${
+                  hasAutomaticTranslation 
+                    ? 'bg-purple-50 border-purple-200 cursor-pointer hover:bg-purple-100' 
+                    : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={autoTranslateOnImport}
+                    onChange={(e) => setAutoTranslateOnImport(e.target.checked)}
+                    disabled={!hasAutomaticTranslation}
+                    className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className={`font-semibold ${hasAutomaticTranslation ? 'text-purple-900' : 'text-gray-600'}`}>
+                        Traduzir produtos automaticamente
+                      </span>
+                      <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">IA</span>
+                      {!hasAutomaticTranslation && (
+                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">Sem permissão</span>
+                      )}
+                    </div>
+                    <p className={`text-sm mt-1 ${hasAutomaticTranslation ? 'text-purple-700' : 'text-gray-500'}`}>
+                      {hasAutomaticTranslation 
+                        ? 'Os produtos importados serão traduzidos automaticamente para inglês, espanhol e francês'
+                        : 'Esta funcionalidade requer permissão de tradução automática no seu plano'
+                      }
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex space-x-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowImageImportModal(false);
+                    setImageImportFile(null);
+                    setImageImportPreview(null);
+                    setImageImportResult(null);
+                    setAutoTranslateOnImport(false);
+                  }}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleImageImport}
+                  disabled={!imageImportFile || isProcessingImage}
+                  className={`px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 ${
+                    imageImportFile && !isProcessingImage
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isProcessingImage ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>Processando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>Processar Imagem</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

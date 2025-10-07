@@ -30,7 +30,8 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
         enableAnalytics: true
       },
       permissions: {
-        automaticTranslation: false
+        automaticTranslation: false,
+        imageMenuTransfer: false
       }
     });
 
@@ -69,7 +70,8 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
         enableAnalytics: true
       },
       permissions: {
-        automaticTranslation: false
+        automaticTranslation: false,
+        imageMenuTransfer: false
       }
     };
   } catch (error) {

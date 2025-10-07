@@ -21,6 +21,7 @@ export interface Restaurant {
   };
   permissions?: {
     automaticTranslation: boolean;
+    imageMenuTransfer: boolean;
   };
 }
 
@@ -38,6 +39,7 @@ export interface CreateRestaurantData {
   };
   permissions?: {
     automaticTranslation: boolean;
+    imageMenuTransfer: boolean;
   };
 }
 
@@ -56,5 +58,6 @@ export interface UpdateRestaurantData {
   active?: boolean;
   permissions?: {
     automaticTranslation: boolean;
+    imageMenuTransfer: boolean;
   };
 }
