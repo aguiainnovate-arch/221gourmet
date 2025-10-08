@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
@@ -25,7 +25,7 @@ import MenuPreview from '../components/MenuPreview';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
-  const { orders, updateOrderStatus, deleteOrder, refreshOrders } = useOrders();
+  const { orders, updateOrderStatus, deleteOrder, refreshOrders, setRestaurantId } = useOrders();
   const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
@@ -189,6 +189,13 @@ export default function Settings() {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  // Conectar OrderContext ao restaurantId
+  useEffect(() => {
+    if (restaurantId) {
+      setRestaurantId(restaurantId);
+    }
+  }, [restaurantId, setRestaurantId]);
 
   // Verificar permissões
   useEffect(() => {
@@ -2259,12 +2266,51 @@ export default function Settings() {
                   </div>
                 </div>
                 <button
-                  onClick={refreshOrders}
+                  onClick={() => refreshOrders()}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Atualizar
                 </button>
+              </div>
+
+              {/* Estatísticas */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Users className="w-8 h-8 text-orange-600" />
+                      <div>
+                        <p className="text-sm text-gray-600">Pedidos Mesa</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {orders.filter(o => o.orderType === 'mesa').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Truck className="w-8 h-8 text-blue-600" />
+                      <div>
+                        <p className="text-sm text-gray-600">Pedidos Delivery</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {orders.filter(o => o.orderType === 'delivery').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Package className="w-8 h-8 text-gray-600" />
+                      <div>
+                        <p className="text-sm text-gray-600">Total de Pedidos</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {orders.length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {orders.length === 0 ? (
@@ -2295,15 +2341,32 @@ export default function Settings() {
                         {groupedOrders[status]?.map((order) => (
                           <div
                             key={order.id}
-                            className={`p-6 rounded-lg border ${getStatusColor(status)}`}
+                            className={`p-6 rounded-lg border ${getStatusColor(status)} ${
+                              order.orderType === 'delivery' ? 'ring-2 ring-blue-400' : ''
+                            }`}
                           >
                             <div className="flex justify-between items-start mb-4">
                               <div className="flex items-center space-x-3">
-                                <div className="bg-white p-2 rounded-lg shadow-sm">
-                                  <Users className="w-4 h-4 text-gray-600" />
+                                <div className={`p-2 rounded-lg shadow-sm ${
+                                  order.orderType === 'delivery' ? 'bg-blue-100' : 'bg-white'
+                                }`}>
+                                  {order.orderType === 'delivery' ? (
+                                    <Truck className="w-4 h-4 text-blue-600" />
+                                  ) : (
+                                    <Users className="w-4 h-4 text-gray-600" />
+                                  )}
                                 </div>
                                 <div>
-                                  <h4 className="font-semibold text-gray-900">Mesa {order.mesaNumero}</h4>
+                                  <div className="flex items-center space-x-2">
+                                    <h4 className="font-semibold text-gray-900">
+                                      {order.orderType === 'delivery' ? order.mesaNumero : `Mesa ${order.mesaNumero}`}
+                                    </h4>
+                                    {order.orderType === 'delivery' && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Delivery
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-sm text-gray-500">{order.timestamp}</p>
                                 </div>
                               </div>
@@ -2312,6 +2375,38 @@ export default function Settings() {
                                 <span>{order.tempoEspera}</span>
                               </div>
                             </div>
+
+                            {/* Informações do Cliente (apenas para delivery) */}
+                            {order.orderType === 'delivery' && order.deliveryInfo && (
+                              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                <h5 className="font-medium text-gray-900 mb-2 text-sm flex items-center">
+                                  <Users className="w-4 h-4 mr-2 text-blue-600" />
+                                  Informações do Cliente
+                                </h5>
+                                <div className="space-y-1 text-sm">
+                                  <div className="flex items-center text-gray-700">
+                                    <span className="font-medium mr-2">Nome:</span>
+                                    <span>{order.deliveryInfo.customerName}</span>
+                                  </div>
+                                  <div className="flex items-center text-gray-700">
+                                    <Phone className="w-3 h-3 mr-2" />
+                                    <span>{order.deliveryInfo.customerPhone}</span>
+                                  </div>
+                                  <div className="flex items-start text-gray-700">
+                                    <MapPin className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
+                                    <span className="flex-1">{order.deliveryInfo.customerAddress}</span>
+                                  </div>
+                                  <div className="flex items-center text-gray-700">
+                                    <CreditCard className="w-3 h-3 mr-2" />
+                                    <span>{order.deliveryInfo.paymentMethod}</span>
+                                  </div>
+                                  <div className="flex items-center text-gray-700">
+                                    <span className="font-medium mr-2">Taxa de entrega:</span>
+                                    <span>R$ {order.deliveryInfo.deliveryFee.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             
                             <div className="mb-6">
                               <h5 className="font-medium text-gray-900 mb-3 flex items-center">

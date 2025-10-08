@@ -33,7 +33,7 @@ export default function Menu() {
   const { addOrder } = useOrders();
   const { settings } = useSettings();
   const { t, i18n } = useTranslation();
-  const { products, categories } = useRestaurantData();
+  const { products, categories, restaurantId } = useRestaurantData();
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -319,12 +319,14 @@ export default function Menu() {
     }));
     
     await addOrder({
+      restaurantId: restaurantId,
       mesaId: mesaInfo.id,
       mesaNumero: mesaInfo.numero,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       status: 'novo',
       itens: itensSelecionados,
-      tempoEspera: '15 min'
+      tempoEspera: '15 min',
+      orderType: 'mesa'
     }, detailedItems);
 
     setSelectedItems([]);

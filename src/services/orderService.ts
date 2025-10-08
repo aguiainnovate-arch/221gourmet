@@ -4,24 +4,43 @@ import { saveDetailedOrder, type OrderItem } from './statisticsService';
 
 export interface FirestoreOrder {
   id: string;
+  restaurantId: string; // ID do restaurante
   mesaId: string;
   mesaNumero: string;
   timestamp: string;
   status: 'novo' | 'preparando' | 'pronto';
   itens: string[];
   tempoEspera: string;
+  orderType: 'mesa' | 'delivery'; // Tipo do pedido
+  deliveryInfo?: { // Info adicional para delivery
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+    paymentMethod: string;
+    deliveryFee: number;
+  };
 }
 
 export const addOrder = async (order: Omit<FirestoreOrder, 'id'>, detailedItems?: OrderItem[]): Promise<FirestoreOrder> => {
   try {
-    const docRef = await addDoc(collection(db, 'orders'), {
+    // Preparar dados, removendo campos undefined (Firestore não aceita undefined)
+    const orderData: any = {
+      restaurantId: order.restaurantId,
       mesaId: order.mesaId,
       mesaNumero: order.mesaNumero,
       timestamp: order.timestamp,
       status: order.status,
       itens: order.itens,
-      tempoEspera: order.tempoEspera
-    });
+      tempoEspera: order.tempoEspera,
+      orderType: order.orderType || 'mesa'
+    };
+    
+    // Adicionar deliveryInfo apenas se existir
+    if (order.deliveryInfo) {
+      orderData.deliveryInfo = order.deliveryInfo;
+    }
+    
+    const docRef = await addDoc(collection(db, 'orders'), orderData);
 
     // Salvar dados detalhados para estatísticas se fornecidos
     if (detailedItems && detailedItems.length > 0) {
@@ -49,6 +68,7 @@ export const addOrder = async (order: Omit<FirestoreOrder, 'id'>, detailedItems?
       ...order
     };
   } catch (error) {
+    console.error('Erro ao adicionar pedido:', error);
     throw new Error('Falha ao adicionar pedido');
   }
 };
@@ -110,5 +130,45 @@ export const deleteOrder = async (orderId: string): Promise<void> => {
     await deleteDoc(doc(db, 'orders', orderId));
   } catch (error) {
     throw new Error('Falha ao deletar pedido');
+  }
+};
+
+// Buscar pedidos por restaurante (mesa + delivery integrados)
+export const getOrdersByRestaurant = async (restaurantId: string): Promise<FirestoreOrder[]> => {
+  try {
+    const q = query(
+      collection(db, 'orders'),
+      where('restaurantId', '==', restaurantId)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    const orders: FirestoreOrder[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      orders.push({
+        id: docSnap.id,
+        restaurantId: data.restaurantId,
+        mesaId: data.mesaId,
+        mesaNumero: data.mesaNumero,
+        timestamp: data.timestamp,
+        status: data.status,
+        itens: data.itens,
+        tempoEspera: data.tempoEspera,
+        orderType: data.orderType || 'mesa',
+        deliveryInfo: data.deliveryInfo
+      } as FirestoreOrder);
+    });
+    
+    // Ordenar por timestamp (mais recente primeiro)
+    orders.sort((a, b) => {
+      const timeA = a.timestamp.includes(':') ? a.timestamp : '00:00';
+      const timeB = b.timestamp.includes(':') ? b.timestamp : '00:00';
+      return timeB.localeCompare(timeA);
+    });
+    
+    return orders;
+  } catch (error) {
+    console.error('Erro ao buscar pedidos por restaurante:', error);
+    throw new Error('Falha ao buscar pedidos por restaurante');
   }
 }; 

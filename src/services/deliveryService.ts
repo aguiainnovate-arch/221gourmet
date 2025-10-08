@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
+import { addOrder } from './orderService';
 
 // Re-exportar os tipos para facilitar imports
 export type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
@@ -25,17 +26,56 @@ export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): P
       updatedAt: Timestamp.now()
     });
 
-    return {
+    const deliveryOrder = {
       id: docRef.id,
       ...orderData,
-      status: 'pending',
+      status: 'pending' as const,
       createdAt: new Date(),
       updatedAt: new Date()
     };
+
+    // Sincronizar com a coleção unificada de pedidos
+    try {
+      await addOrder({
+        restaurantId: orderData.restaurantId,
+        mesaId: docRef.id,
+        mesaNumero: `Delivery #${docRef.id.substring(0, 6)}`,
+        timestamp: new Date().toLocaleString('pt-BR'),
+        status: 'novo',
+        itens: orderData.items.map(item => 
+          `${item.quantity}x ${item.productName}${item.observations ? ` (${item.observations})` : ''}`
+        ),
+        tempoEspera: '0 min',
+        orderType: 'delivery',
+        deliveryInfo: {
+          customerName: orderData.customerName,
+          customerPhone: orderData.customerPhone,
+          customerAddress: orderData.customerAddress,
+          paymentMethod: translatePaymentMethod(orderData.paymentMethod),
+          deliveryFee: orderData.deliveryFee
+        }
+      });
+    } catch (syncError) {
+      console.error('Erro ao sincronizar delivery com orders:', syncError);
+      // Não falha o pedido de delivery se a sincronização falhar
+    }
+
+    return deliveryOrder;
   } catch (error) {
     console.error('Erro ao criar pedido de delivery:', error);
     throw new Error('Falha ao criar pedido de delivery');
   }
+};
+
+// Função auxiliar para traduzir método de pagamento
+const translatePaymentMethod = (method: string): string => {
+  const labels: Record<string, string> = {
+    'money': 'Dinheiro',
+    'credit': 'Cartão de Crédito',
+    'debit': 'Cartão de Débito',
+    'pix': 'PIX'
+  };
+  return labels[method] || method;
 };
 
 // Buscar todos os pedidos de delivery
