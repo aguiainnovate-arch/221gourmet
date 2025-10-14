@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 import brasilFlag from '../assets/brasilflag.svg';
@@ -11,6 +12,8 @@ interface LanguageSelectorProps {
 
 export default function LanguageSelector({ className = '' }: LanguageSelectorProps) {
   const { i18n, t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const languages = [
     { code: 'pt-BR', name: t('language.portuguese'), flag: brasilFlag },
@@ -22,11 +25,29 @@ export default function LanguageSelector({ className = '' }: LanguageSelectorPro
   const changeLanguage = (langCode: string) => {
     i18n.changeLanguage(langCode);
     localStorage.setItem('language', langCode);
+    setIsOpen(false);
   };
 
+  // Fechar dropdown quando clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
-    <div className={`relative group ${className}`}>
-      <button className="flex items-center gap-2 bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors">
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
+      >
         <Globe size={16} />
         <span className="text-sm">
           {(() => {
@@ -38,27 +59,28 @@ export default function LanguageSelector({ className = '' }: LanguageSelectorPro
           })()}
         </span>
       </button>
-      
-      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-        {languages.map((language) => (
-          <button
-            key={language.code}
-            onClick={() => changeLanguage(language.code)}
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 ${
-              i18n.language === language.code 
-                ? 'bg-primary-50 text-primary-700 font-medium' 
+
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px] z-50">
+          {languages.map((language) => (
+            <button
+              key={language.code}
+              onClick={() => changeLanguage(language.code)}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 ${i18n.language === language.code
+                ? 'bg-primary-50 text-primary-700 font-medium'
                 : 'text-gray-700'
-            }`}
-          >
-            {language.flag ? (
-              <img src={language.flag} alt="flag" className="w-4 h-4" />
-            ) : (
-              <span>🌐</span>
-            )}
-            <span>{language.name}</span>
-          </button>
-        ))}
-      </div>
+                }`}
+            >
+              {language.flag ? (
+                <img src={language.flag} alt="flag" className="w-4 h-4" />
+              ) : (
+                <span>🌐</span>
+              )}
+              <span>{language.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

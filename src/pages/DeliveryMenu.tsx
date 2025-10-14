@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
@@ -24,7 +24,7 @@ export default function DeliveryMenu() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  
+
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -32,7 +32,7 @@ export default function DeliveryMenu() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCheckout, setShowCheckout] = useState(false);
-  
+
   // Dados do cliente
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -49,7 +49,7 @@ export default function DeliveryMenu() {
 
   const loadRestaurantData = async () => {
     if (!restaurantId) return;
-    
+
     try {
       setLoading(true);
       const [restaurantsData, productsData, categoriesData] = await Promise.all([
@@ -75,7 +75,7 @@ export default function DeliveryMenu() {
 
   const addToCart = (product: Product) => {
     const existing = selectedItems.find(item => item.product.id === product.id);
-    
+
     if (existing) {
       setSelectedItems(selectedItems.map(item =>
         item.product.id === product.id
@@ -187,40 +187,120 @@ export default function DeliveryMenu() {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
-      <div 
-        className="text-white py-8"
-        style={{ backgroundColor: restaurant.theme?.primaryColor || '#92400e' }}
-      >
-        <div className="container mx-auto px-4">
-          <button
-            onClick={() => navigate('/delivery')}
-            className="flex items-center text-white hover:text-gray-200 mb-4"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Voltar
-          </button>
-          <h1 className="text-3xl font-bold mb-2">{restaurant.name}</h1>
-          <p className="text-white/90">{restaurant.address}</p>
-          <div className="mt-4">
+      <div className="relative">
+        {/* Restaurant Banner Background */}
+        <div
+          className="h-48 bg-cover bg-center relative"
+          style={{
+            backgroundImage: restaurant.theme?.logo ? `url(${restaurant.theme.logo})` : `linear-gradient(135deg, ${restaurant.theme?.primaryColor || '#92400e'}, ${restaurant.theme?.secondaryColor || '#d97706'})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        >
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-black/40"></div>
+
+          {/* Navigation */}
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+            <button
+              onClick={() => navigate('/delivery')}
+              className="flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-full"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Voltar
+            </button>
             <LanguageSelector />
+          </div>
+
+          {/* Restaurant Info */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
+            <div className="flex items-end space-x-4">
+              {/* Restaurant Logo */}
+              <div className="w-20 h-20 bg-white rounded-lg shadow-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl font-bold" style={{ color: restaurant.theme?.primaryColor || '#92400e' }}>
+                  {restaurant.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+
+              {/* Restaurant Details */}
+              <div className="flex-1 text-white">
+                <h1 className="text-2xl font-bold mb-1">{restaurant.name}</h1>
+                <div className="flex items-center space-x-4 text-sm text-white/90">
+                  <div className="flex items-center">
+                    <span className="text-yellow-400 mr-1">★</span>
+                    <span>4.5</span>
+                  </div>
+                  <div className="flex items-center">
+                    <MapPin className="w-4 h-4 mr-1" />
+                    <span>{restaurant.address}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Delivery Info Card */}
+        <div className="bg-white mx-4 mt-4 rounded-lg shadow-lg p-4 relative z-20">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-gray-700">Aberto</span>
+              </div>
+              <div className="text-sm text-gray-500">
+                Pedido mínimo R$ 15,00
+              </div>
+            </div>
+            <button className="text-red-500 text-sm font-medium hover:text-red-600">
+              Ver mais
+            </button>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <div className="flex-1 bg-gray-50 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Bike className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Entrega</span>
+                </div>
+                <div className="text-xs text-gray-500">▼</div>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-gray-50 rounded-lg p-3">
+              <div className="text-sm font-medium text-gray-700">Hoje</div>
+              <div className="text-xs text-gray-500">25-35 min • R$ 5,99</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="px-4 mt-4">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar no cardápio"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm"
+            />
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Menu */}
           <div className="lg:col-span-2">
             {/* Categories */}
-            <div className="mb-6 overflow-x-auto">
-              <div className="flex space-x-2 pb-2">
+            <div className="mb-6">
+              <div className="flex space-x-3 overflow-x-auto pb-2">
                 <button
                   onClick={() => setSelectedCategory('todos')}
-                  className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${
-                    selectedCategory === 'todos'
-                      ? 'bg-amber-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === 'todos'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                    }`}
                 >
                   {t('menu.allCategories')}
                 </button>
@@ -228,11 +308,10 @@ export default function DeliveryMenu() {
                   <button
                     key={category.id}
                     onClick={() => setSelectedCategory(category.name)}
-                    className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${
-                      selectedCategory === category.name
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-100'
-                    }`}
+                    className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === category.name
+                      ? 'bg-amber-600 text-white shadow-md'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      }`}
                   >
                     {getCategoryTranslation(category, i18n.language)}
                   </button>
@@ -249,14 +328,21 @@ export default function DeliveryMenu() {
                   <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden">
                     <div className="p-4">
                       <div className="flex items-start space-x-4">
-                        {product.image && (
-                          <ProductImage
-                            src={product.image}
-                            alt={product.name}
-                            className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
-                          />
-                        )}
-                        
+                        <div className="w-24 h-24 rounded-lg flex-shrink-0 bg-gray-200 flex items-center justify-center overflow-hidden">
+                          {product.image ? (
+                            <ProductImage
+                              src={product.image}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="text-center text-gray-400 p-2">
+                              <div className="text-xs font-medium">📷</div>
+                              <div className="text-xs">Sem imagem</div>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-lg text-gray-900 mb-1">
                             {getProductTranslation(product, i18n.language).name}
@@ -490,11 +576,10 @@ export default function DeliveryMenu() {
                 <button
                   onClick={handleSubmitOrder}
                   disabled={isSubmitting || !customerName || !customerPhone || !customerAddress}
-                  className={`flex-1 px-6 py-3 rounded-lg font-bold ${
-                    isSubmitting || !customerName || !customerPhone || !customerAddress
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-amber-600 text-white hover:bg-amber-700'
-                  }`}
+                  className={`flex-1 px-6 py-3 rounded-lg font-bold ${isSubmitting || !customerName || !customerPhone || !customerAddress
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-amber-600 text-white hover:bg-amber-700'
+                    }`}
                 >
                   {isSubmitting ? 'Enviando...' : 'Confirmar Pedido'}
                 </button>

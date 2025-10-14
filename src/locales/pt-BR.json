@@ -6,6 +6,7 @@
     "noProducts": "Nenhum produto disponível no momento",
     "noProductsCategory": "Nenhum produto disponível na categoria \"{{category}}\"",
     "all": "Todos",
+    "allCategories": "Todas as Categorias",
     "quantity": "Quantidade:",
     "observations": "Observações:",
     "observationsPlaceholder": "Ex: Sem cebola, bem passado, etc...",
