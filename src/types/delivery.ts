@@ -19,6 +19,7 @@ export interface DeliveryOrder {
   paymentMethod: 'money' | 'credit' | 'debit' | 'pix';
   deliveryFee: number;
   observations?: string;
+  cancellationReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }

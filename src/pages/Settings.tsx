@@ -13,6 +13,8 @@ import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImpor
 import { getStatistics, type GeneralStats } from '../services/statisticsService';
 import { hasRestaurantPermission } from '../services/permissionService';
 import { translateProduct } from '../services/openaiService';
+import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder } from '../services/deliveryService';
+import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
@@ -29,6 +31,12 @@ export default function Settings() {
   const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
+  const [kitchenSubTab, setKitchenSubTab] = useState('mesa');
+  const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<DeliveryOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -39,12 +47,12 @@ export default function Settings() {
   const [filterPrice, setFilterPrice] = useState<string>('all');
   const [filterTime, setFilterTime] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Estados para permissões
   const [hasAutomaticTranslation, setHasAutomaticTranslation] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [hasImageMenuTransfer, setHasImageMenuTransfer] = useState(false);
-  
+
   // Estados para importação por imagem
   const [showImageImportModal, setShowImageImportModal] = useState(false);
   const [imageImportFile, setImageImportFile] = useState<File | null>(null);
@@ -57,12 +65,12 @@ export default function Settings() {
     imported?: number;
     errors?: string[];
   } | null>(null);
-  
+
   // Estados para categorias
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState('');
-  
+
   // Estados para personalização
   const [personalizationForm, setPersonalizationForm] = useState({
     restaurantName: '',
@@ -71,7 +79,7 @@ export default function Settings() {
     bannerUrl: '',
     audioUrl: ''
   });
-  
+
   // Estados para extração de cores
   const [extractedColors, setExtractedColors] = useState<{
     primaryColor: string;
@@ -79,13 +87,13 @@ export default function Settings() {
     palette: string[];
   } | null>(null);
   const [isExtractingColors, setIsExtractingColors] = useState(false);
-  
+
   // Estados para relatórios
   const [statistics, setStatistics] = useState<GeneralStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('week');
 
-  
+
   // Formulário de produto
   const [productForm, setProductForm] = useState({
     name: '',
@@ -96,17 +104,17 @@ export default function Settings() {
     available: true,
     image: ''
   });
-  
+
   // Estados para traduções
   const [productTranslations, setProductTranslations] = useState<{
     name?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
     description?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
   }>({});
-  
+
   const [categoryTranslations, setCategoryTranslations] = useState<{
     name?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
   }>({});
-  
+
   const [qrCodeModal, setQrCodeModal] = useState<{ show: boolean; url: string; numero: string }>({
     show: false,
     url: '',
@@ -131,7 +139,7 @@ export default function Settings() {
     try {
       const url = new URL(imageUrl);
       const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-      
+
       if (pathMatch) {
         return decodeURIComponent(pathMatch[1]);
       }
@@ -234,7 +242,7 @@ export default function Settings() {
     setIsTranslating(true);
     try {
       const result = await translateProduct(productForm.name, productForm.description);
-      
+
       if (result.success && result.translations) {
         // Aplicar as traduções aos campos corretos
         setProductTranslations(prev => ({
@@ -250,7 +258,7 @@ export default function Settings() {
             'fr-FR': result.translations!['fr-FR'].description
           }
         }));
-        
+
         alert('Tradução automática concluída com sucesso!');
       } else {
         alert(`Erro na tradução: ${result.error || 'Erro desconhecido'}`);
@@ -275,7 +283,7 @@ export default function Settings() {
       // Converter imagem para base64
       const reader = new FileReader();
       reader.readAsDataURL(imageImportFile);
-      
+
       await new Promise((resolve, reject) => {
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
@@ -285,7 +293,7 @@ export default function Settings() {
 
       // Importar função de processamento de imagem
       const openaiService = await import('../services/openaiService');
-      
+
       const result = await openaiService.processMenuImage(base64Image);
 
       if (result.success && result.products) {
@@ -297,7 +305,7 @@ export default function Settings() {
         // Primeiro, criar todas as categorias necessárias
         for (const product of result.products) {
           if (product.category.trim() && !createdCategories.has(product.category.toLowerCase())) {
-            const categoryExists = categories.some(c => 
+            const categoryExists = categories.some(c =>
               c.name.toLowerCase() === product.category.toLowerCase()
             );
 
@@ -347,7 +355,7 @@ export default function Settings() {
             if (autoTranslateOnImport) {
               try {
                 const translationResult = await translateProduct(product.name, product.description || '');
-                
+
                 if (translationResult.success && translationResult.translations) {
                   productTranslations = {
                     name: {
@@ -422,7 +430,7 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (file) {
       setImageImportFile(file);
-      
+
       // Criar preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -441,7 +449,7 @@ export default function Settings() {
     try {
       // Para categorias, usamos o nome como descrição também
       const result = await translateProduct(categoryForm, categoryForm);
-      
+
       if (result.success && result.translations) {
         // Aplicar as traduções aos campos corretos
         setCategoryTranslations(prev => ({
@@ -457,7 +465,7 @@ export default function Settings() {
             'fr-FR': result.translations!['fr-FR'].name
           }
         }));
-        
+
         alert('Tradução automática da categoria concluída com sucesso!');
       } else {
         alert(`Erro na tradução: ${result.error || 'Erro desconhecido'}`);
@@ -514,12 +522,12 @@ export default function Settings() {
       alert('Por favor, digite um número de mesa');
       return;
     }
-    
+
     if (mesas.find(m => m.numero === novaMesa)) {
       alert('Mesa já existe!');
       return;
     }
-    
+
     try {
       const novaMesaObj = await addTable(novaMesa);
       setMesas(prev => [...prev, novaMesaObj]);
@@ -552,7 +560,7 @@ export default function Settings() {
           light: '#FFFFFF'
         }
       });
-      
+
       setQrCodeModal({
         show: true,
         url: qrDataUrl,
@@ -638,10 +646,10 @@ export default function Settings() {
       if (editingProduct) {
         // Armazenar a URL da imagem antiga para deletar depois
         const oldImageUrl = editingProduct.image;
-        
+
         await updateProduct(editingProduct.id, productData);
         reloadRestaurantData(); // Recarregar dados do restaurante
-        
+
         // Deletar a imagem antiga se foi alterada
         if (oldImageUrl && oldImageUrl !== productForm.image) {
           try {
@@ -655,7 +663,7 @@ export default function Settings() {
             // Não mostrar erro para o usuário, pois o produto foi atualizado com sucesso
           }
         }
-        
+
         alert(`Produto "${productData.name}" atualizado com sucesso!`);
       } else {
         await addProduct(productData, restaurantId);
@@ -675,11 +683,11 @@ export default function Settings() {
       try {
         // Encontrar o produto para obter a URL da imagem
         const productToDelete = products.find(p => p.id === id);
-        
+
         // Deletar o produto do Firestore
         await deleteProduct(id);
         reloadRestaurantData(); // Recarregar dados do restaurante
-        
+
         // Deletar a imagem do Storage se existir
         if (productToDelete?.image) {
           try {
@@ -693,7 +701,7 @@ export default function Settings() {
             // Não mostrar erro para o usuário, pois o produto foi deletado com sucesso
           }
         }
-        
+
         alert('Produto excluído com sucesso!');
       } catch (error) {
         alert('Erro ao excluir produto. Tente novamente.');
@@ -727,7 +735,7 @@ export default function Settings() {
         const categoryToUpdate = categories.find(c => c.name === editingCategory);
         if (categoryToUpdate) {
           await updateCategory(categoryToUpdate.id, categoryForm.trim(), Object.keys(categoryTranslations).length > 0 ? categoryTranslations : undefined);
-          
+
           // Atualizar produtos que usam a categoria antiga
           const productsToUpdate = products.filter(p => p.category === editingCategory);
           for (const product of productsToUpdate) {
@@ -742,7 +750,7 @@ export default function Settings() {
         reloadRestaurantData(); // Recarregar dados do restaurante
         alert('Categoria criada com sucesso!');
       }
-      
+
       setShowCategoryModal(false);
       loadProducts(); // Recarregar para atualizar categorias
     } catch (error) {
@@ -752,7 +760,7 @@ export default function Settings() {
 
   const deleteCategory = async (category: Category) => {
     const productsInCategory = products.filter(p => p.category === category.name);
-    
+
     if (productsInCategory.length > 0) {
       alert(`Não é possível excluir a categoria "${category.name}" pois existem ${productsInCategory.length} produto(s) associado(s). Remova ou altere os produtos primeiro.`);
       return;
@@ -793,7 +801,7 @@ export default function Settings() {
 
       // Fazer upload para o Firebase Storage
       const result = await uploadImage(file, 'banners', 'restaurant-banner');
-      
+
       if (result.success) {
         // Atualizar o formulário com a nova URL
         setPersonalizationForm(prev => ({
@@ -801,7 +809,7 @@ export default function Settings() {
           bannerUrl: result.url
         }));
         alert(`Banner enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
-        
+
 
         if (oldBannerUrl) {
           try {
@@ -815,7 +823,7 @@ export default function Settings() {
 
           }
         }
-        
+
         // Não extrair cores automaticamente para evitar loops infinitos
         // O usuário pode usar o botão "Extrair Cores" quando desejar
       } else {
@@ -842,10 +850,10 @@ export default function Settings() {
         ...prev,
         bannerUrl: ''
       }));
-      
+
       // Limpar cores extraídas
       setExtractedColors(null);
-      
+
       alert('Banner removido com sucesso!');
     } catch (error) {
       console.error('Erro ao remover banner:', error);
@@ -876,7 +884,7 @@ export default function Settings() {
 
       // Fazer upload para o Firebase Storage
       const result = await uploadAudio(file, 'audio', 'restaurant-audio');
-      
+
       if (result.success) {
         // Atualizar o formulário com a nova URL
         setPersonalizationForm(prev => ({
@@ -884,7 +892,7 @@ export default function Settings() {
           audioUrl: result.url
         }));
         alert(`Áudio enviado com sucesso! URL: ${result.url.substring(0, 50)}...`);
-        
+
         // Deletar o áudio antigo se existir
         if (oldAudioUrl) {
           try {
@@ -921,7 +929,7 @@ export default function Settings() {
         ...prev,
         audioUrl: ''
       }));
-      
+
       alert('Áudio removido com sucesso!');
     } catch (error) {
       console.error('Erro ao remover áudio:', error);
@@ -940,14 +948,14 @@ export default function Settings() {
     try {
       const colors = await extractColorsFromImage(personalizationForm.bannerUrl);
       setExtractedColors(colors);
-      
+
       // Atualizar o formulário com as cores extraídas
       setPersonalizationForm(prev => ({
         ...prev,
         primaryColor: colors.primaryColor,
         secondaryColor: colors.secondaryColor
       }));
-      
+
       alert('Cores extraídas com sucesso! As cores foram aplicadas automaticamente.');
     } catch (error) {
       console.error('Erro ao extrair cores:', error);
@@ -987,7 +995,7 @@ export default function Settings() {
     try {
       const result = await importProductsFromCSV(csvContent);
       setImportResult(result);
-      
+
       if (result.success) {
         // Recarregar produtos e categorias
         await loadProducts();
@@ -1049,7 +1057,7 @@ export default function Settings() {
 
       // Fazer upload para o Firebase Storage
       const result = await uploadImage(file, 'products', 'product-image');
-      
+
       if (result.success) {
         // Atualizar o formulário com a nova URL
         setProductForm(prev => ({
@@ -1057,7 +1065,7 @@ export default function Settings() {
           image: result.url
         }));
         alert(`Imagem enviada com sucesso! URL: ${result.url.substring(0, 50)}...`);
-        
+
         // Deletar a imagem antiga se existir
         if (oldProductImageUrl) {
           try {
@@ -1095,7 +1103,7 @@ export default function Settings() {
         ...prev,
         image: ''
       }));
-      
+
       alert('Imagem removida com sucesso!');
     } catch (error) {
       console.error('Erro ao remover imagem:', error);
@@ -1128,7 +1136,7 @@ export default function Settings() {
   const filteredProducts = products.filter(product => {
     // Filtro por categoria
     if (filterCategory !== 'all' && product.category !== filterCategory) return false;
-    
+
     // Filtro por preço
     if (filterPrice !== 'all') {
       const price = product.price;
@@ -1138,7 +1146,7 @@ export default function Settings() {
         case 'high': if (price < 50) return false; break;
       }
     }
-    
+
     // Filtro por tempo de preparo
     if (filterTime !== 'all') {
       const time = product.preparationTime || 0;
@@ -1148,13 +1156,13 @@ export default function Settings() {
         case 'slow': if (time < 30) return false; break;
       }
     }
-    
+
     // Filtro por busca
-    if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !product.description.toLowerCase().includes(searchTerm.toLowerCase())) {
+    if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      !product.description.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -1164,7 +1172,7 @@ export default function Settings() {
     try {
       let period;
       const now = new Date();
-      
+
       switch (selectedPeriod) {
         case 'today':
           period = {
@@ -1189,7 +1197,7 @@ export default function Settings() {
           period = undefined;
           break;
       }
-      
+
       const stats = await getStatistics(period);
       setStatistics(stats);
     } catch (error) {
@@ -1213,6 +1221,13 @@ export default function Settings() {
       loadStatistics();
     }
   }, [activeTab, selectedPeriod]);
+
+  // Carregar pedidos de delivery quando a aba da cozinha for selecionada
+  useEffect(() => {
+    if (activeTab === 'cozinha' && kitchenSubTab === 'delivery') {
+      loadDeliveryOrders();
+    }
+  }, [activeTab, kitchenSubTab, restaurantId]);
 
   // Funções para funcionalidade de cozinha
   const getStatusIcon = (status: string) => {
@@ -1243,7 +1258,7 @@ export default function Settings() {
 
   const handleStatusChange = async (orderId: string, currentStatus: string) => {
     let newStatus: 'novo' | 'preparando' | 'pronto';
-    
+
     switch (currentStatus) {
       case 'novo':
         newStatus = 'preparando';
@@ -1262,6 +1277,92 @@ export default function Settings() {
     if (window.confirm('Tem certeza que deseja finalizar este pedido? Esta ação não pode ser desfeita.')) {
       await deleteOrder(orderId);
     }
+  };
+
+  // Funções para gerenciar pedidos de delivery
+  const loadDeliveryOrders = async () => {
+    if (!restaurantId) return;
+
+    try {
+      setDeliveryLoading(true);
+      const orders = await getDeliveryOrdersByRestaurant(restaurantId);
+      setDeliveryOrders(orders);
+    } catch (error) {
+      console.error('Erro ao carregar pedidos de delivery:', error);
+    } finally {
+      setDeliveryLoading(false);
+    }
+  };
+
+  const handleDeliveryStatusChange = async (orderId: string, newStatus: DeliveryOrder['status']) => {
+    try {
+      await updateDeliveryOrderStatus(orderId, newStatus);
+      await loadDeliveryOrders(); // Recarregar pedidos
+    } catch (error) {
+      console.error('Erro ao atualizar status do pedido:', error);
+    }
+  };
+
+  const getDeliveryStatusInfo = (status: DeliveryOrder['status']) => {
+    switch (status) {
+      case 'pending':
+        return { label: 'Aguardando', color: 'text-yellow-600', bgColor: 'bg-yellow-100', nextStatus: 'confirmed' as const };
+      case 'confirmed':
+        return { label: 'Confirmado', color: 'text-blue-600', bgColor: 'bg-blue-100', nextStatus: 'preparing' as const };
+      case 'preparing':
+        return { label: 'Preparando', color: 'text-orange-600', bgColor: 'bg-orange-100', nextStatus: 'delivering' as const };
+      case 'delivering':
+        return { label: 'Saindo', color: 'text-purple-600', bgColor: 'bg-purple-100', nextStatus: 'delivered' as const };
+      case 'delivered':
+        return { label: 'Entregue', color: 'text-green-600', bgColor: 'bg-green-100', nextStatus: null };
+      case 'cancelled':
+        return { label: 'Cancelado', color: 'text-red-600', bgColor: 'bg-red-100', nextStatus: null };
+      default:
+        return { label: 'Desconhecido', color: 'text-gray-600', bgColor: 'bg-gray-100', nextStatus: null };
+    }
+  };
+
+  const getDeliveryStatusButtonText = (status: DeliveryOrder['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'Confirmar Pedido';
+      case 'confirmed':
+        return 'Iniciar Preparo';
+      case 'preparing':
+        return 'Sair para Entrega';
+      case 'delivering':
+        return 'Marcar como Entregue';
+      default:
+        return '';
+    }
+  };
+
+  // Funções para cancelar pedidos
+  const handleCancelOrder = (order: DeliveryOrder) => {
+    setOrderToCancel(order);
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!orderToCancel) return;
+
+    try {
+      await cancelDeliveryOrder(orderToCancel.id, cancelReason);
+      await loadDeliveryOrders(); // Recarregar pedidos
+      setShowCancelModal(false);
+      setOrderToCancel(null);
+      setCancelReason('');
+    } catch (error) {
+      console.error('Erro ao cancelar pedido:', error);
+      alert('Erro ao cancelar pedido. Tente novamente.');
+    }
+  };
+
+  const closeCancelModal = () => {
+    setShowCancelModal(false);
+    setOrderToCancel(null);
+    setCancelReason('');
   };
 
   const getStatusButtonText = (status: string) => {
@@ -1303,9 +1404,9 @@ export default function Settings() {
               <SettingsIcon className="w-4 h-4" />
               <span>Testar Conexão</span>
             </button>
-            
-            <Link 
-              to="/settings?tab=cozinha" 
+
+            <Link
+              to="/settings?tab=cozinha"
               className="flex items-center space-x-2 bg-gray-500 text-white px-4 py-2 rounded"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -1323,55 +1424,50 @@ export default function Settings() {
             <nav className="space-y-2">
               <button
                 onClick={() => setActiveTab('mesas')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
-                  activeTab === 'mesas' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'mesas'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+                  }`}
               >
                 <TableIcon className="w-5 h-5" />
                 <span>Gerenciar Mesas</span>
               </button>
               <button
                 onClick={() => setActiveTab('cardapio')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
-                  activeTab === 'cardapio' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'cardapio'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+                  }`}
               >
                 <Utensils className="w-5 h-5" />
                 <span>Gerenciar Cardápio</span>
               </button>
               <button
                 onClick={() => setActiveTab('personalizacao')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
-                  activeTab === 'personalizacao' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'personalizacao'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+                  }`}
               >
                 <Palette className="w-5 h-5" />
                 <span>Personalização</span>
               </button>
               <button
                 onClick={() => setActiveTab('relatorios')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
-                  activeTab === 'relatorios' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'relatorios'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+                  }`}
               >
                 <BarChart3 className="w-5 h-5" />
                 <span>Relatórios</span>
               </button>
               <button
                 onClick={() => setActiveTab('cozinha')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
-                  activeTab === 'cozinha' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'cozinha'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+                  }`}
               >
                 <ChefHat className="w-5 h-5" />
                 <span>Cozinha</span>
@@ -1474,11 +1570,10 @@ export default function Settings() {
                     <button
                       onClick={() => hasImageMenuTransfer ? setShowImageImportModal(true) : null}
                       disabled={!hasImageMenuTransfer}
-                      className={`px-6 py-2 rounded-lg flex items-center space-x-2 font-semibold transition-all transform ${
-                        hasImageMenuTransfer
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
+                      className={`px-6 py-2 rounded-lg flex items-center space-x-2 font-semibold transition-all transform ${hasImageMenuTransfer
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
                       title={!hasImageMenuTransfer ? 'Você não possui permissão para importar cardápio por imagem' : 'Importar cardápio a partir de uma foto usando IA'}
                     >
                       <Sparkles className="w-5 h-5" />
@@ -1576,7 +1671,7 @@ export default function Settings() {
                     </span>
                   </div>
                 </div>
-                {false ? (
+                {loading ? (
                   <div className="p-6 text-center text-gray-500">
                     Carregando produtos...
                   </div>
@@ -1605,8 +1700,8 @@ export default function Settings() {
                                 {/* Imagem do Produto */}
                                 <div className="flex-shrink-0">
                                   {product.image ? (
-                                    <ProductImage 
-                                      src={product.image} 
+                                    <ProductImage
+                                      src={product.image}
                                       alt={product.name}
                                       className="w-12 h-12"
                                       containerClassName="w-12 h-12"
@@ -1635,11 +1730,10 @@ export default function Settings() {
                               {product.preparationTime ? `${product.preparationTime} min` : '-'}
                             </td>
                             <td className="p-4">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                product.available 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.available
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                                }`}>
                                 {product.available ? 'Disponível' : 'Indisponível'}
                               </span>
                             </td>
@@ -1747,7 +1841,7 @@ export default function Settings() {
 
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-6">Configurações do Restaurante</h3>
-                
+
                 <div className="space-y-6">
                   {/* Nome do Restaurante */}
                   <div>
@@ -1783,11 +1877,10 @@ export default function Settings() {
                           <button
                             onClick={handleExtractColors}
                             disabled={isExtractingColors}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-colors ${
-                              isExtractingColors
-                                ? 'bg-blue-300 text-blue-600 cursor-not-allowed'
-                                : 'bg-blue-500 text-white hover:bg-blue-600'
-                            }`}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-colors ${isExtractingColors
+                              ? 'bg-blue-300 text-blue-600 cursor-not-allowed'
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                              }`}
                           >
                             <Sparkles className="w-4 h-4" />
                             <span>
@@ -1825,7 +1918,7 @@ export default function Settings() {
                               ))}
                             </div>
                           </div>
-                          
+
                           {/* Cores selecionadas */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="flex items-center space-x-2">
@@ -1890,13 +1983,13 @@ export default function Settings() {
                             onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                             className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
                           />
-                                                      <input
-                              type="text"
-                              value={personalizationForm.secondaryColor}
-                              onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
-                              placeholder="#fffbeb"
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
+                          <input
+                            type="text"
+                            value={personalizationForm.secondaryColor}
+                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                            placeholder="#fffbeb"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
                         </div>
                         <p className="text-sm text-gray-500 mt-1">
                           Cor de fundo e elementos secundários
@@ -1914,9 +2007,9 @@ export default function Settings() {
                       {/* Banner atual */}
                       {personalizationForm.bannerUrl && (
                         <div className="relative">
-                          <img 
-                            src={personalizationForm.bannerUrl} 
-                            alt="Banner atual" 
+                          <img
+                            src={personalizationForm.bannerUrl}
+                            alt="Banner atual"
                             className="w-full h-32 object-cover rounded-lg border"
                           />
                           <button
@@ -1928,7 +2021,7 @@ export default function Settings() {
                           </button>
                         </div>
                       )}
-                      
+
                       {/* Upload de novo banner */}
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
                         <input
@@ -1938,7 +2031,7 @@ export default function Settings() {
                           className="hidden"
                           id="banner-upload"
                         />
-                        <label 
+                        <label
                           htmlFor="banner-upload"
                           className="cursor-pointer flex flex-col items-center space-y-2"
                         >
@@ -1996,7 +2089,7 @@ export default function Settings() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Upload de novo áudio */}
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
                         <input
@@ -2006,7 +2099,7 @@ export default function Settings() {
                           className="hidden"
                           id="audio-upload"
                         />
-                        <label 
+                        <label
                           htmlFor="audio-upload"
                           className="cursor-pointer flex flex-col items-center space-y-2"
                         >
@@ -2266,12 +2359,50 @@ export default function Settings() {
                   </div>
                 </div>
                 <button
-                  onClick={() => refreshOrders()}
+                  onClick={() => {
+                    if (kitchenSubTab === 'mesa') {
+                      refreshOrders();
+                    } else {
+                      loadDeliveryOrders();
+                    }
+                  }}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Atualizar
                 </button>
+              </div>
+
+              {/* Sub-abas da Cozinha */}
+              <div className="mb-6">
+                <div className="border-b border-gray-200">
+                  <nav className="-mb-px flex space-x-8">
+                    <button
+                      onClick={() => setKitchenSubTab('mesa')}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${kitchenSubTab === 'mesa'
+                        ? 'border-orange-500 text-orange-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <Users className="w-4 h-4" />
+                        <span>Pedidos Mesa</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setKitchenSubTab('delivery')}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${kitchenSubTab === 'delivery'
+                        ? 'border-orange-500 text-orange-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <Truck className="w-4 h-4" />
+                        <span>Pedidos Delivery</span>
+                      </div>
+                    </button>
+                  </nav>
+                </div>
               </div>
 
               {/* Estatísticas */}
@@ -2294,7 +2425,7 @@ export default function Settings() {
                       <div>
                         <p className="text-sm text-gray-600">Pedidos Delivery</p>
                         <p className="text-2xl font-bold text-gray-900">
-                          {orders.filter(o => o.orderType === 'delivery').length}
+                          {deliveryOrders.length}
                         </p>
                       </div>
                     </div>
@@ -2305,7 +2436,7 @@ export default function Settings() {
                       <div>
                         <p className="text-sm text-gray-600">Total de Pedidos</p>
                         <p className="text-2xl font-bold text-gray-900">
-                          {orders.length}
+                          {orders.length + deliveryOrders.length}
                         </p>
                       </div>
                     </div>
@@ -2313,142 +2444,275 @@ export default function Settings() {
                 </div>
               </div>
 
-              {orders.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido no momento</h3>
-                  <p className="text-gray-500">Os pedidos aparecerão aqui quando forem enviados pelos clientes</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {statusOrder.map((status) => (
-                    <div key={status} className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {getStatusIcon(status)}
-                          <h3 className="text-lg font-semibold text-gray-900 capitalize">
-                            {status === 'novo' && 'Novos Pedidos'}
-                            {status === 'preparando' && 'Em Preparo'}
-                            {status === 'pronto' && 'Prontos'}
-                          </h3>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {groupedOrders[status]?.length || 0}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        {groupedOrders[status]?.map((order) => (
-                          <div
-                            key={order.id}
-                            className={`p-6 rounded-lg border ${getStatusColor(status)} ${
-                              order.orderType === 'delivery' ? 'ring-2 ring-blue-400' : ''
-                            }`}
-                          >
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className={`p-2 rounded-lg shadow-sm ${
-                                  order.orderType === 'delivery' ? 'bg-blue-100' : 'bg-white'
-                                }`}>
-                                  {order.orderType === 'delivery' ? (
-                                    <Truck className="w-4 h-4 text-blue-600" />
-                                  ) : (
-                                    <Users className="w-4 h-4 text-gray-600" />
+              {/* Conteúdo das Sub-abas */}
+              {kitchenSubTab === 'mesa' && (
+                <div>
+                  {orders.length === 0 ? (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                      <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido de mesa no momento</h3>
+                      <p className="text-gray-500">Os pedidos de mesa aparecerão aqui quando forem enviados pelos clientes</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      {statusOrder.map((status) => (
+                        <div key={status} className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              {getStatusIcon(status)}
+                              <h3 className="text-lg font-semibold text-gray-900 capitalize">
+                                {status === 'novo' && 'Novos Pedidos'}
+                                {status === 'preparando' && 'Em Preparo'}
+                                {status === 'pronto' && 'Prontos'}
+                              </h3>
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              {groupedOrders[status]?.filter(o => o.orderType === 'mesa').length || 0}
+                            </span>
+                          </div>
+
+                          <div className="space-y-4">
+                            {groupedOrders[status]?.filter(o => o.orderType === 'mesa').map((order) => (
+                              <div
+                                key={order.id}
+                                className={`p-6 rounded-lg border ${getStatusColor(status)}`}
+                              >
+                                <div className="flex justify-between items-start mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="p-2 rounded-lg shadow-sm bg-white">
+                                      <Users className="w-4 h-4 text-gray-600" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-semibold text-gray-900">
+                                        Mesa {order.mesaNumero}
+                                      </h4>
+                                      <p className="text-sm text-gray-500">{order.timestamp}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-1 text-sm text-gray-500">
+                                    <Timer className="w-4 h-4" />
+                                    <span>{order.tempoEspera}</span>
+                                  </div>
+                                </div>
+
+                                <div className="mb-6">
+                                  <h5 className="font-medium text-gray-900 mb-3 flex items-center">
+                                    <Package className="w-4 h-4 mr-2 text-gray-500" />
+                                    Itens do Pedido
+                                  </h5>
+                                  <ul className="space-y-2">
+                                    {order.itens.map((item, index) => (
+                                      <li key={index} className="text-sm text-gray-700 bg-white px-3 py-2 rounded border border-gray-100">
+                                        {item}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+
+                                <div className="space-y-2">
+                                  {status !== 'pronto' && (
+                                    <button
+                                      onClick={() => handleStatusChange(order.id, status)}
+                                      className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
+                                    >
+                                      {getStatusButtonText(status)}
+                                    </button>
+                                  )}
+
+                                  {status === 'pronto' && (
+                                    <button
+                                      onClick={() => handleFinalizeOrder(order.id)}
+                                      className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Finalizar Pedido
+                                    </button>
                                   )}
                                 </div>
-                                <div>
-                                  <div className="flex items-center space-x-2">
-                                    <h4 className="font-semibold text-gray-900">
-                                      {order.orderType === 'delivery' ? order.mesaNumero : `Mesa ${order.mesaNumero}`}
-                                    </h4>
-                                    {order.orderType === 'delivery' && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                        Delivery
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-gray-500">{order.timestamp}</p>
-                                </div>
                               </div>
-                              <div className="flex items-center space-x-1 text-sm text-gray-500">
-                                <Timer className="w-4 h-4" />
-                                <span>{order.tempoEspera}</span>
-                              </div>
-                            </div>
-
-                            {/* Informações do Cliente (apenas para delivery) */}
-                            {order.orderType === 'delivery' && order.deliveryInfo && (
-                              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <h5 className="font-medium text-gray-900 mb-2 text-sm flex items-center">
-                                  <Users className="w-4 h-4 mr-2 text-blue-600" />
-                                  Informações do Cliente
-                                </h5>
-                                <div className="space-y-1 text-sm">
-                                  <div className="flex items-center text-gray-700">
-                                    <span className="font-medium mr-2">Nome:</span>
-                                    <span>{order.deliveryInfo.customerName}</span>
-                                  </div>
-                                  <div className="flex items-center text-gray-700">
-                                    <Phone className="w-3 h-3 mr-2" />
-                                    <span>{order.deliveryInfo.customerPhone}</span>
-                                  </div>
-                                  <div className="flex items-start text-gray-700">
-                                    <MapPin className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
-                                    <span className="flex-1">{order.deliveryInfo.customerAddress}</span>
-                                  </div>
-                                  <div className="flex items-center text-gray-700">
-                                    <CreditCard className="w-3 h-3 mr-2" />
-                                    <span>{order.deliveryInfo.paymentMethod}</span>
-                                  </div>
-                                  <div className="flex items-center text-gray-700">
-                                    <span className="font-medium mr-2">Taxa de entrega:</span>
-                                    <span>R$ {order.deliveryInfo.deliveryFee.toFixed(2)}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="mb-6">
-                              <h5 className="font-medium text-gray-900 mb-3 flex items-center">
-                                <Package className="w-4 h-4 mr-2 text-gray-500" />
-                                Itens do Pedido
-                              </h5>
-                              <ul className="space-y-2">
-                                {order.itens.map((item, index) => (
-                                  <li key={index} className="text-sm text-gray-700 bg-white px-3 py-2 rounded border border-gray-100">
-                                    {item}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              {status !== 'pronto' && (
-                                <button
-                                  onClick={() => handleStatusChange(order.id, status)}
-                                  className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
-                                >
-                                  {getStatusButtonText(status)}
-                                </button>
-                              )}
-                              
-                              {status === 'pronto' && (
-                                <button
-                                  onClick={() => handleFinalizeOrder(order.id)}
-                                  className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Finalizar Pedido
-                                </button>
-                              )}
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
+
+              {kitchenSubTab === 'delivery' && (
+                <div>
+                  {deliveryLoading ? (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Carregando pedidos de delivery...</p>
+                    </div>
+                  ) : deliveryOrders.length === 0 ? (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                      <Truck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido de delivery no momento</h3>
+                      <p className="text-gray-500">Os pedidos de delivery aparecerão aqui quando forem enviados pelos clientes</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                      {['pending', 'confirmed', 'preparing', 'delivering', 'cancelled'].map((status) => {
+                        const statusInfo = getDeliveryStatusInfo(status as DeliveryOrder['status']);
+                        const ordersInStatus = deliveryOrders.filter(order => order.status === status);
+
+                        return (
+                          <div key={status} className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <div className={`p-2 rounded-lg ${statusInfo.bgColor}`}>
+                                  <Truck className={`w-5 h-5 ${statusInfo.color}`} />
+                                </div>
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {statusInfo.label}
+                                </h3>
+                              </div>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {ordersInStatus.length}
+                              </span>
+                            </div>
+
+                            <div className="space-y-4">
+                              {ordersInStatus.map((order) => (
+                                <div
+                                  key={order.id}
+                                  className="p-6 rounded-lg border border-gray-200 bg-white shadow-sm"
+                                >
+                                  <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="p-2 rounded-lg shadow-sm bg-blue-100">
+                                        <Truck className="w-4 h-4 text-blue-600" />
+                                      </div>
+                                      <div>
+                                        <h4 className="font-semibold text-gray-900">
+                                          #{order.id.substring(0, 8)}
+                                        </h4>
+                                        <p className="text-sm text-gray-500">
+                                          {new Date(order.createdAt).toLocaleString('pt-BR')}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.bgColor} ${statusInfo.color}`}>
+                                      {statusInfo.label}
+                                    </div>
+                                  </div>
+
+                                  {/* Informações do Cliente */}
+                                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                    <h5 className="font-medium text-gray-900 mb-2 text-sm flex items-center">
+                                      <Users className="w-4 h-4 mr-2 text-blue-600" />
+                                      Cliente
+                                    </h5>
+                                    <div className="space-y-1 text-sm">
+                                      <div className="flex items-center text-gray-700">
+                                        <span className="font-medium mr-2">Nome:</span>
+                                        <span>{order.customerName}</span>
+                                      </div>
+                                      <div className="flex items-center text-gray-700">
+                                        <Phone className="w-3 h-3 mr-2" />
+                                        <span>{order.customerPhone}</span>
+                                      </div>
+                                      <div className="flex items-start text-gray-700">
+                                        <MapPin className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
+                                        <span className="flex-1">{order.customerAddress}</span>
+                                      </div>
+                                      <div className="flex items-center text-gray-700">
+                                        <CreditCard className="w-3 h-3 mr-2" />
+                                        <span>{order.paymentMethod === 'money' ? 'Dinheiro' :
+                                          order.paymentMethod === 'credit' ? 'Cartão de Crédito' :
+                                            order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="mb-6">
+                                    <h5 className="font-medium text-gray-900 mb-3 flex items-center">
+                                      <Package className="w-4 h-4 mr-2 text-gray-500" />
+                                      Itens do Pedido
+                                    </h5>
+                                    <ul className="space-y-2">
+                                      {order.items.map((item, index) => (
+                                        <li key={index} className="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-100">
+                                          <div className="flex justify-between items-start">
+                                            <div>
+                                              <span className="font-medium">{item.quantity}x {item.productName}</span>
+                                              {item.observations && (
+                                                <p className="text-xs text-gray-500 italic mt-1">
+                                                  Obs: {item.observations}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <span className="font-semibold text-gray-900">
+                                              R$ {(item.price * item.quantity).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                      <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-600">Subtotal:</span>
+                                        <span className="font-semibold">R$ {order.total.toFixed(2)}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-600">Taxa de entrega:</span>
+                                        <span className="font-semibold">R$ {order.deliveryFee.toFixed(2)}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
+                                        <span>Total:</span>
+                                        <span>R$ {(order.total + order.deliveryFee).toFixed(2)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    {statusInfo.nextStatus && (
+                                      <button
+                                        onClick={() => handleDeliveryStatusChange(order.id, statusInfo.nextStatus!)}
+                                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                                      >
+                                        {getDeliveryStatusButtonText(order.status)}
+                                      </button>
+                                    )}
+
+                                    {order.status === 'delivered' && (
+                                      <div className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600">
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                        Pedido Entregue
+                                      </div>
+                                    )}
+
+                                    {/* Botão de cancelar para pedidos que podem ser cancelados */}
+                                    {['pending', 'confirmed', 'preparing'].includes(order.status) && (
+                                      <button
+                                        onClick={() => handleCancelOrder(order)}
+                                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                                      >
+                                        <X className="w-4 h-4 mr-2" />
+                                        Recusar Pedido
+                                      </button>
+                                    )}
+
+                                    {order.status === 'cancelled' && (
+                                      <div className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600">
+                                        <X className="w-4 h-4 mr-2" />
+                                        Pedido Cancelado
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           )}
 
@@ -2499,13 +2763,71 @@ export default function Settings() {
                 <button
                   onClick={adicionarMesa}
                   disabled={!novaMesa.trim()}
-                  className={`px-4 py-2 rounded ${
-                    novaMesa.trim() 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`px-4 py-2 rounded ${novaMesa.trim()
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   Adicionar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Cancelar Pedido */}
+      {showCancelModal && orderToCancel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-red-600">Recusar Pedido</h3>
+              <button
+                onClick={closeCancelModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Tem certeza que deseja recusar este pedido?
+              </p>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="font-medium text-gray-900">Pedido #{orderToCancel.id.substring(0, 8)}</p>
+                <p className="text-sm text-gray-600">Cliente: {orderToCancel.customerName}</p>
+                <p className="text-sm text-gray-600">Total: R$ {(orderToCancel.total + orderToCancel.deliveryFee).toFixed(2)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Motivo da recusa (opcional)
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Ex: Produto indisponível, horário de funcionamento..."
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex space-x-2 justify-end">
+                <button
+                  onClick={closeCancelModal}
+                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmCancelOrder}
+                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                >
+                  <X className="w-4 h-4 mr-2 inline" />
+                  Recusar Pedido
                 </button>
               </div>
             </div>
@@ -2567,7 +2889,7 @@ export default function Settings() {
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Descrição *
@@ -2594,15 +2916,15 @@ export default function Settings() {
                     className="hidden"
                     id="product-image-upload"
                   />
-                  <label 
+                  <label
                     htmlFor="product-image-upload"
                     className="cursor-pointer"
                   >
                     <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors">
                       {productForm.image ? (
                         <div className="relative w-full h-full">
-                          <ProductImage 
-                            src={productForm.image} 
+                          <ProductImage
+                            src={productForm.image}
                             alt="Preview"
                             className="w-full h-full"
                             containerClassName="w-full h-full"
@@ -2634,7 +2956,7 @@ export default function Settings() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2680,7 +3002,7 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Botão de Tradução Automática */}
               <div className="mb-6">
                 <div className="flex items-center justify-between">
@@ -2692,19 +3014,18 @@ export default function Settings() {
                     <button
                       onClick={handleAutoTranslateProduct}
                       disabled={!hasAutomaticTranslation || isTranslating || !productForm.name.trim() || !productForm.description.trim()}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        hasAutomaticTranslation && !isTranslating && productForm.name.trim() && productForm.description.trim()
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${hasAutomaticTranslation && !isTranslating && productForm.name.trim() && productForm.description.trim()
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
                       title={
                         !hasAutomaticTranslation
                           ? 'Você não possui permissão para tradução automática. Entre em contato com o administrador.'
                           : !productForm.name.trim() || !productForm.description.trim()
-                          ? 'Preencha o nome e descrição do produto antes de traduzir'
-                          : isTranslating
-                          ? 'Traduzindo...'
-                          : 'Traduzir automaticamente este produto para inglês, espanhol e francês'
+                            ? 'Preencha o nome e descrição do produto antes de traduzir'
+                            : isTranslating
+                              ? 'Traduzindo...'
+                              : 'Traduzir automaticamente este produto para inglês, espanhol e francês'
                       }
                     >
                       {isTranslating ? (
@@ -2717,14 +3038,14 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Configurações Avançadas - Traduções */}
               <AdvancedTranslations
                 type="product"
                 translations={productTranslations}
                 onTranslationsChange={setProductTranslations}
               />
-              
+
               <div className="flex space-x-2 justify-end">
                 <button
                   onClick={() => setShowProductModal(false)}
@@ -2735,11 +3056,10 @@ export default function Settings() {
                 <button
                   onClick={saveProduct}
                   disabled={!productForm.name.trim() || !productForm.description.trim() || !productForm.price || !productForm.category}
-                  className={`px-4 py-2 rounded ${
-                    productForm.name.trim() && productForm.description.trim() && productForm.price && productForm.category
-                      ? 'bg-green-500 text-white hover:bg-green-600' 
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`px-4 py-2 rounded ${productForm.name.trim() && productForm.description.trim() && productForm.price && productForm.category
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   {editingProduct ? 'Atualizar' : 'Adicionar'}
                 </button>
@@ -2786,7 +3106,7 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-              
+
               {/* Botão de Tradução Automática */}
               <div className="mb-6">
                 <div className="flex items-center justify-between">
@@ -2798,19 +3118,18 @@ export default function Settings() {
                     <button
                       onClick={handleAutoTranslateCategory}
                       disabled={!hasAutomaticTranslation || isTranslating || !categoryForm.trim()}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        hasAutomaticTranslation && !isTranslating && categoryForm.trim()
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${hasAutomaticTranslation && !isTranslating && categoryForm.trim()
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
                       title={
                         !hasAutomaticTranslation
                           ? 'Você não possui permissão para tradução automática. Entre em contato com o administrador.'
                           : !categoryForm.trim()
-                          ? 'Preencha o nome da categoria antes de traduzir'
-                          : isTranslating
-                          ? 'Traduzindo...'
-                          : 'Traduzir automaticamente esta categoria para inglês, espanhol e francês'
+                            ? 'Preencha o nome da categoria antes de traduzir'
+                            : isTranslating
+                              ? 'Traduzindo...'
+                              : 'Traduzir automaticamente esta categoria para inglês, espanhol e francês'
                       }
                     >
                       {isTranslating ? (
@@ -2823,14 +3142,14 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Configurações Avançadas - Traduções */}
               <AdvancedTranslations
                 type="category"
                 translations={categoryTranslations}
                 onTranslationsChange={setCategoryTranslations}
               />
-              
+
               <div className="flex space-x-2 justify-end">
                 <button
                   onClick={() => setShowCategoryModal(false)}
@@ -2841,11 +3160,10 @@ export default function Settings() {
                 <button
                   onClick={saveCategory}
                   disabled={!categoryForm.trim()}
-                  className={`px-4 py-2 rounded ${
-                    categoryForm.trim() 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`px-4 py-2 rounded ${categoryForm.trim()
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   {editingCategory ? 'Atualizar' : 'Criar'}
                 </button>
@@ -2869,8 +3187,8 @@ export default function Settings() {
               </button>
             </div>
             <div className="text-center">
-              <img 
-                src={qrCodeModal.url} 
+              <img
+                src={qrCodeModal.url}
                 alt={`QR Code Mesa ${qrCodeModal.numero}`}
                 className="mx-auto mb-4"
               />
@@ -2965,29 +3283,26 @@ export default function Settings() {
 
               {/* Resultado da importação */}
               {importResult && (
-                <div className={`border rounded-lg p-4 ${
-                  importResult.success 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-red-50 border-red-200'
-                }`}>
-                  <h4 className={`text-sm font-medium mb-2 ${
-                    importResult.success ? 'text-green-800' : 'text-red-800'
+                <div className={`border rounded-lg p-4 ${importResult.success
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
                   }`}>
+                  <h4 className={`text-sm font-medium mb-2 ${importResult.success ? 'text-green-800' : 'text-red-800'
+                    }`}>
                     {importResult.success ? '✅ Importação Concluída' : '❌ Erro na Importação'}
                   </h4>
-                  <p className={`text-sm ${
-                    importResult.success ? 'text-green-700' : 'text-red-700'
-                  }`}>
+                  <p className={`text-sm ${importResult.success ? 'text-green-700' : 'text-red-700'
+                    }`}>
                     {importResult.message}
                   </p>
-                  
+
                   {importResult.success && (
                     <div className="mt-2 text-sm text-green-700">
                       <p>• Produtos importados: {importResult.importedProducts}</p>
                       <p>• Categorias criadas: {importResult.createdCategories}</p>
                     </div>
                   )}
-                  
+
                   {importResult.errors.length > 0 && (
                     <div className="mt-3">
                       <p className="text-sm font-medium text-red-800 mb-1">Erros encontrados:</p>
@@ -3012,11 +3327,10 @@ export default function Settings() {
                 <button
                   onClick={handleImportCSV}
                   disabled={!csvContent.trim() || isImporting}
-                  className={`px-4 py-2 rounded flex items-center space-x-2 ${
-                    csvContent.trim() && !isImporting
-                      ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`px-4 py-2 rounded flex items-center space-x-2 ${csvContent.trim() && !isImporting
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   <Upload className="w-4 h-4" />
                   <span>{isImporting ? 'Importando...' : 'Importar Produtos'}</span>
@@ -3063,7 +3377,7 @@ export default function Settings() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Selecione a imagem do cardápio
                 </label>
-                
+
                 {!imageImportPreview ? (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-purple-500 transition-colors cursor-pointer"
                     onClick={() => document.getElementById('image-upload')?.click()}
@@ -3107,9 +3421,8 @@ export default function Settings() {
 
               {/* Resultado da Importação */}
               {imageImportResult && (
-                <div className={`mb-6 p-4 rounded-lg ${
-                  imageImportResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                }`}>
+                <div className={`mb-6 p-4 rounded-lg ${imageImportResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                  }`}>
                   <div className="flex items-start space-x-3">
                     {imageImportResult.success ? (
                       <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
@@ -3151,11 +3464,10 @@ export default function Settings() {
 
               {/* Opção de Tradução Automática */}
               <div className="mb-6">
-                <label className={`flex items-center space-x-3 p-4 border rounded-lg transition-colors ${
-                  hasAutomaticTranslation 
-                    ? 'bg-purple-50 border-purple-200 cursor-pointer hover:bg-purple-100' 
-                    : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
-                }`}>
+                <label className={`flex items-center space-x-3 p-4 border rounded-lg transition-colors ${hasAutomaticTranslation
+                  ? 'bg-purple-50 border-purple-200 cursor-pointer hover:bg-purple-100'
+                  : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                  }`}>
                   <input
                     type="checkbox"
                     checked={autoTranslateOnImport}
@@ -3174,7 +3486,7 @@ export default function Settings() {
                       )}
                     </div>
                     <p className={`text-sm mt-1 ${hasAutomaticTranslation ? 'text-purple-700' : 'text-gray-500'}`}>
-                      {hasAutomaticTranslation 
+                      {hasAutomaticTranslation
                         ? 'Os produtos importados serão traduzidos automaticamente para inglês, espanhol e francês'
                         : 'Esta funcionalidade requer permissão de tradução automática no seu plano'
                       }
@@ -3200,11 +3512,10 @@ export default function Settings() {
                 <button
                   onClick={handleImageImport}
                   disabled={!imageImportFile || isProcessingImage}
-                  className={`px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 ${
-                    imageImportFile && !isProcessingImage
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 ${imageImportFile && !isProcessingImage
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   {isProcessingImage ? (
                     <>
