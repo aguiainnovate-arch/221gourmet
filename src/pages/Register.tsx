@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useParams } from 'react-router-dom';
-import { validateToken } from '../services/registrationTokenService';
+import { validateToken, markTokenAsUsed } from '../services/registrationTokenService';
 import { getPlanById } from '../services/planService';
+import { addRestaurant, checkDomainExists } from '../services/restaurantService';
 import type { RegistrationToken } from '../types/registrationToken';
 import type { Plan } from '../types/plan';
 
-type PageState = 'loading' | 'invalid' | 'ready';
+type PageState = 'loading' | 'invalid' | 'ready' | 'success';
 
 interface RestaurantFormData {
   restaurantName: string;
@@ -39,6 +40,9 @@ export default function Register() {
     primaryColor: '#0F172A',
     secondaryColor: '#F97316'
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [createdRestaurantId, setCreatedRestaurantId] = useState<string>('');
 
   useEffect(() => {
     let active = true;
@@ -97,6 +101,26 @@ export default function Register() {
     handleInputChange('domain', sanitized);
   };
 
+  const handlePhoneChange = (value: string) => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '');
+    
+    // Aplica máscara conforme o tamanho
+    let masked = '';
+    if (numbers.length <= 2) {
+      masked = numbers;
+    } else if (numbers.length <= 6) {
+      masked = `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    } else if (numbers.length <= 10) {
+      masked = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    } else {
+      // Telefone com 11 dígitos (celular com 9)
+      masked = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+    }
+    
+    handleInputChange('phone', masked);
+  };
+
   const handleColorChange = (field: 'primaryColor' | 'secondaryColor', value: string) => {
     let sanitized = value.trim();
     if (!sanitized.startsWith('#')) {
@@ -115,6 +139,102 @@ export default function Register() {
     return `${formData.domain}.221menu.com`;
   }, [formData.domain]);
 
+  const validateForm = async (): Promise<boolean> => {
+    const errors: Record<string, string> = {};
+
+    // Validações obrigatórias
+    if (!formData.restaurantName.trim()) {
+      errors.restaurantName = 'Nome do restaurante é obrigatório';
+    }
+
+    if (!formData.domain.trim()) {
+      errors.domain = 'Domínio é obrigatório';
+    } else if (formData.domain.length < 3) {
+      errors.domain = 'Domínio deve ter pelo menos 3 caracteres';
+    }
+
+    if (!formData.email.trim()) {
+      errors.email = 'Email é obrigatório';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        errors.email = 'Email inválido';
+      }
+    }
+
+    if (!formData.phone.trim()) {
+      errors.phone = 'Telefone é obrigatório';
+    } else {
+      // Validar formato de telefone brasileiro
+      const phoneNumbers = formData.phone.replace(/\D/g, '');
+      if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
+        errors.phone = 'Telefone inválido';
+      }
+    }
+
+    if (!formData.address.trim()) {
+      errors.address = 'Endereço é obrigatório';
+    }
+
+    // Verificar se domínio já existe
+    if (formData.domain && !errors.domain) {
+      try {
+        const domainExists = await checkDomainExists(formData.domain);
+        if (domainExists) {
+          errors.domain = 'Este domínio já está em uso';
+        }
+      } catch (err) {
+        console.error('Erro ao verificar domínio:', err);
+      }
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!tokenData || !plan) return;
+
+    setIsSubmitting(true);
+    setError('');
+    setValidationErrors({});
+
+    try {
+      // Validar formulário
+      const isValid = await validateForm();
+      if (!isValid) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Criar restaurante
+      const newRestaurant = await addRestaurant({
+        name: formData.restaurantName,
+        domain: formData.domain,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        planId: tokenData.planId,
+        theme: {
+          primaryColor: formData.primaryColor,
+          secondaryColor: formData.secondaryColor
+        }
+      });
+
+      // Marcar token como usado
+      await markTokenAsUsed(tokenData.id, newRestaurant.id);
+
+      // Salvar ID do restaurante criado e mudar para página de sucesso
+      setCreatedRestaurantId(newRestaurant.id);
+      setPageState('success');
+    } catch (err: any) {
+      console.error('Erro ao criar restaurante:', err);
+      setError(err.message || 'Erro ao criar restaurante. Por favor, tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (pageState === 'loading') {
     return (
       <FullScreenState
@@ -131,6 +251,16 @@ export default function Register() {
         variant="error"
         title="Link não disponível"
         subtitle={error || 'Este link já foi utilizado ou está expirado. Solicite um novo link ao time responsável.'}
+      />
+    );
+  }
+
+  if (pageState === 'success') {
+    return (
+      <SuccessPage 
+        restaurantName={formData.restaurantName}
+        domain={formData.domain}
+        restaurantId={createdRestaurantId}
       />
     );
   }
@@ -161,6 +291,18 @@ export default function Register() {
               </span>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex">
+                  <svg className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <FormField
@@ -168,30 +310,39 @@ export default function Register() {
                   value={formData.restaurantName}
                   placeholder="Ex: Casa do Chef"
                   onChange={(e) => handleInputChange('restaurantName', e.target.value)}
+                  error={validationErrors.restaurantName}
                 />
                 <FormField
                   label="Email de contato"
                   value={formData.email}
                   placeholder="contato@restaurante.com"
                   onChange={(e) => handleInputChange('email', e.target.value)}
+                  error={validationErrors.email}
                 />
                 <FormField
                   label="Telefone / WhatsApp"
                   value={formData.phone}
                   placeholder="(11) 98888-0000"
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  type="tel"
+                  error={validationErrors.phone}
                 />
                 <FormField
                   label="Endereço completo"
                   value={formData.address}
                   placeholder="Rua Exemplo, 123 - São Paulo"
                   onChange={(e) => handleInputChange('address', e.target.value)}
+                  error={validationErrors.address}
                 />
               </div>
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Domínio personalizado</label>
-                <div className="flex items-center rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-emerald-400 bg-white">
+                <div className={`flex items-center rounded-lg border overflow-hidden focus-within:ring-2 bg-white ${
+                  validationErrors.domain 
+                    ? 'border-red-300 focus-within:ring-red-400' 
+                    : 'border-gray-300 focus-within:ring-emerald-400'
+                }`}>
                   <input
                     type="text"
                     value={formData.domain}
@@ -201,7 +352,11 @@ export default function Register() {
                   />
                   <span className="bg-gray-50 text-gray-500 text-sm px-4 whitespace-nowrap">.221menu.com</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Será o endereço do seu cardápio digital.</p>
+                {validationErrors.domain ? (
+                  <p className="text-xs text-red-600 mt-1">{validationErrors.domain}</p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">Será o endereço do seu cardápio digital.</p>
+                )}
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -220,10 +375,21 @@ export default function Register() {
 
             <button
               type="button"
-              disabled
-              className="w-full py-4 rounded-lg bg-gray-200 text-gray-500 font-semibold uppercase text-sm cursor-not-allowed"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="w-full py-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold uppercase text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              Finalizar cadastro (em breve)
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Criando restaurante...
+                </>
+              ) : (
+                'Finalizar cadastro'
+              )}
             </button>
           </section>
 
@@ -276,19 +442,26 @@ interface FormFieldProps {
   value: string;
   placeholder?: string;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  error?: string;
 }
 
-function FormField({ label, value, placeholder, onChange }: FormFieldProps) {
+function FormField({ label, value, placeholder, onChange, type = 'text', error }: FormFieldProps) {
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-1 block">{label}</label>
       <input
-        type="text"
+        type={type}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white"
+        className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:border-transparent transition bg-white ${
+          error 
+            ? 'border-red-300 focus:ring-red-400' 
+            : 'border-gray-300 focus:ring-emerald-400'
+        }`}
       />
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }
@@ -407,6 +580,99 @@ function MobileMenuPreview({ restaurantName, domainPreview, primaryColor, second
               Ver cardápio completo
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SuccessPageProps {
+  restaurantName: string;
+  domain: string;
+  restaurantId: string;
+}
+
+function SuccessPage({ restaurantName, domain }: SuccessPageProps) {
+  const domainUrl = `https://${domain}.221menu.com`;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
+      <div className="max-w-2xl w-full">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 text-center border border-gray-100">
+          {/* Success Icon */}
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-100 flex items-center justify-center">
+            <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+          Cadastro concluído!
+          </h1>
+          <p className="text-lg text-gray-600 mb-8">
+            O restaurante <span className="font-semibold text-emerald-600">{restaurantName}</span> foi criado com sucesso!
+          </p>
+
+          {/* Info Card */}
+          <div className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-2xl p-6 mb-8 border border-emerald-100">
+            <p className="text-sm text-gray-600 mb-3">Seu cardápio digital está disponível em:</p>
+            <a 
+              href={domainUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-lg font-semibold text-emerald-600 hover:text-emerald-700 transition"
+            >
+              {domain}.221menu.com
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+
+          {/* Next Steps */}
+          <div className="bg-gray-50 rounded-2xl p-6 mb-8 text-left">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              Próximos passos
+            </h3>
+            <ul className="space-y-3 text-sm text-gray-700">
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-semibold">1</span>
+                <span>Acesse o painel administrativo e comece a adicionar seus pratos</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-semibold">2</span>
+                <span>Personalize seu cardápio com fotos, descrições e preços</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-semibold">3</span>
+                <span>Compartilhe o link do seu cardápio digital com seus clientes</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* CTA */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a
+              href={domainUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2"
+            >
+              Visualizar cardápio
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </a>
+          </div>
+
+          {/* Footer Note */}
+          <p className="text-xs text-gray-500 mt-8">
+            Precisa de ajuda? Entre em contato com o suporte da 221 Gourmet
+          </p>
         </div>
       </div>
     </div>

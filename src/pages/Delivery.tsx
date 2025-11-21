@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import type { Restaurant } from '../types/restaurant';
+import AIRestaurantChat from '../components/AIRestaurantChat';
 
 export default function Delivery() {
   const navigate = useNavigate();
@@ -165,6 +166,9 @@ export default function Delivery() {
           )}
         </div>
       </div>
+
+      {/* AI Chat Assistant */}
+      <AIRestaurantChat />
     </div>
   );
 }

@@ -9,7 +9,8 @@ import {
   Timestamp,
   orderBy,
   limit,
-  getDoc
+  getDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { 
@@ -285,5 +286,16 @@ export const getTokenById = async (tokenId: string): Promise<RegistrationToken |
 export const generateRegistrationUrl = (token: string, baseUrl?: string): string => {
   const base = baseUrl || window.location.origin;
   return `${base}/register/${token}`;
+};
+
+// Deletar token de registro
+export const deleteRegistrationToken = async (tokenId: string): Promise<void> => {
+  try {
+    const tokenRef = doc(db, 'registrationTokens', tokenId);
+    await deleteDoc(tokenRef);
+  } catch (error) {
+    console.error('Erro ao deletar token:', error);
+    throw new Error('Falha ao deletar token');
+  }
 };
 
