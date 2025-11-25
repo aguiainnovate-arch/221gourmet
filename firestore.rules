@@ -42,6 +42,11 @@ service cloud.firestore {
     }
     
     match /settings/{document} {
+      allow read: if true;  // Qualquer um pode ler configurações
+      allow write: if true; // Qualquer um pode escrever (ajustar em produção)
+    }
+    
+    match /registrationTokens/{document} {
       allow read, write: if true;
     }
     

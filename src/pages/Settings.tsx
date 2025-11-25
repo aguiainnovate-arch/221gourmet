@@ -2125,7 +2125,7 @@ export default function Settings() {
                   {/* Preview */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prévia do Cardápio
+                      Exemplo de cardápio
                     </label>
                     <div className="max-h-[500px] overflow-y-auto bg-gray-100 p-4 rounded-lg">
                       <MenuPreview

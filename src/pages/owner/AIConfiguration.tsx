@@ -20,6 +20,11 @@ import {
   type OpenAIConfig,
   type TestPromptResult 
 } from '../../services/openaiService';
+import { 
+  saveChatbotConfig, 
+  getChatbotConfig,
+  type ChatbotConfig 
+} from '../../services/chatbotConfigService';
 
 export default function AIConfiguration() {
   const [apiKey, setApiKey] = useState('');
@@ -34,6 +39,13 @@ export default function AIConfiguration() {
   const [isSaving, setIsSaving] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [connectionError, setConnectionError] = useState('');
+
+  // Configurações do Chatbot
+  const [chatbotCustomRules, setChatbotCustomRules] = useState('');
+  const [chatbotTone, setChatbotTone] = useState('friendly'); // friendly, professional, casual
+  const [chatbotShowCardsThreshold, setChatbotShowCardsThreshold] = useState('conservative'); // conservative, balanced, eager
+  const [chatbotGreeting, setChatbotGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
+  const [isSavingChatbot, setIsSavingChatbot] = useState(false);
 
   useEffect(() => {
     const savedConfig = localStorage.getItem('openai-config');
@@ -52,6 +64,9 @@ export default function AIConfiguration() {
         console.error('Erro ao carregar configuração:', error);
       }
     }
+
+    // Carregar configurações do chatbot do Firestore
+    loadChatbotConfig();
   }, []);
 
   const saveConfiguration = async () => {
@@ -149,6 +164,39 @@ export default function AIConfiguration() {
 
   const clearResults = () => {
     setTestResults([]);
+  };
+
+  const loadChatbotConfig = async () => {
+    try {
+      const config = await getChatbotConfig();
+      setChatbotCustomRules(config.customRules);
+      setChatbotTone(config.tone);
+      setChatbotShowCardsThreshold(config.showCardsThreshold);
+      setChatbotGreeting(config.greeting);
+    } catch (error) {
+      console.error('Erro ao carregar configuração do chatbot:', error);
+    }
+  };
+
+  const saveChatbotConfiguration = async () => {
+    setIsSavingChatbot(true);
+    
+    try {
+      const config: ChatbotConfig = {
+        customRules: chatbotCustomRules,
+        tone: chatbotTone as 'friendly' | 'professional' | 'enthusiastic',
+        showCardsThreshold: chatbotShowCardsThreshold as 'conservative' | 'balanced' | 'eager',
+        greeting: chatbotGreeting
+      };
+
+      await saveChatbotConfig(config);
+      alert('✅ Configuração do chatbot salva com sucesso no banco de dados!');
+    } catch (error) {
+      console.error('Erro ao salvar configuração do chatbot:', error);
+      alert('❌ Erro ao salvar configuração do chatbot. Verifique sua conexão com o banco de dados.');
+    } finally {
+      setIsSavingChatbot(false);
+    }
   };
 
   const examplePrompts = [
@@ -299,6 +347,112 @@ export default function AIConfiguration() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Nova Seção: Configuração do Chatbot */}
+          <div className="bg-white rounded-lg shadow-md p-6 border-2 border-orange-200">
+            <div className="flex items-center space-x-2 mb-4">
+              <Sparkles className="w-5 h-5 text-orange-600" />
+              <h2 className="text-xl font-semibold text-gray-900">Configuração do Chatbot</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Personalize o comportamento da IA no chatbot de recomendações de restaurantes
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Mensagem de Boas-Vindas
+                </label>
+                <textarea
+                  value={chatbotGreeting}
+                  onChange={(e) => setChatbotGreeting(e.target.value)}
+                  placeholder="Olá! Como posso ajudar você hoje?"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Primeira mensagem que o usuário verá ao abrir o chat
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tom de Voz
+                </label>
+                <select
+                  value={chatbotTone}
+                  onChange={(e) => setChatbotTone(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="friendly">Amigável e Casual 😊</option>
+                  <option value="professional">Profissional e Formal 👔</option>
+                  <option value="enthusiastic">Entusiasmado e Energético 🎉</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Define o estilo de comunicação da IA
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quando Mostrar Cards de Restaurantes
+                </label>
+                <select
+                  value={chatbotShowCardsThreshold}
+                  onChange={(e) => setChatbotShowCardsThreshold(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="conservative">Conservador - Apenas quando muito apropriado 🎯</option>
+                  <option value="balanced">Equilibrado - Quando fizer sentido 📊</option>
+                  <option value="eager">Proativo - Mostrar com mais frequência 🚀</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Define a frequência com que cards de restaurantes aparecem
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Regras Personalizadas
+                </label>
+                <textarea
+                  value={chatbotCustomRules}
+                  onChange={(e) => setChatbotCustomRules(e.target.value)}
+                  placeholder="Ex: Sempre mencionar opções vegetarianas quando disponível&#10;Priorizar restaurantes com entrega grátis&#10;Sugerir bebidas junto com comidas"
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Adicione regras específicas para o comportamento da IA (uma por linha)
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  onClick={saveChatbotConfiguration}
+                  disabled={isSavingChatbot}
+                  className="w-full flex items-center justify-center space-x-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-4 py-3 rounded-md transition-colors"
+                >
+                  {isSavingChatbot ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span className="font-medium">Salvar Configurações do Chatbot</span>
+                </button>
+              </div>
+
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-orange-800">
+                    <p className="font-medium mb-1">💡 Dica:</p>
+                    <p>As configurações são aplicadas imediatamente após salvar. Teste o chatbot na página de delivery para ver as mudanças!</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

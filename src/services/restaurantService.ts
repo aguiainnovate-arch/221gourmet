@@ -290,3 +290,72 @@ export const updateRestaurantPlan = async (restaurantId: string, planId: string)
     throw new Error('Falha ao atualizar plano do restaurante');
   }
 };
+
+// Interface para restaurante com produtos
+export interface RestaurantWithMenu {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  products: Array<{
+    name: string;
+    description: string;
+    price: number;
+    category: string;
+    preparationTime?: number;
+  }>;
+}
+
+// Buscar todos os restaurantes ativos com seus cardápios para AI
+export const getAllRestaurantsWithMenus = async (): Promise<RestaurantWithMenu[]> => {
+  try {
+    // Buscar todos os restaurantes ativos
+    const q = query(
+      collection(db, 'restaurants'), 
+      where('active', '==', true)
+    );
+    const restaurantsSnapshot = await getDocs(q);
+    
+    const restaurantsWithMenus: RestaurantWithMenu[] = [];
+    
+    // Para cada restaurante, buscar seus produtos
+    for (const restaurantDoc of restaurantsSnapshot.docs) {
+      const restaurantData = restaurantDoc.data();
+      
+      // Buscar produtos do restaurante
+      const productsQuery = query(
+        collection(db, 'products'),
+        where('restaurantId', '==', restaurantDoc.id),
+        where('available', '==', true)
+      );
+      const productsSnapshot = await getDocs(productsQuery);
+      
+      const products = productsSnapshot.docs.map(productDoc => {
+        const data = productDoc.data();
+        return {
+          name: data.name,
+          description: data.description,
+          price: data.price,
+          category: data.category,
+          preparationTime: data.preparationTime
+        };
+      });
+      
+      // Adicionar restaurante com seus produtos
+      if (products.length > 0) { // Apenas restaurantes com produtos
+        restaurantsWithMenus.push({
+          id: restaurantDoc.id,
+          name: restaurantData.name,
+          address: restaurantData.address,
+          phone: restaurantData.phone,
+          products
+        });
+      }
+    }
+    
+    return restaurantsWithMenus;
+  } catch (error) {
+    console.error('Erro ao buscar restaurantes com cardápios:', error);
+    throw new Error('Falha ao buscar restaurantes com cardápios');
+  }
+};
