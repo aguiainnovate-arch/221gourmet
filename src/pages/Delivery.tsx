@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
+import { getRestaurantPermissions } from '../services/permissionService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
 
@@ -19,8 +20,32 @@ export default function Delivery() {
     try {
       setLoading(true);
       const data = await getRestaurants();
+      
       // Filtrar apenas restaurantes ativos
-      setRestaurants(data.filter(r => r.active));
+      const activeRestaurants = data.filter(r => r.active);
+      
+      // Verificar permissão de delivery e configurações para cada restaurante
+      const restaurantsWithPermissions = await Promise.all(
+        activeRestaurants.map(async (restaurant) => {
+          const permissions = await getRestaurantPermissions(restaurant.id);
+          const hasPermission = permissions.delivery;
+          // Se deliverySettings.enabled não está definido, usar true como padrão
+          const isEnabledByRestaurant = restaurant.deliverySettings?.enabled ?? true;
+          
+          return {
+            restaurant,
+            hasDeliveryPermission: hasPermission,
+            isEnabledByRestaurant
+          };
+        })
+      );
+      
+      // Filtrar restaurantes que têm permissão E estão habilitados pelo próprio restaurante
+      const allowedRestaurants = restaurantsWithPermissions
+        .filter(r => r.hasDeliveryPermission && r.isEnabledByRestaurant)
+        .map(r => r.restaurant);
+      
+      setRestaurants(allowedRestaurants);
     } catch (error) {
       console.error('Erro ao carregar restaurantes:', error);
     } finally {

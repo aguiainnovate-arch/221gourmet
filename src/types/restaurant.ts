@@ -23,6 +23,10 @@ export interface Restaurant {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
   };
+  deliverySettings?: {
+    enabled: boolean;
+    aiDescription: string;
+  };
 }
 
 export interface CreateRestaurantData {
@@ -40,6 +44,10 @@ export interface CreateRestaurantData {
   permissions?: {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
+  };
+  deliverySettings?: {
+    enabled: boolean;
+    aiDescription: string;
   };
 }
 
@@ -59,5 +67,9 @@ export interface UpdateRestaurantData {
   permissions?: {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
+  };
+  deliverySettings?: {
+    enabled: boolean;
+    aiDescription: string;
   };
 }

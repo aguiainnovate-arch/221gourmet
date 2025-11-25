@@ -85,6 +85,11 @@ export default function Settings() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('week');
 
+  // Estados para delivery
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [deliveryDescription, setDeliveryDescription] = useState('');
+  const [productDeliverySettings, setProductDeliverySettings] = useState<Record<string, boolean>>({});
+  const [isSavingDelivery, setIsSavingDelivery] = useState(false);
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -218,6 +223,51 @@ export default function Settings() {
 
     checkPermissions();
   }, [restaurantId]);
+
+  // Carregar configurações de delivery
+  useEffect(() => {
+    const loadDeliverySettings = async () => {
+      if (restaurantId) {
+        try {
+          const { getRestaurants } = await import('../services/restaurantService');
+          const restaurants = await getRestaurants();
+          const restaurant = restaurants.find(r => r.id === restaurantId);
+          
+          console.log('📖 Carregando configurações de delivery...');
+          console.log('   Restaurante encontrado:', restaurant?.name);
+          console.log('   deliverySettings:', restaurant?.deliverySettings);
+          
+          if (restaurant?.deliverySettings) {
+            setDeliveryEnabled(restaurant.deliverySettings.enabled);
+            setDeliveryDescription(restaurant.deliverySettings.aiDescription || '');
+            console.log('   ✅ Configurações do restaurante carregadas:', {
+              enabled: restaurant.deliverySettings.enabled,
+              description: restaurant.deliverySettings.aiDescription?.substring(0, 50)
+            });
+          } else {
+            // Se não tem deliverySettings, usar valores padrão
+            setDeliveryEnabled(true);
+            setDeliveryDescription('');
+            console.log('   ⚠️  Sem deliverySettings, usando padrões (enabled: true)');
+          }
+
+          // Carregar configurações de delivery dos produtos
+          const productSettings: Record<string, boolean> = {};
+          products.forEach(product => {
+            // Se availableForDelivery não está definido, usar true como padrão
+            const isAvailable = product.availableForDelivery ?? true;
+            productSettings[product.id] = isAvailable;
+          });
+          setProductDeliverySettings(productSettings);
+          console.log('   ✅ Configurações de produtos carregadas:', Object.keys(productSettings).length, 'produtos');
+        } catch (error) {
+          console.error('❌ Erro ao carregar configurações de delivery:', error);
+        }
+      }
+    };
+
+    loadDeliverySettings();
+  }, [restaurantId, products]);
 
   // Atualizar checkbox de tradução automática quando o modal abrir ou a permissão mudar
   useEffect(() => {
@@ -1159,6 +1209,58 @@ export default function Settings() {
   });
 
   // Função para carregar estatísticas
+  // Salvar configurações de delivery
+  const handleSaveDeliverySettings = async () => {
+    if (!restaurantId) return;
+
+    try {
+      setIsSavingDelivery(true);
+      const { updateRestaurantDeliverySettings } = await import('../services/restaurantService');
+      
+      console.log('💾 Salvando configurações de delivery...');
+      console.log('   Restaurante habilitado:', deliveryEnabled);
+      console.log('   Descrição IA:', deliveryDescription.substring(0, 50) + '...');
+      console.log('   Produtos:', productDeliverySettings);
+      
+      // Salvar configurações gerais do restaurante
+      await updateRestaurantDeliverySettings(restaurantId, {
+        enabled: deliveryEnabled,
+        aiDescription: deliveryDescription
+      });
+      console.log('   ✅ Configurações do restaurante salvas');
+
+      // Salvar configurações de cada produto
+      const updatePromises = Object.entries(productDeliverySettings).map(([productId, enabled]) => {
+        console.log(`   📦 Atualizando produto ${productId}: ${enabled}`);
+        return updateProduct(productId, { availableForDelivery: enabled });
+      });
+
+      await Promise.all(updatePromises);
+      console.log('   ✅ Todos os produtos atualizados');
+
+      alert('Configurações de delivery salvas com sucesso!');
+      await reloadRestaurantData();
+      console.log('   ✅ Dados recarregados');
+    } catch (error) {
+      console.error('❌ Erro ao salvar configurações de delivery:', error);
+      alert('Erro ao salvar configurações de delivery. Tente novamente.');
+    } finally {
+      setIsSavingDelivery(false);
+    }
+  };
+
+  const toggleProductDelivery = (productId: string) => {
+    setProductDeliverySettings(prev => {
+      const currentValue = prev[productId] ?? true; // Padrão é true se undefined
+      const newValue = !currentValue;
+      console.log(`🔄 Toggle produto ${productId}: ${currentValue} → ${newValue}`);
+      return {
+        ...prev,
+        [productId]: newValue
+      };
+    });
+  };
+
   const loadStatistics = async () => {
     setLoadingStats(true);
     try {
@@ -1375,6 +1477,17 @@ export default function Settings() {
               >
                 <ChefHat className="w-5 h-5" />
                 <span>Cozinha</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('delivery')}
+                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
+                  activeTab === 'delivery' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Truck className="w-5 h-5" />
+                <span>Delivery</span>
               </button>
             </nav>
           </div>
@@ -2449,6 +2562,195 @@ export default function Settings() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'delivery' && (
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <Truck className="w-8 h-8 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Configurações de Delivery</h2>
+                  <p className="text-sm text-gray-500">Gerencie sua presença no serviço de delivery</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Card: Habilitar/Desabilitar Delivery */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Aparecer no Delivery
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Controle se seu restaurante aparece na plataforma de delivery. 
+                        Quando desabilitado, os clientes não conseguirão ver seu restaurante na lista.
+                      </p>
+                    </div>
+                    <div className="ml-4">
+                      <button
+                        onClick={() => {
+                          const newValue = !deliveryEnabled;
+                          console.log(`🔄 Toggle restaurante no delivery: ${deliveryEnabled} → ${newValue}`);
+                          setDeliveryEnabled(newValue);
+                        }}
+                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          deliveryEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                            deliveryEnabled ? 'translate-x-7' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center space-x-2">
+                    {deliveryEnabled ? (
+                      <>
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <span className="text-sm font-medium text-green-700">
+                          Seu restaurante está visível no delivery
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                        <span className="text-sm font-medium text-amber-700">
+                          Seu restaurante está oculto no delivery
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card: Descrição para IA */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-start space-x-3 mb-4">
+                    <div className="bg-purple-100 p-2 rounded-lg">
+                      <Sparkles className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Descrição para Assistente de IA
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Esta descrição será usada pelo chatbot de IA para fornecer informações mais precisas 
+                        sobre seu restaurante aos clientes. Inclua detalhes sobre especialidades, horários especiais, 
+                        promoções, ou qualquer informação relevante.
+                      </p>
+                    </div>
+                  </div>
+                  <textarea
+                    value={deliveryDescription}
+                    onChange={(e) => setDeliveryDescription(e.target.value)}
+                    placeholder="Ex: Somos especializados em comida italiana autêntica. Trabalhamos com massas frescas feitas diariamente. Temos opções vegetarianas e veganas. Horário de funcionamento: 11h às 23h de terça a domingo."
+                    rows={6}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    {deliveryDescription.length} caracteres • Quanto mais detalhado, melhor para a IA
+                  </p>
+                </div>
+
+                {/* Card: Produtos Disponíveis para Delivery */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-start space-x-3 mb-4">
+                    <div className="bg-orange-100 p-2 rounded-lg">
+                      <Utensils className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Produtos Disponíveis para Delivery
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Escolha quais produtos do seu cardápio estarão disponíveis para pedidos de delivery. 
+                        Produtos desabilitados não aparecerão no menu de delivery.
+                      </p>
+                    </div>
+                  </div>
+
+                  {products.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Utensils className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">
+                        Nenhum produto cadastrado ainda
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {categories.map(category => {
+                        const categoryProducts = products.filter(p => p.category === category.name);
+                        if (categoryProducts.length === 0) return null;
+
+                        return (
+                          <div key={category.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                              <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                            </div>
+                            <div className="divide-y divide-gray-200">
+                              {categoryProducts.map(product => (
+                                <div
+                                  key={product.id}
+                                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                                >
+                                  <div className="flex items-center space-x-3 flex-1">
+                                    {product.image && (
+                                      <ProductImage
+                                        src={product.image}
+                                        alt={product.name}
+                                        className="w-12 h-12 rounded-lg object-cover"
+                                      />
+                                    )}
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-900">{product.name}</p>
+                                      <p className="text-sm text-gray-500">
+                                        R$ {product.price.toFixed(2)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => toggleProductDelivery(product.id)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                      (productDeliverySettings[product.id] ?? true)
+                                        ? 'bg-blue-600'
+                                        : 'bg-gray-200'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                        (productDeliverySettings[product.id] ?? true)
+                                          ? 'translate-x-6'
+                                          : 'translate-x-1'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Botão de Salvar no Final */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveDeliverySettings}
+                    disabled={isSavingDelivery}
+                    className="inline-flex items-center px-8 py-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    <Save className="w-5 h-5 mr-2" />
+                    {isSavingDelivery ? 'Salvando...' : 'Salvar Todas as Configurações'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

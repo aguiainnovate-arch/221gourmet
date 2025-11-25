@@ -32,6 +32,10 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
       permissions: {
         automaticTranslation: false,
         imageMenuTransfer: false
+      },
+      deliverySettings: restaurantData.deliverySettings ?? {
+        enabled: true,
+        aiDescription: ''
       }
     });
 
@@ -72,6 +76,10 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
       permissions: {
         automaticTranslation: false,
         imageMenuTransfer: false
+      },
+      deliverySettings: restaurantData.deliverySettings ?? {
+        enabled: true,
+        aiDescription: ''
       }
     };
   } catch (error) {
@@ -89,6 +97,10 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
     const restaurants: Restaurant[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      const deliverySettings = data.deliverySettings ?? {
+        enabled: true,
+        aiDescription: ''
+      };
       restaurants.push({
         id: doc.id,
         name: data.name,
@@ -102,7 +114,8 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
         updatedAt: data.updatedAt?.toDate() || new Date(),
         theme: data.theme,
         settings: data.settings,
-        permissions: data.permissions
+        permissions: data.permissions,
+        deliverySettings
       });
     });
 
@@ -130,6 +143,11 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
     const doc = querySnapshot.docs[0];
     const data = doc.data();
     
+    const deliverySettings = data.deliverySettings ?? {
+      enabled: true,
+      aiDescription: ''
+    };
+
     return {
       id: doc.id,
       name: data.name,
@@ -142,7 +160,8 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
       theme: data.theme,
-      settings: data.settings
+      settings: data.settings,
+      deliverySettings
     };
   } catch (error) {
     console.error('Erro ao buscar restaurante por domínio:', error);
@@ -234,6 +253,10 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
     const restaurants: Restaurant[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      const deliverySettings = data.deliverySettings ?? {
+        enabled: true,
+        aiDescription: ''
+      };
       restaurants.push({
         id: doc.id,
         name: data.name,
@@ -247,7 +270,8 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
         updatedAt: data.updatedAt?.toDate() || new Date(),
         theme: data.theme,
         settings: data.settings,
-        permissions: data.permissions
+        permissions: data.permissions,
+        deliverySettings
       });
     });
 
@@ -288,6 +312,23 @@ export const updateRestaurantPlan = async (restaurantId: string, planId: string)
   } catch (error) {
     console.error('Erro ao atualizar plano do restaurante:', error);
     throw new Error('Falha ao atualizar plano do restaurante');
+  }
+};
+
+// Atualizar configurações de delivery de um restaurante
+export const updateRestaurantDeliverySettings = async (
+  restaurantId: string,
+  deliverySettings: { enabled: boolean; aiDescription: string }
+): Promise<void> => {
+  try {
+    const restaurantRef = doc(db, 'restaurants', restaurantId);
+    await updateDoc(restaurantRef, {
+      deliverySettings,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar configurações de delivery:', error);
+    throw new Error('Falha ao atualizar configurações de delivery');
   }
 };
 

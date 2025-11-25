@@ -60,7 +60,14 @@ export default function DeliveryMenu() {
 
       const currentRestaurant = restaurantsData.find(r => r.id === restaurantId);
       setRestaurant(currentRestaurant || null);
-      setProducts(productsData.filter(p => p.available));
+      
+      // Filtrar apenas produtos disponíveis E disponíveis para delivery
+      // Se availableForDelivery não está definido, usar true como padrão
+      const availableProducts = productsData.filter(p => 
+        p.available && (p.availableForDelivery ?? true)
+      );
+      
+      setProducts(availableProducts);
       setCategories(categoriesData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
