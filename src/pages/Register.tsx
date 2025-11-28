@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useParams } from 'react-router-dom';
+import bcrypt from 'bcryptjs';
 import { validateToken, markTokenAsUsed } from '../services/registrationTokenService';
 import { getPlanById } from '../services/planService';
 import { addRestaurant, checkDomainExists } from '../services/restaurantService';
@@ -15,6 +16,7 @@ interface RestaurantFormData {
   email: string;
   phone: string;
   address: string;
+  password: string; // Senha para acessar /settings
   primaryColor: string;
   secondaryColor: string;
 }
@@ -37,6 +39,7 @@ export default function Register() {
     email: '',
     phone: '',
     address: '',
+    password: '',
     primaryColor: '#0F172A',
     secondaryColor: '#F97316'
   });
@@ -176,6 +179,12 @@ export default function Register() {
       errors.address = 'Endereço é obrigatório';
     }
 
+    if (!formData.password.trim()) {
+      errors.password = 'Senha é obrigatória';
+    } else if (formData.password.length < 6) {
+      errors.password = 'Senha deve ter pelo menos 6 caracteres';
+    }
+
     // Verificar se domínio já existe
     if (formData.domain && !errors.domain) {
       try {
@@ -207,6 +216,9 @@ export default function Register() {
         return;
       }
 
+      // Criptografar senha com bcrypt
+      const hashedPassword = await bcrypt.hash(formData.password, 10);
+
       // Criar restaurante
       const newRestaurant = await addRestaurant({
         name: formData.restaurantName,
@@ -214,6 +226,7 @@ export default function Register() {
         email: formData.email,
         phone: formData.phone,
         address: formData.address,
+        password: hashedPassword,
         planId: tokenData.planId,
         theme: {
           primaryColor: formData.primaryColor,
@@ -334,6 +347,15 @@ export default function Register() {
                   onChange={(e) => handleInputChange('address', e.target.value)}
                   error={validationErrors.address}
                 />
+                <FormField
+                  label="Senha de acesso"
+                  value={formData.password}
+                  placeholder="Mínimo 6 caracteres"
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  type="password"
+                  error={validationErrors.password}
+                  helperText="Esta senha será usada para acessar as configurações do restaurante"
+                />
               </div>
 
               <div>
@@ -444,9 +466,10 @@ interface FormFieldProps {
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   type?: string;
   error?: string;
+  helperText?: string;
 }
 
-function FormField({ label, value, placeholder, onChange, type = 'text', error }: FormFieldProps) {
+function FormField({ label, value, placeholder, onChange, type = 'text', error, helperText }: FormFieldProps) {
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-1 block">{label}</label>
@@ -461,6 +484,7 @@ function FormField({ label, value, placeholder, onChange, type = 'text', error }
             : 'border-gray-300 focus:ring-emerald-400'
         }`}
       />
+      {helperText && !error && <p className="text-xs text-gray-500 mt-1">{helperText}</p>}
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );

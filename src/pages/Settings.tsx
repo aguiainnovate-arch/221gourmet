@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
+import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
@@ -27,8 +30,11 @@ export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { orders, updateOrderStatus, deleteOrder, refreshOrders, setRestaurantId } = useOrders();
   const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
+  const { isAuthenticated, currentRestaurantId, isLoading: authLoading } = useRestaurantAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -158,6 +164,22 @@ export default function Settings() {
       testFirestoreConnection();
     }
   }, []);
+
+  // Verificar autenticação
+  const hasAccess = Boolean(
+    isAuthenticated &&
+    restaurantId &&
+    currentRestaurantId === restaurantId
+  );
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!hasAccess) {
+      setShowLoginModal(true);
+    } else {
+      setShowLoginModal(false);
+    }
+  }, [authLoading, hasAccess]);
 
   // Atualizar título da aba do navegador
   useEffect(() => {
@@ -1388,6 +1410,27 @@ export default function Settings() {
   const statusOrder = ['novo', 'preparando', 'pronto'];
 
 
+  // Renderizar apenas o modal de login se não estiver autenticado
+  if (!hasAccess) {
+    return (
+      <>
+        <RestaurantLoginModal
+          isOpen={showLoginModal}
+          onClose={() => navigate(-1)}
+          onSuccess={() => setShowLoginModal(false)}
+        />
+        {authLoading && (
+          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Verificando autenticação...</p>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -1832,11 +1875,18 @@ export default function Settings() {
                               <div className="mt-2 text-xs text-gray-400">
                                 {productsInCategory.slice(0, 3).map(p => p.name).join(', ')}
                                 {productsInCategory.length > 3 && '...'}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+        </div>
+      )}
+      
+      {/* Modal de Login */}
+      <RestaurantLoginModal
+        isOpen={showLoginModal}
+        onClose={() => navigate(-1)}
+        onSuccess={() => setShowLoginModal(false)}
+      />
+    </div>
+  );
+})}
                     </div>
                   </div>
                 )}

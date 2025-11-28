@@ -33,6 +33,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
+    match /deliveryUsers/{document} {
+      allow read, write: if true;
+    }
+    
     match /restaurantPermissions/{document} {
       allow read, write: if true;
     }

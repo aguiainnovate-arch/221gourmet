@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils } from 'lucide-react';
+import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils, User, LogOut } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
+import DeliveryAuthModal from '../components/DeliveryAuthModal';
+import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 
 export default function Delivery() {
   const navigate = useNavigate();
+  const { user, logout } = useDeliveryAuth();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     loadRestaurants();
@@ -79,9 +83,36 @@ export default function Delivery() {
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white py-12">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="flex items-center space-x-3 mb-4">
-              <Utensils className="w-12 h-12" />
-              <h1 className="text-4xl font-bold">221 Delivery</h1>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Utensils className="w-12 h-12" />
+                <h1 className="text-4xl font-bold">221 Delivery</h1>
+              </div>
+              <div className="flex items-center space-x-2">
+                {user ? (
+                  <>
+                    <div className="flex items-center space-x-2 bg-white/20 px-4 py-2 rounded-lg">
+                      <User className="w-5 h-5" />
+                      <span className="font-medium">{user.name}</span>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                      title="Sair"
+                    >
+                      <LogOut className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="bg-white text-amber-600 hover:bg-amber-50 px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                    <span>Entrar / Criar conta</span>
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-xl text-amber-50">
               Peça comida dos melhores restaurantes e receba em casa!
@@ -194,6 +225,12 @@ export default function Delivery() {
 
       {/* AI Chat Assistant */}
       <AIRestaurantChat />
+
+      {/* Auth Modal */}
+      <DeliveryAuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   );
 }

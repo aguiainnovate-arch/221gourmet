@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
@@ -9,41 +9,29 @@ import Delivery from './pages/Delivery';
 import DeliveryMenu from './pages/DeliveryMenu';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
-import TestModeBanner from './components/TestModeBanner';
 import { OrderProvider } from './contexts/OrderContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TestModeProvider } from './contexts/TestModeContext';
+import { DeliveryAuthProvider } from './contexts/DeliveryAuthContext';
+import { RestaurantAuthProvider } from './contexts/RestaurantAuthContext';
+
+// Variável de ambiente para habilitar/desabilitar rota de testing
+// Para desabilitar em produção, defina VITE_ENABLE_TESTING_ROUTE=false no .env
+const ENABLE_TESTING_ROUTE = import.meta.env.VITE_ENABLE_TESTING_ROUTE !== 'false';
 
 function App() {
   return (
     <AuthProvider>
-      <TestModeProvider>
-        <SettingsProvider>
-          <OrderProvider>
-            <BrowserRouter>
-              <TestModeBanner />
+      <BrowserRouter>
+        <TestModeProvider>
+          <SettingsProvider>
+            <OrderProvider>
               <Routes>
-                <Route path="/" element={<Layout />}>
-                  <Route index element={<Home />} />
-                  <Route path="mesa/:mesaId" element={
-                    <PrivateRoute>
-                      <Menu />
-                    </PrivateRoute>
-                  } />
-                  <Route path="settings" element={<Settings />} />
-                </Route>
+                {/* Rota padrão redireciona para /delivery */}
+                <Route path="/" element={<Navigate to="/delivery" replace />} />
                 
-                {/* Rotas de teste para restaurantes */}
-                <Route path="/test/:restaurantSlug" element={<Layout />}>
-                  <Route index element={<Home />} />
-                  <Route path="mesa/:mesaId" element={
-                    <PrivateRoute>
-                      <Menu />
-                    </PrivateRoute>
-                  } />
-                  <Route path="settings" element={<Settings />} />
-                </Route>
+                {/* Rotas específicas primeiro (antes da rota genérica /:restaurantId) */}
                 
                 {/* Rota administrativa */}
                 <Route path="/owner" element={
@@ -56,15 +44,83 @@ function App() {
                 <Route path="/register/:token" element={<Register />} />
 
                 {/* Rotas de delivery */}
-                <Route path="/delivery" element={<Delivery />} />
-                <Route path="/delivery/:restaurantId" element={<DeliveryMenu />} />
+                <Route path="/delivery" element={
+                  <DeliveryAuthProvider>
+                    <Delivery />
+                  </DeliveryAuthProvider>
+                } />
+                <Route path="/delivery/:restaurantId" element={
+                  <DeliveryAuthProvider>
+                    <DeliveryMenu />
+                  </DeliveryAuthProvider>
+                } />
+                <Route path="/delivery/:restaurantId/settings" element={<DeliverySettingsRedirect />} />
+                
+                {/* Rota de testing (pode ser desabilitada em produção) */}
+                {ENABLE_TESTING_ROUTE && (
+                  <Route path="/testing" element={<Layout />}>
+                    <Route index element={<Home />} />
+                    <Route path="mesa/:mesaId" element={
+                      <PrivateRoute>
+                        <Menu />
+                      </PrivateRoute>
+                    } />
+                    <Route path="settings" element={
+                      <RestaurantAuthProvider>
+                        <Settings />
+                      </RestaurantAuthProvider>
+                    } />
+                  </Route>
+                )}
+                
+                {/* Rotas de teste para restaurantes (mantido para compatibilidade) */}
+                <Route path="/test/:restaurantSlug" element={<Layout />}>
+                  <Route index element={<Home />} />
+                  <Route path="mesa/:mesaId" element={
+                    <PrivateRoute>
+                      <Menu />
+                    </PrivateRoute>
+                  } />
+                  <Route path="settings" element={
+                    <RestaurantAuthProvider>
+                      <Settings />
+                    </RestaurantAuthProvider>
+                  } />
+                </Route>
+                
+                {/* Rotas de restaurante por ID */}
+                <Route
+                  path="/:restaurantId/settings"
+                  element={
+                    <RestaurantAuthProvider>
+                      <Settings />
+                    </RestaurantAuthProvider>
+                  }
+                />
+                <Route path="/:restaurantId" element={<RestaurantRedirect />} />
               </Routes>
-            </BrowserRouter>
-          </OrderProvider>
-        </SettingsProvider>
-      </TestModeProvider>
+            </OrderProvider>
+          </SettingsProvider>
+        </TestModeProvider>
+      </BrowserRouter>
     </AuthProvider>
   );
+}
+
+function RestaurantRedirect() {
+  const { restaurantId } = useParams<{ restaurantId: string }>();
+  if (!restaurantId) {
+    return <Navigate to="/delivery" replace />;
+  }
+  return <Navigate to={`/delivery/${restaurantId}`} replace />;
+}
+
+function DeliverySettingsRedirect() {
+  const { restaurantId } = useParams<{ restaurantId: string }>();
+  if (!restaurantId) {
+    return <Navigate to="/delivery" replace />;
+  }
+  return <Navigate to={`/${restaurantId}/settings`} replace />;
 }
 
 export default App;

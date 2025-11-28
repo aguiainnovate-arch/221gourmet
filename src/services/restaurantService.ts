@@ -108,6 +108,7 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
         email: data.email,
         phone: data.phone,
         address: data.address,
+        password: data.password || '',
         planId: data.planId,
         active: data.active,
         createdAt: data.createdAt?.toDate() || new Date(),
@@ -155,6 +156,7 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
       email: data.email,
       phone: data.phone,
       address: data.address,
+      password: data.password || '', // Campo de senha
       planId: data.planId,
       active: data.active,
       createdAt: data.createdAt?.toDate() || new Date(),
@@ -264,6 +266,7 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
         email: data.email,
         phone: data.phone,
         address: data.address,
+        password: data.password || '',
         planId: data.planId,
         active: data.active,
         createdAt: data.createdAt?.toDate() || new Date(),
