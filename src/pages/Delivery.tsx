@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils, User, LogOut } from 'lucide-react';
+import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Zap, Star, Heart } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
 import type { Restaurant } from '../types/restaurant';
@@ -15,6 +15,8 @@ export default function Delivery() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('todos');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadRestaurants();

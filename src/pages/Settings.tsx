@@ -98,6 +98,14 @@ export default function Settings() {
   const [deliveryDescription, setDeliveryDescription] = useState('');
   const [productDeliverySettings, setProductDeliverySettings] = useState<Record<string, boolean>>({});
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
+
+  // Estados para gerenciamento de pedidos de delivery na cozinha
+  const [kitchenSubTab, setKitchenSubTab] = useState<'mesa' | 'delivery'>('mesa');
+  const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<DeliveryOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({

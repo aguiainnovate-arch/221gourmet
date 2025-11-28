@@ -10,8 +10,6 @@ import {
     CreditCard,
     Package,
     RefreshCw,
-    Star,
-    Calendar,
     Receipt,
     Search,
     Filter,
@@ -19,7 +17,6 @@ import {
     ChevronDown,
     ChevronUp,
     AlertCircle,
-    Timer,
     User,
     ShoppingBag
 } from 'lucide-react';
@@ -190,7 +187,7 @@ const OrderCard = memo(({
                                 { step: 3, label: 'Preparando', icon: Package },
                                 { step: 4, label: 'Saindo', icon: Truck },
                                 { step: 5, label: 'Entregue', icon: CheckCircle }
-                            ].map((step, index) => {
+                            ].map((step) => {
                                 const StepIcon = step.icon;
                                 const isCompleted = statusInfo.progress >= step.step;
                                 const isCurrent = statusInfo.progress === step.step;

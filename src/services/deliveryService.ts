@@ -6,7 +6,6 @@ import {
   doc,
   query,
   where,
-  orderBy,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../../firebase';
