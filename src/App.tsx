@@ -7,6 +7,7 @@ import Owner from './pages/Owner';
 import Register from './pages/Register';
 import Delivery from './pages/Delivery';
 import DeliveryMenu from './pages/DeliveryMenu';
+import Orders from './pages/Orders';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import { OrderProvider } from './contexts/OrderContext';

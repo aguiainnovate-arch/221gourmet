@@ -1,13 +1,13 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
+import {
+  collection,
+  addDoc,
+  getDocs,
   updateDoc,
-  doc, 
+  doc,
   query,
   where,
   orderBy,
-  Timestamp 
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
@@ -15,6 +15,76 @@ import { addOrder } from './orderService';
 
 // Re-exportar os tipos para facilitar imports
 export type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
+
+// Função auxiliar para traduzir método de pagamento
+const translatePaymentMethod = (method: string): string => {
+  const labels: Record<string, string> = {
+    'money': 'Dinheiro',
+    'credit': 'Cartão de Crédito',
+    'debit': 'Cartão de Débito',
+    'pix': 'PIX'
+  };
+  return labels[method] || method;
+};
+
+// Buscar pedidos de delivery por cliente (usando telefone como identificador)
+export const getDeliveryOrdersByPhone = async (phone: string): Promise<DeliveryOrder[]> => {
+  try {
+    // Primeiro buscar por telefone
+    const q = query(
+      collection(db, 'deliveries'),
+      where('customerPhone', '==', phone)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const orders: DeliveryOrder[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      orders.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as DeliveryOrder);
+    });
+
+    // Ordenar no cliente por data de criação (mais recente primeiro)
+    return orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  } catch (error) {
+    console.error('Erro ao buscar pedidos de delivery:', error);
+    throw new Error('Falha ao buscar pedidos');
+  }
+};
+
+// Atualizar status do pedido
+export const updateDeliveryOrderStatus = async (orderId: string, status: DeliveryOrder['status']): Promise<void> => {
+  try {
+    const orderRef = doc(db, 'deliveries', orderId);
+    await updateDoc(orderRef, {
+      status,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar status do pedido:', error);
+    throw new Error('Falha ao atualizar pedido');
+  }
+};
+
+// Cancelar/recusar pedido de delivery
+export const cancelDeliveryOrder = async (orderId: string, reason?: string): Promise<void> => {
+  try {
+    const orderRef = doc(db, 'deliveries', orderId);
+    await updateDoc(orderRef, {
+      status: 'cancelled',
+      updatedAt: Timestamp.now(),
+      cancellationReason: reason || 'Pedido recusado pela cozinha'
+    });
+  } catch (error) {
+    console.error('Erro ao cancelar pedido:', error);
+    throw new Error('Falha ao cancelar pedido');
+  }
+};
 
 // Criar novo pedido de delivery
 export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): Promise<DeliveryOrder> => {
@@ -42,7 +112,7 @@ export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): P
         mesaNumero: `Delivery #${docRef.id.substring(0, 6)}`,
         timestamp: new Date().toLocaleString('pt-BR'),
         status: 'novo',
-        itens: orderData.items.map(item => 
+        itens: orderData.items.map(item =>
           `${item.quantity}x ${item.productName}${item.observations ? ` (${item.observations})` : ''}`
         ),
         tempoEspera: '0 min',
@@ -67,26 +137,12 @@ export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): P
   }
 };
 
-// Função auxiliar para traduzir método de pagamento
-const translatePaymentMethod = (method: string): string => {
-  const labels: Record<string, string> = {
-    'money': 'Dinheiro',
-    'credit': 'Cartão de Crédito',
-    'debit': 'Cartão de Débito',
-    'pix': 'PIX'
-  };
-  return labels[method] || method;
-};
-
 // Buscar todos os pedidos de delivery
 export const getDeliveryOrders = async (): Promise<DeliveryOrder[]> => {
   try {
-    const q = query(
-      collection(db, 'deliveries'),
-      orderBy('createdAt', 'desc')
-    );
+    const q = query(collection(db, 'deliveries'));
     const querySnapshot = await getDocs(q);
-    
+
     const orders: DeliveryOrder[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -108,7 +164,8 @@ export const getDeliveryOrders = async (): Promise<DeliveryOrder[]> => {
       });
     });
 
-    return orders;
+    // Ordenar no cliente por data de criação (mais recente primeiro)
+    return orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   } catch (error) {
     console.error('Erro ao buscar pedidos de delivery:', error);
     throw new Error('Falha ao buscar pedidos de delivery');
@@ -120,11 +177,10 @@ export const getDeliveryOrdersByRestaurant = async (restaurantId: string): Promi
   try {
     const q = query(
       collection(db, 'deliveries'),
-      where('restaurantId', '==', restaurantId),
-      orderBy('createdAt', 'desc')
+      where('restaurantId', '==', restaurantId)
     );
     const querySnapshot = await getDocs(q);
-    
+
     const orders: DeliveryOrder[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -146,27 +202,10 @@ export const getDeliveryOrdersByRestaurant = async (restaurantId: string): Promi
       });
     });
 
-    return orders;
+    // Ordenar no cliente por data de criação (mais recente primeiro)
+    return orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   } catch (error) {
     console.error('Erro ao buscar pedidos por restaurante:', error);
     throw new Error('Falha ao buscar pedidos por restaurante');
   }
 };
-
-// Atualizar status do pedido
-export const updateDeliveryOrderStatus = async (
-  orderId: string, 
-  status: DeliveryOrder['status']
-): Promise<void> => {
-  try {
-    const orderRef = doc(db, 'deliveries', orderId);
-    await updateDoc(orderRef, {
-      status,
-      updatedAt: Timestamp.now()
-    });
-  } catch (error) {
-    console.error('Erro ao atualizar status do pedido:', error);
-    throw new Error('Falha ao atualizar status do pedido');
-  }
-};
-
