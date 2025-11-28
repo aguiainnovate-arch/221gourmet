@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData } from '../services/restaurantService';
+import bcrypt from 'bcryptjs';
+import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData, type UpdateRestaurantData } from '../services/restaurantService';
 import { getActivePlans, getPlans, type Plan } from '../services/planService';
 
 interface RestaurantModalProps {
@@ -16,6 +17,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
     email: '',
     phone: '',
     address: '',
+    password: '',
     planId: '',
     theme: {
       primaryColor: '#4f46e5',
@@ -41,6 +43,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
         email: restaurant.email || '',
         phone: restaurant.phone || '',
         address: restaurant.address || '',
+        password: '',
         planId: restaurant.planId || (plans.length > 0 ? plans[0].id : ''),
         theme: restaurant.theme || {
           primaryColor: '#4f46e5',
@@ -54,6 +57,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
         email: '',
         phone: '',
         address: '',
+        password: '',
         planId: plans.length > 0 ? plans[0].id : '',
         theme: {
           primaryColor: '#4f46e5',
@@ -99,6 +103,16 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
     if (!formData.address?.trim()) newErrors.address = 'Endereço é obrigatório';
     if (!formData.planId?.trim()) newErrors.planId = 'Plano é obrigatório';
 
+    if (!restaurant) {
+      if (!formData.password?.trim()) {
+        newErrors.password = 'Senha é obrigatória';
+      } else if (formData.password.length < 6) {
+        newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
+      }
+    } else if (formData.password && formData.password.length > 0 && formData.password.length < 6) {
+      newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
+    }
+
     // Validação de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRegex.test(formData.email)) {
@@ -132,9 +146,20 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
     setIsLoading(true);
     try {
       if (restaurant) {
-        await updateRestaurant(restaurant.id, formData);
+        const { password, ...rest } = formData;
+        const updatePayload: UpdateRestaurantData = {
+          ...rest,
+        };
+        if (password?.trim()) {
+          updatePayload.password = await bcrypt.hash(password, 10);
+        }
+        await updateRestaurant(restaurant.id, updatePayload);
       } else {
-        await addRestaurant(formData);
+        const hashedPassword = await bcrypt.hash(formData.password, 10);
+        await addRestaurant({
+          ...formData,
+          password: hashedPassword
+        });
       }
       onSuccess();
       onClose();
@@ -232,6 +257,27 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
                     placeholder="contato@exemplo.com"
                   />
                   {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha {restaurant ? '(opcional)' : '*'}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      errors.password ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder={restaurant ? 'Digite para alterar a senha' : 'Defina a senha de acesso'}
+                  />
+                  {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                  {restaurant && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Deixe em branco para manter a senha atual. Mínimo de 6 caracteres.
+                    </p>
+                  )}
                 </div>
 
                 <div>

@@ -7,6 +7,8 @@ import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
 import { createDeliveryOrder } from '../services/deliveryService';
 import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
+import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
+import { saveDeliveryUser } from '../services/deliveryUserService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
@@ -24,7 +26,8 @@ export default function DeliveryMenu() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-
+  const { user, updateUser } = useDeliveryAuth();
+  
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -34,14 +37,26 @@ export default function DeliveryMenu() {
   const [showCheckout, setShowCheckout] = useState(false);
 
   // Dados do cliente
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>('money');
+  const [customerName, setCustomerName] = useState(user?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
+  const [customerAddress, setCustomerAddress] = useState(user?.address || '');
+  const [paymentMethod, setPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>(
+    user?.defaultPaymentMethod || 'money'
+  );
   const [observations, setObservations] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const deliveryFee = 5.00; // Taxa de entrega fixa
+
+  // Carregar informações do usuário quando ele estiver logado
+  useEffect(() => {
+    if (user) {
+      setCustomerName(user.name);
+      setCustomerPhone(user.phone);
+      setCustomerAddress(user.address);
+      setPaymentMethod(user.defaultPaymentMethod);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadRestaurantData();
@@ -60,7 +75,14 @@ export default function DeliveryMenu() {
 
       const currentRestaurant = restaurantsData.find(r => r.id === restaurantId);
       setRestaurant(currentRestaurant || null);
-      setProducts(productsData.filter(p => p.available));
+      
+      // Filtrar apenas produtos disponíveis E disponíveis para delivery
+      // Se availableForDelivery não está definido, usar true como padrão
+      const availableProducts = productsData.filter(p => 
+        p.available && (p.availableForDelivery ?? true)
+      );
+      
+      setProducts(availableProducts);
       setCategories(categoriesData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -125,6 +147,23 @@ export default function DeliveryMenu() {
 
     try {
       setIsSubmitting(true);
+
+      // Se o usuário estiver logado, atualizar suas informações salvas
+      if (user) {
+        try {
+          const updatedUser = await saveDeliveryUser({
+            name: customerName,
+            email: user.email,
+            phone: customerPhone,
+            address: customerAddress,
+            defaultPaymentMethod: paymentMethod
+          });
+          updateUser(updatedUser);
+        } catch (error) {
+          console.error('Erro ao atualizar informações do usuário:', error);
+          // Não falha o pedido se a atualização do usuário falhar
+        }
+      }
 
       const orderItems: DeliveryOrderItem[] = selectedItems.map(item => ({
         productId: item.product.id,
@@ -473,6 +512,12 @@ export default function DeliveryMenu() {
                   <X className="w-6 h-6" />
                 </button>
               </div>
+
+              {user && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
+                  ✓ Suas informações foram preenchidas automaticamente. Você pode editá-las se necessário.
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>

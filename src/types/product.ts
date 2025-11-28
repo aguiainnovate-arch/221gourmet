@@ -14,6 +14,7 @@ export interface Product {
   image?: string;
   restaurantId?: string; // Opcional para compatibilidade
   preparationTime?: number; // em minutos
+  availableForDelivery?: boolean; // Se o produto está disponível para delivery
   // Traduções
   translations?: {
     name?: Translation;

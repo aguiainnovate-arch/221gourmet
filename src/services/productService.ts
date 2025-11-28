@@ -22,7 +22,8 @@ export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: st
       available: product.available,
       image: product.image || '',
       restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD', // Usar ID específico como padrão
-      createdAt: new Date()
+      createdAt: new Date(),
+      availableForDelivery: product.availableForDelivery ?? true
     };
 
     // Adicionar preparationTime apenas se não for undefined
@@ -39,7 +40,8 @@ export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: st
     return {
       id: docRef.id,
       ...product,
-      restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD'
+      restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD',
+      availableForDelivery: product.availableForDelivery ?? true
     };
   } catch (error) {
     console.error('Erro detalhado ao adicionar produto:', error);
@@ -69,7 +71,8 @@ export const getProducts = async (restaurantId: string): Promise<Product[]> => {
         available: data.available,
         image: data.image || '',
         preparationTime: data.preparationTime,
-        translations: data.translations
+        translations: data.translations,
+        availableForDelivery: data.availableForDelivery ?? true
       });
     });
 
@@ -104,7 +107,8 @@ export const getProductsByCategory = async (category: string, restaurantId: stri
         available: data.available,
         image: data.image || '',
         preparationTime: data.preparationTime,
-        translations: data.translations
+        translations: data.translations,
+        availableForDelivery: data.availableForDelivery ?? true
       });
     });
 

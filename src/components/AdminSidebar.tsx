@@ -64,7 +64,7 @@ export default function AdminSidebar({ activeSection, onSectionChange }: AdminSi
   ];
 
   return (
-    <div className="w-64 bg-white shadow-lg h-full">
+    <div className="fixed left-0 top-0 w-64 bg-white shadow-lg h-screen overflow-y-auto">
       <div className="p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-8">
           Painel Admin

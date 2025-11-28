@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils, Star, Clock, Truck, Filter, Heart, Zap, Receipt } from 'lucide-react';
+import { Store, MapPin, Phone, Mail, ChevronRight, Search, Utensils, User, LogOut } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
+import { getRestaurantPermissions } from '../services/permissionService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
+import DeliveryAuthModal from '../components/DeliveryAuthModal';
+import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 
 export default function Delivery() {
   const navigate = useNavigate();
+  const { user, logout } = useDeliveryAuth();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('todos');
-  const [showFilters, setShowFilters] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     loadRestaurants();
@@ -21,8 +24,32 @@ export default function Delivery() {
     try {
       setLoading(true);
       const data = await getRestaurants();
+      
       // Filtrar apenas restaurantes ativos
-      setRestaurants(data.filter(r => r.active));
+      const activeRestaurants = data.filter(r => r.active);
+      
+      // Verificar permissão de delivery e configurações para cada restaurante
+      const restaurantsWithPermissions = await Promise.all(
+        activeRestaurants.map(async (restaurant) => {
+          const permissions = await getRestaurantPermissions(restaurant.id);
+          const hasPermission = permissions.delivery;
+          // Se deliverySettings.enabled não está definido, usar true como padrão
+          const isEnabledByRestaurant = restaurant.deliverySettings?.enabled ?? true;
+          
+          return {
+            restaurant,
+            hasDeliveryPermission: hasPermission,
+            isEnabledByRestaurant
+          };
+        })
+      );
+      
+      // Filtrar restaurantes que têm permissão E estão habilitados pelo próprio restaurante
+      const allowedRestaurants = restaurantsWithPermissions
+        .filter(r => r.hasDeliveryPermission && r.isEnabledByRestaurant)
+        .map(r => r.restaurant);
+      
+      setRestaurants(allowedRestaurants);
     } catch (error) {
       console.error('Erro ao carregar restaurantes:', error);
     } finally {
@@ -72,52 +99,39 @@ export default function Delivery() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Moderno */}
-      <div className="bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white relative overflow-hidden">
-        {/* Elementos decorativos */}
-        <div className="absolute inset-0 bg-black/10"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
-
-        <div className="container mx-auto px-4 py-16 relative z-10">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                  <Utensils className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold">221 Delivery</h1>
-                  <p className="text-red-100 text-lg">Comida rápida e deliciosa</p>
-                </div>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white py-12">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Utensils className="w-12 h-12" />
+                <h1 className="text-4xl font-bold">221 Delivery</h1>
               </div>
-              <div className="hidden md:flex items-center space-x-4">
-                <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
-                  <span className="text-sm font-medium">Entrega grátis acima de R$ 25</span>
-                </div>
-                <button
-                  onClick={() => navigate('/orders')}
-                  className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 hover:bg-white/30 transition-colors"
-                >
-                  <Receipt className="w-4 h-4" />
-                  <span className="text-sm font-medium">Meus Pedidos</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-2">Peça comida dos melhores restaurantes</h2>
-              <p className="text-xl text-red-100">Receba em casa com rapidez e qualidade</p>
-
-              {/* Botão mobile para pedidos */}
-              <div className="md:hidden mt-6">
-                <button
-                  onClick={() => navigate('/orders')}
-                  className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3 hover:bg-white/30 transition-colors mx-auto"
-                >
-                  <Receipt className="w-5 h-5" />
-                  <span className="font-medium">Meus Pedidos</span>
-                </button>
+              <div className="flex items-center space-x-2">
+                {user ? (
+                  <>
+                    <div className="flex items-center space-x-2 bg-white/20 px-4 py-2 rounded-lg">
+                      <User className="w-5 h-5" />
+                      <span className="font-medium">{user.name}</span>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                      title="Sair"
+                    >
+                      <LogOut className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="bg-white text-amber-600 hover:bg-amber-50 px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                    <span>Entrar / Criar conta</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -290,6 +304,12 @@ export default function Delivery() {
 
       {/* AI Chat Assistant */}
       <AIRestaurantChat />
+
+      {/* Auth Modal */}
+      <DeliveryAuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   );
 }

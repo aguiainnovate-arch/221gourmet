@@ -129,7 +129,7 @@ export default function Owner() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
       <AdminSidebar 
         activeSection={activeSection} 
@@ -137,7 +137,7 @@ export default function Owner() {
       />
       
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="ml-64 flex flex-col min-h-screen">
         {/* Header */}
         <div className="bg-white shadow">
           <div className="px-6 py-4">

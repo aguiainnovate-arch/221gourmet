@@ -5,6 +5,7 @@ export interface Restaurant {
   email: string;
   phone: string;
   address: string;
+  password: string; // Senha criptografada com bcrypt
   planId?: string;  // Opcional para compatibilidade com restaurantes antigos
   active: boolean;
   createdAt: Date;
@@ -23,6 +24,10 @@ export interface Restaurant {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
   };
+  deliverySettings?: {
+    enabled: boolean;
+    aiDescription: string;
+  };
 }
 
 export interface CreateRestaurantData {
@@ -31,6 +36,7 @@ export interface CreateRestaurantData {
   email: string;
   phone: string;
   address: string;
+  password: string; // Senha criptografada com bcrypt
   planId: string;  // Agora referencia o ID do plano ao invés de string fixa
   theme?: {
     primaryColor: string;
@@ -41,6 +47,10 @@ export interface CreateRestaurantData {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
   };
+  deliverySettings?: {
+    enabled: boolean;
+    aiDescription: string;
+  };
 }
 
 export interface UpdateRestaurantData {
@@ -49,6 +59,7 @@ export interface UpdateRestaurantData {
   email?: string;
   phone?: string;
   address?: string;
+  password?: string; // Senha criptografada com bcrypt
   planId?: string;
   theme?: {
     primaryColor: string;
@@ -59,5 +70,9 @@ export interface UpdateRestaurantData {
   permissions?: {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
+  };
+  deliverySettings?: {
+    enabled: boolean;
+    aiDescription: string;
   };
 }

@@ -65,10 +65,10 @@ export default function Restaurants() {
     setShowModal(true);
   };
 
-  const handleTest = (restaurant: Restaurant) => {
+  const handleGoToRestaurant = (restaurant: Restaurant) => {
     const currentDomain = window.location.origin;
-    const testUrl = `${currentDomain}/test/${restaurant.name.toLowerCase().replace(/\s+/g, '-')}`;
-    window.open(testUrl, '_blank');
+    const restaurantUrl = `${currentDomain}/${restaurant.id}`;
+    window.open(restaurantUrl, '_blank');
   };
 
   const handleModalSuccess = () => {
@@ -309,11 +309,11 @@ export default function Restaurants() {
                       </button>
                     )}
                     <button
-                      onClick={() => handleTest(restaurant)}
-                      className="text-green-600 hover:text-green-900 mr-3"
-                      title="Testar Restaurante"
+                      onClick={() => handleGoToRestaurant(restaurant)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      title="Ir para restaurante"
                     >
-                      Testar
+                      Ir para restaurante
                     </button>
                     <button
                       onClick={() => handleEdit(restaurant)}
