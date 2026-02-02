@@ -18,18 +18,21 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [address, setAddress] = useState(user?.address || '');
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>(
     user?.defaultPaymentMethod || 'money'
   );
+
+  const isLikelyEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (isLogin) {
-      // Modo login: buscar por email ou telefone
-      if (!email && !phone) {
+      const value = emailOrPhone.trim();
+      if (!value) {
         setError('Informe seu email ou telefone');
         return;
       }
@@ -38,10 +41,10 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
         setIsSubmitting(true);
         let foundUser = null;
 
-        if (email) {
-          foundUser = await getDeliveryUserByEmail(email);
-        } else if (phone) {
-          foundUser = await getDeliveryUserByPhone(phone);
+        if (isLikelyEmail(value)) {
+          foundUser = await getDeliveryUserByEmail(value);
+        } else {
+          foundUser = await getDeliveryUserByPhone(value);
         }
 
         if (foundUser) {
@@ -87,6 +90,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
 
   const handleClose = () => {
     setError('');
+    setEmailOrPhone('');
     setIsLogin(false);
     setName(user?.name || '');
     setEmail(user?.email || '');
@@ -138,35 +142,55 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Mail className="w-4 h-4 inline mr-2" />
-                Email {isLogin ? '(ou telefone)' : '*'}
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="seu@email.com"
-                required={!isLogin}
-              />
-            </div>
+            {isLogin ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Mail className="w-4 h-4 inline mr-2" />
+                  Email ou telefone
+                </label>
+                <input
+                  type="text"
+                  value={emailOrPhone}
+                  onChange={(e) => setEmailOrPhone(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  placeholder="seu@email.com ou (00) 00000-0000"
+                  required
+                  autoComplete="username"
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Mail className="w-4 h-4 inline mr-2" />
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Phone className="w-4 h-4 inline mr-2" />
-                Telefone {isLogin ? '(ou email)' : '*'}
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="(00) 00000-0000"
-                required={!isLogin}
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Phone className="w-4 h-4 inline mr-2" />
+                    Telefone *
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="(00) 00000-0000"
+                    required
+                  />
+                </div>
+              </>
+            )}
 
             {!isLogin && (
               <>

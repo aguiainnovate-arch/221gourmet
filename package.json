@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "migrate:delivery": "tsx src/scripts/migrateDeliveryPermission.ts",
-    "migrate:delivery-settings": "tsx src/scripts/migrateDeliverySettings.ts"
+    "migrate:delivery-settings": "tsx src/scripts/migrateDeliverySettings.ts",
+    "create:demo-users": "tsx src/scripts/createDemoUsers.ts"
   },
   "dependencies": {
     "auto-prefixer": "^0.4.2",

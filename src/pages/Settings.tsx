@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
@@ -17,6 +17,7 @@ import { getStatistics, type GeneralStats } from '../services/statisticsService'
 import { hasRestaurantPermission } from '../services/permissionService';
 import { translateProduct } from '../services/openaiService';
 import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder } from '../services/deliveryService';
+import { getRestaurants } from '../services/restaurantService';
 import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
@@ -32,7 +33,7 @@ export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { orders, updateOrderStatus, deleteOrder, refreshOrders, setRestaurantId } = useOrders();
   const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
-  const { isAuthenticated, currentRestaurantId, isLoading: authLoading } = useRestaurantAuth();
+  const { isAuthenticated, currentRestaurantId, logout, isLoading: authLoading } = useRestaurantAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
@@ -106,6 +107,9 @@ export default function Settings() {
   const [orderToCancel, setOrderToCancel] = useState<DeliveryOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Nome da loja (exibido no header após login)
+  const [restaurantDisplayName, setRestaurantDisplayName] = useState<string>('');
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -191,14 +195,31 @@ export default function Settings() {
     }
   }, [authLoading, hasAccess]);
 
+  // Carregar nome da loja para exibir no header (pós-login)
+  useEffect(() => {
+    if (!restaurantId) return;
+    let cancelled = false;
+    getRestaurants()
+      .then((restaurants) => {
+        if (cancelled) return;
+        const restaurant = restaurants.find((r) => r.id === restaurantId);
+        if (restaurant?.name) {
+          setRestaurantDisplayName(restaurant.name);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [restaurantId]);
+
   // Atualizar título da aba do navegador
   useEffect(() => {
-    if (settings?.restaurantName) {
-      document.title = `${settings.restaurantName} - Gerenciamento`;
+    const titleName = restaurantDisplayName || settings?.restaurantName;
+    if (titleName) {
+      document.title = `${titleName} - Gerenciamento`;
     } else {
       document.title = '221 Gourmet - Gerenciamento';
     }
-  }, [settings?.restaurantName]);
+  }, [settings?.restaurantName, restaurantDisplayName]);
 
   // Função para testar a conectividade com o Firestore
   const testFirestoreConnection = async () => {
@@ -1540,10 +1561,17 @@ export default function Settings() {
       <div className="bg-white border-b p-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <SettingsIcon className="w-8 h-8 text-gray-600" />
-            <h1 className="text-3xl font-bold">Gerenciamento</h1>
+            <SettingsIcon className="w-8 h-8 text-gray-600 shrink-0" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+                {restaurantDisplayName || 'Gerenciamento'}
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {restaurantDisplayName ? 'Painel de gerenciamento' : ''}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
             <button
               onClick={testFirestoreConnection}
               className="bg-yellow-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-yellow-600"
@@ -1554,11 +1582,24 @@ export default function Settings() {
 
             <Link
               to="/settings?tab=cozinha"
-              className="flex items-center space-x-2 bg-gray-500 text-white px-4 py-2 rounded"
+              className="flex items-center space-x-2 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Ir para Cozinha</span>
             </Link>
+
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                navigate('/restaurant/auth', { replace: true });
+              }}
+              className="flex items-center space-x-2 px-4 py-2 rounded border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 font-medium"
+              title="Sair da conta do restaurante"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sair</span>
+            </button>
           </div>
         </div>
       </div>

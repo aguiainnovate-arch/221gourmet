@@ -1,25 +1,32 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Zap, Star, Heart } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Star } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
+import { fetchFeaturedFoodImages, getDefaultFoodImages } from '../services/foodImageService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
-import DeliveryAuthModal from '../components/DeliveryAuthModal';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 
 export default function Delivery() {
   const navigate = useNavigate();
+  const carouselRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useDeliveryAuth();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState('todos');
+  const [selectedCategory, setSelectedCategory] = useState('todos');
   const [showFilters, setShowFilters] = useState(false);
+  const [featuredImages, setFeaturedImages] = useState(getDefaultFoodImages());
 
   useEffect(() => {
     loadRestaurants();
+  }, []);
+
+  useEffect(() => {
+    fetchFeaturedFoodImages().then((imgs) => {
+      if (imgs.length > 0) setFeaturedImages(imgs);
+    });
   }, []);
 
   const loadRestaurants = async () => {
@@ -65,24 +72,28 @@ export default function Delivery() {
 
     if (!matchesSearch) return false;
 
-    switch (selectedFilter) {
-      case 'rapido':
-        return true; // Simular restaurantes rápidos
-      case 'promocao':
-        return true; // Simular restaurantes com promoção
-      case 'favoritos':
-        return false; // Implementar sistema de favoritos futuramente
+    switch (selectedCategory) {
+      case 'pizza':
+      case 'lanches':
+      case 'saudavel':
+        return true; // Filtrar por categoria quando implementado
       default:
         return true;
     }
   });
 
-  const filters = [
-    { id: 'todos', label: 'Todos', icon: Store },
-    { id: 'rapido', label: 'Rápido', icon: Zap },
-    { id: 'promocao', label: 'Promoção', icon: Star },
-    { id: 'favoritos', label: 'Favoritos', icon: Heart },
+  const categories = [
+    { id: 'todos', label: 'Todos' },
+    { id: 'pizza', label: 'Pizza' },
+    { id: 'lanches', label: 'Lanches' },
+    { id: 'saudavel', label: 'Saudável' },
   ];
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (!carouselRef.current) return;
+    const step = 280;
+    carouselRef.current.scrollBy({ left: direction === 'right' ? step : -step, behavior: 'smooth' });
+  };
 
   const handleRestaurantClick = (restaurantId: string) => {
     navigate(`/delivery/${restaurantId}`);
@@ -90,228 +101,236 @@ export default function Delivery() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-stone-50 to-amber-50/40 flex items-center justify-center font-sans">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-amber-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando restaurantes...</p>
+          <div className="relative w-16 h-16 mx-auto mb-5">
+            <div className="absolute inset-0 rounded-2xl bg-amber-400/20 animate-pulse" />
+            <div className="absolute inset-0 rounded-2xl border-2 border-amber-300 border-t-amber-500 animate-spin" />
+            <Utensils className="absolute inset-0 m-auto w-7 h-7 text-amber-500" />
+          </div>
+          <p className="text-stone-600 font-medium">Carregando restaurantes...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-amber-50/30 font-sans">
       {/* Header */}
-      <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white py-12">
+      <header className="bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white py-6 sm:py-7 shadow-lg shadow-amber-900/10">
         <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <Utensils className="w-12 h-12" />
-                <h1 className="text-4xl font-bold">221 Delivery</h1>
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center shadow-inner">
+                <Utensils className="w-5 h-5 text-white" />
               </div>
-              <div className="flex items-center space-x-2">
-                {user ? (
-                  <>
-                    <div className="flex items-center space-x-2 bg-white/20 px-4 py-2 rounded-lg">
-                      <User className="w-5 h-5" />
-                      <span className="font-medium">{user.name}</span>
-                    </div>
-                    <button
-                      onClick={logout}
-                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                      title="Sair"
-                    >
-                      <LogOut className="w-5 h-5" />
-                    </button>
-                  </>
-                ) : (
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">221 Delivery</h1>
+                <p className="text-white/85 text-xs sm:text-sm font-medium hidden sm:block">Sua comida favorita em casa</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {user ? (
+                <>
+                  <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/20">
+                    <User className="w-4 h-4" />
+                    <span className="font-medium text-sm max-w-[120px] truncate">{user.name}</span>
+                  </div>
                   <button
-                    onClick={() => setShowAuthModal(true)}
-                    className="bg-white text-amber-600 hover:bg-amber-50 px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 transition-colors"
+                    onClick={logout}
+                    className="p-2 rounded-xl bg-white/20 hover:bg-white/30 border border-white/20 transition-colors"
+                    title="Sair"
                   >
-                    <User className="w-5 h-5" />
-                    <span>Entrar / Criar conta</span>
+                    <LogOut className="w-4 h-4" />
                   </button>
-                )}
-              </div>
+                </>
+              ) : (
+                <Link
+                  to="/delivery/auth"
+                  className="flex items-center gap-2 bg-white/25 hover:bg-white/35 text-white border border-white/40 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-md"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Entrar / Criar conta</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Barra de Busca e Filtros */}
-      <div className="container mx-auto px-4 -mt-8 relative z-20">
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* Busca */}
+      {/* Busca + Filtros */}
+      <div className="container mx-auto px-4 -mt-5 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Buscar restaurantes, pratos ou categorias..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent text-lg"
+                  className="w-full pl-11 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder:text-stone-400 focus:ring-2 focus:ring-amber-400/60 focus:border-amber-400 focus:bg-white transition-all outline-none text-sm sm:text-base"
                 />
               </div>
-
-              {/* Botão de Filtros */}
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2 px-6 py-4 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                className={`flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl font-medium text-sm transition-all sm:shrink-0 border ${showFilters ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'}`}
               >
-                <Filter className="w-5 h-5" />
-                <span className="font-medium">Filtros</span>
+                <Filter className="w-4 h-4" />
+                Filtros
               </button>
             </div>
-
-            {/* Filtros */}
-            {showFilters && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="flex flex-wrap gap-3">
-                  {filters.map((filter) => {
-                    const Icon = filter.icon;
-                    return (
-                      <button
-                        key={filter.id}
-                        onClick={() => setSelectedFilter(filter.id)}
-                        className={`flex items-center space-x-2 px-4 py-2 rounded-full transition-colors ${selectedFilter === filter.id
-                          ? 'bg-red-500 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="font-medium">{filter.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Lista de Restaurantes */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
+      {/* Conteúdo: título + categorias + carrossel + lista */}
+      <div className="container mx-auto px-4 py-6 pb-24">
+        <div className="max-w-5xl mx-auto">
+          {/* Linha: Restaurantes próximos | Pizza | Lanches | Saudável | 4 restaurantes */}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-5">
+            <h2 className="text-lg font-bold text-stone-900 shrink-0">
               {searchTerm ? 'Resultados da busca' : 'Restaurantes próximos'}
             </h2>
-            <span className="text-gray-500 font-medium">
+            <div className="flex items-center gap-2 flex-wrap">
+              {categories.map((cat) => {
+                const active = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 ${active ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'}`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-sm font-medium text-stone-500 tabular-nums ml-auto shrink-0">
               {filteredRestaurants.length} {filteredRestaurants.length === 1 ? 'restaurante' : 'restaurantes'}
             </span>
           </div>
 
+          {/* Carrossel de destaques (imagens Unsplash) */}
+          <div className="relative mb-8">
+            <div
+              ref={carouselRef}
+              className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 scrollbar-hide"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {featuredImages.map((img, i) => (
+                <div
+                  key={i}
+                  className="relative shrink-0 w-[280px] h-[180px] rounded-2xl overflow-hidden snap-center shadow-lg ring-1 ring-stone-100"
+                >
+                  <img
+                    src={img.url}
+                    alt={img.alt}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                </div>
+              ))}
+            </div>
+            {/* Badge circular "221 Delivery" no centro do carrossel */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 hidden sm:flex">
+              <div className="w-20 h-20 rounded-full bg-stone-800 ring-4 ring-amber-500 flex items-center justify-center shadow-xl">
+                <span className="text-white text-xs font-bold text-center leading-tight px-1">221<br />Delivery</span>
+              </div>
+            </div>
+            {/* Botão próximo */}
+            <button
+              type="button"
+              onClick={() => scrollCarousel('right')}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/95 shadow-lg border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-white hover:text-amber-600 transition-colors"
+              aria-label="Próximo"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
           {filteredRestaurants.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-              <Store className="w-20 h-20 text-gray-300 mx-auto mb-6" />
-              <h3 className="text-2xl font-semibold text-gray-900 mb-3">
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 sm:p-14 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-5">
+                <Store className="w-8 h-8 text-stone-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-stone-900 mb-2">
                 {searchTerm ? 'Nenhum restaurante encontrado' : 'Nenhum restaurante disponível'}
               </h3>
-              <p className="text-gray-500 text-lg">
-                {searchTerm ? 'Tente buscar com outros termos' : 'Em breve teremos restaurantes disponíveis'}
+              <p className="text-stone-500 text-sm max-w-sm mx-auto">
+                {searchTerm ? 'Tente outros termos na busca.' : 'Em breve teremos opções por aqui.'}
               </p>
             </div>
           ) : (
-            <div className="grid gap-6">
+            <div className="space-y-4">
               {filteredRestaurants.map((restaurant) => (
-                <div
+                <button
+                  type="button"
                   key={restaurant.id}
                   onClick={() => handleRestaurantClick(restaurant.id)}
-                  className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group hover:scale-[1.02]"
+                  className="w-full text-left bg-white rounded-2xl border border-stone-100 shadow-sm hover:shadow-md hover:border-amber-200/60 transition-all duration-200 overflow-hidden group focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:ring-offset-2 focus:ring-offset-stone-50"
                 >
-                  <div className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-start space-x-4 mb-4">
-                          {/* Avatar do Restaurante */}
-                          <div
-                            className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg"
-                            style={{
-                              backgroundColor: restaurant.theme?.primaryColor || '#dc2626'
-                            }}
-                          >
-                            {restaurant.name.charAt(0).toUpperCase()}
-                          </div>
-
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 group-hover:text-red-600 transition-colors mb-1">
-                                  {restaurant.name}
-                                </h3>
-
-                                {/* Avaliação e Tempo */}
-                                <div className="flex items-center space-x-4 mb-3">
-                                  <div className="flex items-center space-x-1">
-                                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                                    <span className="text-sm font-semibold text-gray-700">4.5</span>
-                                    <span className="text-sm text-gray-500">(127 avaliações)</span>
-                                  </div>
-                                  <div className="flex items-center space-x-1">
-                                    <Clock className="w-4 h-4 text-gray-400" />
-                                    <span className="text-sm text-gray-600">25-35 min</span>
-                                  </div>
-                                  <div className="flex items-center space-x-1">
-                                    <Truck className="w-4 h-4 text-gray-400" />
-                                    <span className="text-sm text-gray-600">R$ 3,50</span>
-                                  </div>
-                                </div>
-
-                                {/* Tags */}
-                                <div className="flex items-center space-x-2 mb-3">
-                                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                                    Aberto
-                                  </span>
-                                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-                                    Entrega rápida
-                                  </span>
-                                  <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-semibold">
-                                    10% OFF
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Informações de Contato */}
-                            <div className="space-y-2 text-sm text-gray-600">
-                              <div className="flex items-start">
-                                <MapPin className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-400" />
-                                <span className="line-clamp-1">{restaurant.address}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <Phone className="w-4 h-4 mr-2 flex-shrink-0 text-gray-400" />
-                                <span>{restaurant.phone}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                  <div className="p-4 sm:p-5 flex items-start gap-4">
+                    <div
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center text-white font-bold text-xl sm:text-2xl shrink-0 shadow-md ring-2 ring-white"
+                      style={{ backgroundColor: restaurant.theme?.primaryColor || '#d97706' }}
+                    >
+                      {restaurant.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-stone-900 text-lg group-hover:text-amber-700 transition-colors mb-1">
+                        {restaurant.name}
+                      </h3>
+                      <p className="text-stone-500 text-sm flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
+                        <span className="inline-flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          4,5
+                        </span>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-stone-400" />
+                          25–35 min
+                        </span>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Truck className="w-3.5 h-3.5 text-stone-400" />
+                          R$ 3,50
+                        </span>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700">
+                          Aberto
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700">
+                          Entrega rápida
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700">
+                          10% OFF
+                        </span>
                       </div>
-
-                      <div className="ml-6 flex flex-col items-end justify-between h-full">
-                        <ChevronRight className="w-6 h-6 text-gray-400 group-hover:text-red-600 transition-colors" />
-                      </div>
+                      <p className="text-stone-500 text-xs flex items-center gap-1.5 truncate">
+                        <MapPin className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                        {restaurant.address}
+                      </p>
+                      <p className="text-stone-500 text-xs flex items-center gap-1.5 mt-0.5">
+                        <Phone className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                        {restaurant.phone}
+                      </p>
+                    </div>
+                    <div className="shrink-0 w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors">
+                      <ChevronRight className="w-5 h-5" />
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* AI Chat Assistant */}
       <AIRestaurantChat />
-
-      {/* Auth Modal */}
-      <DeliveryAuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
     </div>
   );
 }

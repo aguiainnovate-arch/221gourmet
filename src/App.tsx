@@ -6,7 +6,9 @@ import Settings from './pages/Settings';
 import Owner from './pages/Owner';
 import Register from './pages/Register';
 import Delivery from './pages/Delivery';
+import DeliveryAuth from './pages/DeliveryAuth';
 import DeliveryMenu from './pages/DeliveryMenu';
+import RestaurantAuth from './pages/RestaurantAuth';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import { OrderProvider } from './contexts/OrderContext';
@@ -43,10 +45,22 @@ function App() {
                 {/* Rota de cadastro de restaurante (pública) */}
                 <Route path="/register/:token" element={<Register />} />
 
+                {/* Rota de login de restaurante */}
+                <Route path="/restaurant/auth" element={
+                  <RestaurantAuthProvider>
+                    <RestaurantAuth />
+                  </RestaurantAuthProvider>
+                } />
+
                 {/* Rotas de delivery */}
                 <Route path="/delivery" element={
                   <DeliveryAuthProvider>
                     <Delivery />
+                  </DeliveryAuthProvider>
+                } />
+                <Route path="/delivery/auth" element={
+                  <DeliveryAuthProvider>
+                    <DeliveryAuth />
                   </DeliveryAuthProvider>
                 } />
                 <Route path="/delivery/:restaurantId" element={
