@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut, Menu } from 'lucide-react';
 import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
 import { addProduct, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
@@ -37,6 +37,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
@@ -1555,199 +1556,225 @@ export default function Settings() {
     );
   }
 
+  const closeSidebar = () => setSidebarOpen(false);
+  const openSidebar = () => setSidebarOpen(true);
+
+  const navButton = (tab: string, icon: React.ReactNode, label: string) => (
+    <button
+      key={tab}
+      onClick={() => { setActiveTab(tab); closeSidebar(); }}
+      className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 ${activeTab === tab ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-white border-b p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <SettingsIcon className="w-8 h-8 text-gray-600 shrink-0" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+      <div className="bg-white border-b p-3 sm:p-4 sticky top-0 z-30">
+        <div className="flex justify-between items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={openSidebar}
+              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 shrink-0"
+              aria-label="Abrir menu"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <SettingsIcon className="w-7 h-7 sm:w-8 sm:h-8 text-gray-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">
                 {restaurantDisplayName || 'Gerenciamento'}
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">
                 {restaurantDisplayName ? 'Painel de gerenciamento' : ''}
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2 flex-wrap gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={testFirestoreConnection}
-              className="bg-yellow-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-yellow-600"
+              className="bg-yellow-500 text-white p-2 sm:px-4 sm:py-2 rounded-lg flex items-center gap-1.5 hover:bg-yellow-600 text-sm"
+              title="Testar Conexão"
             >
               <SettingsIcon className="w-4 h-4" />
-              <span>Testar Conexão</span>
+              <span className="hidden sm:inline">Testar Conexão</span>
             </button>
-
             <Link
               to="/settings?tab=cozinha"
-              className="flex items-center space-x-2 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+              className="p-2 sm:px-4 sm:py-2 bg-gray-500 text-white rounded-lg flex items-center gap-1.5 hover:bg-gray-600 text-sm"
+              title="Ir para Cozinha"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Ir para Cozinha</span>
+              <span className="hidden sm:inline">Ir para Cozinha</span>
             </Link>
-
             <button
               type="button"
-              onClick={() => {
-                logout();
-                navigate('/restaurant/auth', { replace: true });
-              }}
-              className="flex items-center space-x-2 px-4 py-2 rounded border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 font-medium"
-              title="Sair da conta do restaurante"
+              onClick={() => { logout(); navigate('/restaurant/auth', { replace: true }); }}
+              className="p-2 sm:px-4 sm:py-2 rounded-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-medium text-sm"
+              title="Sair"
             >
               <LogOut className="w-4 h-4" />
-              <span>Sair</span>
+              <span className="hidden sm:inline">Sair</span>
             </button>
           </div>
         </div>
       </div>
 
+      {/* Overlay mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={closeSidebar}
+          aria-hidden="true"
+        />
+      )}
+
       <div className="flex">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r min-h-screen">
-          <div className="p-4">
-            <h2 className="text-lg font-semibold mb-4">Configurações</h2>
-            <nav className="space-y-2">
-              <button
-                onClick={() => setActiveTab('mesas')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'mesas'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-              >
-                <TableIcon className="w-5 h-5" />
-                <span>Gerenciar Mesas</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('cardapio')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'cardapio'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-              >
-                <Utensils className="w-5 h-5" />
-                <span>Gerenciar Cardápio</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('personalizacao')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'personalizacao'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-              >
-                <Palette className="w-5 h-5" />
-                <span>Personalização</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('relatorios')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'relatorios'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-              >
-                <BarChart3 className="w-5 h-5" />
-                <span>Relatórios</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('cozinha')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${activeTab === 'cozinha'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-              >
-                <ChefHat className="w-5 h-5" />
-                <span>Cozinha</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('delivery')}
-                className={`w-full text-left p-3 rounded flex items-center space-x-3 ${
-                  activeTab === 'delivery' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Truck className="w-5 h-5" />
-                <span>Delivery</span>
-              </button>
-            </nav>
+        {/* Sidebar: drawer no mobile, fixo no desktop */}
+        <aside
+          className={`
+            fixed md:static inset-y-0 left-0 z-50 w-64 bg-white border-r min-h-screen
+            transform transition-transform duration-200 ease-out md:transform-none
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+        >
+          <div className="p-4 flex items-center justify-between md:justify-start border-b md:border-b-0">
+            <h2 className="text-lg font-semibold">Configurações</h2>
+            <button
+              type="button"
+              onClick={closeSidebar}
+              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+              aria-label="Fechar menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        </div>
+          <nav className="p-4 space-y-1">
+            {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas')}
+            {navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
+            {navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
+            {navButton('relatorios', <BarChart3 className="w-5 h-5 shrink-0" />, 'Relatórios')}
+            {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha')}
+            {navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
+          </nav>
+        </aside>
 
         {/* Conteúdo Principal */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 min-w-0">
           {activeTab === 'mesas' && (
             <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Gerenciar Mesas</h2>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold">Gerenciar Mesas</h2>
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="bg-blue-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-blue-600"
+                  className="bg-blue-500 text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-600 w-full sm:w-auto"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Adicionar Mesa</span>
                 </button>
               </div>
 
-              <div className="bg-white rounded shadow">
-                <div className="p-6 border-b">
-                  <h3 className="text-lg font-semibold">Mesas Configuradas</h3>
+              <div className="bg-white rounded-lg shadow">
+                <div className="p-4 sm:p-6 border-b">
+                  <h3 className="text-base sm:text-lg font-semibold">Mesas Configuradas</h3>
                 </div>
                 {loading ? (
                   <div className="p-6 text-center text-gray-500">
                     Carregando mesas...
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left p-4 font-medium">Mesa</th>
-                          <th className="text-left p-4 font-medium">URL</th>
-                          <th className="text-left p-4 font-medium">QR Code</th>
-                          <th className="text-left p-4 font-medium">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {mesas.map((mesa) => (
-                          <tr key={mesa.id} className="hover:bg-gray-50">
-                            <td className="p-4 font-medium">Mesa {mesa.numero}</td>
-                            <td className="p-4 text-sm text-gray-600 font-mono">
-                              {generateTableUrl(mesa.numero)}
-                            </td>
-                            <td className="p-4">
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => visualizarQRCode(mesa.numero)}
-                                  className="bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-blue-600"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                  <span>Visualizar</span>
-                                </button>
-                                <button
-                                  onClick={() => baixarQRCode(mesa.numero)}
-                                  className="bg-green-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-green-600"
-                                >
-                                  <Download className="w-4 h-4" />
-                                  <span>Baixar</span>
-                                </button>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <button
-                                onClick={() => removerMesa(mesa.id)}
-                                className="bg-red-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-red-600"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                <span>Remover</span>
-                              </button>
-                            </td>
+                  <>
+                    {/* Layout em cards no mobile */}
+                    <div className="block lg:hidden divide-y divide-gray-100">
+                      {mesas.map((mesa) => (
+                        <div key={mesa.id} className="p-4 sm:p-5">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <span className="font-semibold text-gray-900">Mesa {mesa.numero}</span>
+                            <button
+                              onClick={() => removerMesa(mesa.id)}
+                              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 shrink-0"
+                              title="Remover"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <p className="text-sm text-gray-600 font-mono break-all mb-4">
+                            {generateTableUrl(mesa.numero)}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => visualizarQRCode(mesa.numero)}
+                              className="bg-blue-500 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-blue-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Visualizar
+                            </button>
+                            <button
+                              onClick={() => baixarQRCode(mesa.numero)}
+                              className="bg-green-500 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-green-600"
+                            >
+                              <Download className="w-4 h-4" />
+                              Baixar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Tabela no desktop */}
+                    <div className="hidden lg:block overflow-x-auto">
+                      <table className="w-full min-w-[600px]">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left p-4 font-medium">Mesa</th>
+                            <th className="text-left p-4 font-medium">URL</th>
+                            <th className="text-left p-4 font-medium">QR Code</th>
+                            <th className="text-left p-4 font-medium">Ações</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="divide-y">
+                          {mesas.map((mesa) => (
+                            <tr key={mesa.id} className="hover:bg-gray-50">
+                              <td className="p-4 font-medium">Mesa {mesa.numero}</td>
+                              <td className="p-4 text-sm text-gray-600 font-mono break-all max-w-xs">
+                                {generateTableUrl(mesa.numero)}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    onClick={() => visualizarQRCode(mesa.numero)}
+                                    className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 hover:bg-blue-600"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    <span>Visualizar</span>
+                                  </button>
+                                  <button
+                                    onClick={() => baixarQRCode(mesa.numero)}
+                                    className="bg-green-500 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 hover:bg-green-600"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    <span>Baixar</span>
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <button
+                                  onClick={() => removerMesa(mesa.id)}
+                                  className="bg-red-500 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 hover:bg-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span>Remover</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             </div>

@@ -60,7 +60,9 @@ function App() {
                 } />
                 <Route path="/delivery/auth" element={
                   <DeliveryAuthProvider>
-                    <DeliveryAuth />
+                    <RestaurantAuthProvider>
+                      <DeliveryAuth />
+                    </RestaurantAuthProvider>
                   </DeliveryAuthProvider>
                 } />
                 <Route path="/delivery/:restaurantId" element={
