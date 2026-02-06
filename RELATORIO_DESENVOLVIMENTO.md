@@ -1,14 +1,6 @@
-# Relatório de Desenvolvimento — 221 Gourmet / 221 Delivery
-
-**Período:** Sprint atual  
-**Objetivo:** Melhorias em autenticação (cliente e restaurante), experiência na página de configurações, usuários de demonstração e imagens na página principal.
-
----
-
 ## 1. Login do cliente sem senha — um único campo
 
 O login do cliente no delivery foi simplificado. Em vez de dois campos (Email e Telefone), há agora **um único campo** chamado "Email ou telefone". O usuário informa apenas um dos dois; o sistema identifica automaticamente se é email (formato com @) ou telefone e busca a conta no banco. Isso deixa claro que **não existe senha** no fluxo do cliente e reduz erros de preenchimento.
-
 ---
 
 ## 2. Página dedicada de login do cliente
@@ -22,7 +14,6 @@ Foi criada a página **/delivery/auth** com layout em duas colunas: lado esquerd
 O modal de login usado em outros pontos do delivery (por exemplo, ao pedir sem estar logado) foi alinhado à mesma lógica: um único campo "Email ou telefone" no modo login e campos separados no cadastro. Assim, a experiência é a mesma na página dedicada e no modal.
 
 ---
-
 ## 4. Página de login para restaurantes
 
 Foi criada uma **página exclusiva de login para restaurantes** em **/restaurant/auth**. O restaurante informa **email e senha**; após o login é redirecionado automaticamente para a página de configurações do seu estabelecimento (/:restaurantId/settings). O layout segue o padrão visual do projeto (laranja/âmbar) e inclui um aviso com as credenciais de demonstração para facilitar testes.

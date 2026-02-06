@@ -11,6 +11,8 @@ import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 export default function Delivery() {
   const navigate = useNavigate();
   const carouselRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScrollRef = useRef(false);
+  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user, logout } = useDeliveryAuth();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +20,7 @@ export default function Delivery() {
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [showFilters, setShowFilters] = useState(false);
   const [featuredImages, setFeaturedImages] = useState(getDefaultFoodImages());
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   useEffect(() => {
     loadRestaurants();
@@ -89,10 +92,50 @@ export default function Delivery() {
     { id: 'saudavel', label: 'Saudável' },
   ];
 
-  const scrollCarousel = (direction: 'left' | 'right') => {
-    if (!carouselRef.current) return;
-    const step = 280;
-    carouselRef.current.scrollBy({ left: direction === 'right' ? step : -step, behavior: 'smooth' });
+  const CAROUSEL_ITEM_WIDTH = 280;
+  const CAROUSEL_GAP = 16;
+  const CAROUSEL_STEP = CAROUSEL_ITEM_WIDTH + CAROUSEL_GAP;
+  const AUTO_ADVANCE_MS = 2000;
+  const totalSlides = featuredImages.length;
+
+  // Manter índice válido quando a lista de imagens mudar (ex.: API retornou mais fotos)
+  useEffect(() => {
+    setCarouselIndex((prev) => (totalSlides <= 1 ? 0 : Math.min(prev, totalSlides - 1)));
+  }, [totalSlides]);
+
+  // Avançar índice do carrossel a cada 2 segundos (em loop)
+  useEffect(() => {
+    if (loading || totalSlides <= 1) return;
+    const id = setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % totalSlides);
+    }, AUTO_ADVANCE_MS);
+    return () => clearInterval(id);
+  }, [loading, totalSlides]);
+
+  // Quando o índice muda (ex.: timer), rolar o carrossel até o slide – evita conflito com onScroll
+  useEffect(() => {
+    if (loading || !carouselRef.current) return;
+    isProgrammaticScrollRef.current = true;
+    const left = carouselIndex * CAROUSEL_STEP;
+    carouselRef.current.scrollTo({ left, behavior: 'smooth' });
+    const t = setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 600);
+    return () => clearTimeout(t);
+  }, [carouselIndex, loading]);
+
+  // Ao arrastar com o dedo: atualizar índice só depois que parar de arrastar (debounce), para não travar
+  const handleCarouselScroll = () => {
+    if (isProgrammaticScrollRef.current) return;
+    if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+    scrollDebounceRef.current = setTimeout(() => {
+      scrollDebounceRef.current = null;
+      const el = carouselRef.current;
+      if (!el) return;
+      const index = Math.round(el.scrollLeft / CAROUSEL_STEP);
+      const clamped = Math.max(0, Math.min(index, totalSlides - 1));
+      setCarouselIndex(clamped);
+    }, 180);
   };
 
   const handleRestaurantClick = (restaurantId: string) => {
@@ -216,21 +259,36 @@ export default function Delivery() {
           <div className="relative mb-8">
             <div
               ref={carouselRef}
-              className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 scrollbar-hide"
+              onScroll={handleCarouselScroll}
+              className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 scrollbar-hide touch-pan-x"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              role="region"
+              aria-label="Destaques do dia"
             >
               {featuredImages.map((img, i) => (
                 <div
-                  key={i}
-                  className="relative shrink-0 w-[280px] h-[180px] rounded-2xl overflow-hidden snap-center shadow-lg ring-1 ring-stone-100"
+                  key={`${i}-${img.url}`}
+                  className="relative shrink-0 w-[280px] h-[180px] rounded-2xl overflow-hidden snap-center shadow-lg ring-1 ring-stone-100 bg-stone-100"
                 >
                   <img
                     src={img.url}
                     alt={img.alt}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.style.display = 'none';
+                      const fallback = target.nextElementSibling as HTMLElement;
+                      if (fallback) {
+                        fallback.classList.remove('hidden');
+                        fallback.classList.add('flex');
+                      }
+                    }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                  <div className="absolute inset-0 hidden flex-col items-center justify-center bg-stone-200 text-stone-500 text-sm" aria-hidden>
+                    <span>{img.alt}</span>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
                 </div>
               ))}
             </div>
@@ -240,15 +298,6 @@ export default function Delivery() {
                 <span className="text-white text-xs font-bold text-center leading-tight px-1">221<br />Delivery</span>
               </div>
             </div>
-            {/* Botão próximo */}
-            <button
-              type="button"
-              onClick={() => scrollCarousel('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/95 shadow-lg border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-white hover:text-amber-600 transition-colors"
-              aria-label="Próximo"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
           </div>
 
           {filteredRestaurants.length === 0 ? (

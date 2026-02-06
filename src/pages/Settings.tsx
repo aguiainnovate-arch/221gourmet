@@ -3,8 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, Eye, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut, Menu } from 'lucide-react';
-import { addTable, getTables, deleteTable, generateTableUrl } from '../services/tableService';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut, Menu } from 'lucide-react';
+import {
+  addTable,
+  getTables,
+  updateTable,
+  deleteTable,
+  generateTableUrl,
+  type Table
+} from '../services/tableService';
+import {
+  getAreas,
+  addArea,
+  deleteArea,
+  type Area
+} from '../services/areaService';
+import { openSession } from '../services/tableSessionService';
+import {
+  logTableEvent,
+  getTableAuditEvents,
+  type TableAuditEvent
+} from '../services/tableAuditService';
+import { getMaxTablesForRestaurant } from '../services/planService';
 import { addProduct, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
 import { useSettings } from '../contexts/SettingsContext';
@@ -22,8 +42,11 @@ import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
+import VisaoSalao from '../components/mesas/VisaoSalao';
+import EditorSalao from '../components/mesas/EditorSalao';
+import HistoricoAuditoria from '../components/mesas/HistoricoAuditoria';
+import DetalheMesaModal from '../components/mesas/DetalheMesaModal';
 import { extractColorsFromImage } from '../utils/colorExtractor';
-import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import ProductImage from '../components/ProductImage';
@@ -42,6 +65,12 @@ export default function Settings() {
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [mesasSubTab, setMesasSubTab] = useState<'salao' | 'editor' | 'historico'>('salao');
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [maxTables, setMaxTables] = useState<number>(999);
+  const [selectedMesaDetail, setSelectedMesaDetail] = useState<Table | null>(null);
+  const [auditEvents, setAuditEvents] = useState<TableAuditEvent[]>([]);
+  const [auditFilters, setAuditFilters] = useState<{ mesaId?: string; since?: string }>({});
   const [loading, setLoading] = useState(true);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -242,7 +271,7 @@ export default function Settings() {
   // Carregar mesas do Firestore
   useEffect(() => {
     loadTables();
-  }, []);
+  }, [restaurantId]);
 
   // Carregar produtos do Firestore
   useEffect(() => {
@@ -588,17 +617,52 @@ export default function Settings() {
   }, [settings]);
 
   const loadTables = async () => {
+    if (!restaurantId) return;
     try {
       setLoading(true);
-      console.log('Carregando mesas...');
-      const tables = await getTables();
-      console.log('Mesas carregadas:', tables);
-      setMesas(tables);
+      const [tablesData, max] = await Promise.all([
+        getTables(restaurantId),
+        getMaxTablesForRestaurant(restaurantId)
+      ]);
+      setMesas(tablesData);
+      setMaxTables(max);
     } catch (error) {
       console.error('Erro ao carregar mesas:', error);
       alert('Erro ao carregar mesas. Verifique o console para mais detalhes.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAreas = async () => {
+    if (!restaurantId) return;
+    try {
+      const areasData = await getAreas(restaurantId);
+      setAreas(areasData);
+    } catch (error) {
+      console.error('Erro ao carregar áreas:', error);
+    }
+  };
+
+  const loadAuditEvents = async (filters?: { mesaId?: string; since?: string }) => {
+    if (!restaurantId) return;
+    const f = filters ?? auditFilters;
+    try {
+      const since = f.since
+        ? new Date(f.since)
+        : (() => {
+            const d = new Date();
+            d.setDate(d.getDate() - 7);
+            return d;
+          })();
+      const events = await getTableAuditEvents(restaurantId, {
+        mesaId: f.mesaId,
+        since,
+        limitCount: 200
+      });
+      setAuditEvents(events);
+    } catch (error) {
+      console.error('Erro ao carregar auditoria:', error);
     }
   };
 
@@ -614,7 +678,7 @@ export default function Settings() {
   };
 
   const adicionarMesa = async () => {
-    if (!novaMesa.trim()) {
+    if (!restaurantId || !novaMesa.trim()) {
       alert('Por favor, digite um número de mesa');
       return;
     }
@@ -625,7 +689,7 @@ export default function Settings() {
     }
 
     try {
-      const novaMesaObj = await addTable(novaMesa);
+      const novaMesaObj = await addTable(restaurantId, novaMesa.trim());
       setMesas(prev => [...prev, novaMesaObj]);
       setNovaMesa('');
       setShowAddModal(false);
@@ -638,10 +702,56 @@ export default function Settings() {
   const removerMesa = async (id: string) => {
     try {
       await deleteTable(id);
-      setMesas(prev => prev.filter(m => m.id !== id));
+      setMesas((prev) => prev.filter((m) => m.id !== id));
       alert('Mesa removida com sucesso!');
     } catch (error) {
       alert('Erro ao remover mesa. Tente novamente.');
+    }
+  };
+
+  const handleOpenMesa = async (mesa: Table, responsavel?: string, observacao?: string) => {
+    if (!restaurantId || mesa.status !== 'livre') return;
+    try {
+      await openSession(restaurantId, mesa.id, mesa.numero, 'gerente', responsavel ?? null);
+      await updateTable(mesa.id, { status: 'ocupada', responsavel: responsavel ?? null, observacao: observacao ?? null });
+      await logTableEvent(restaurantId, mesa.id, 'mesa_aberta', 'gerente', { mesaNumero: mesa.numero, detalhe: responsavel ?? undefined });
+      await loadTables();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao abrir mesa.');
+    }
+  };
+
+  const handleAtribuirResponsavel = async (mesa: Table, responsavel: string) => {
+    if (!restaurantId) return;
+    try {
+      await updateTable(mesa.id, { responsavel });
+      await logTableEvent(restaurantId, mesa.id, 'responsavel_alterado', 'gerente', { mesaNumero: mesa.numero, detalhe: responsavel });
+      await loadTables();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao atribuir responsável.');
+    }
+  };
+
+  const handleAddArea = async (nome: string) => {
+    if (!restaurantId) return;
+    try {
+      const newArea = await addArea(restaurantId, nome, areas.length);
+      setAreas((prev) => [...prev, newArea]);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao adicionar área.');
+    }
+  };
+
+  const handleRemoveArea = async (id: string) => {
+    try {
+      await deleteArea(id);
+      setAreas((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao remover área.');
     }
   };
 
@@ -1669,114 +1779,83 @@ export default function Settings() {
             <div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold">Gerenciar Mesas</h2>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="bg-blue-500 text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-600 w-full sm:w-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Adicionar Mesa</span>
-                </button>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => { setMesasSubTab('salao'); setSelectedMesaDetail(null); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'salao' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    Visão do Salão
+                  </button>
+                  <button
+                    onClick={() => { setMesasSubTab('editor'); loadAreas(); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'editor' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    Editor de Salão
+                  </button>
+                  <button
+                    onClick={() => { setMesasSubTab('historico'); loadAuditEvents(); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'historico' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    Histórico e Auditoria
+                  </button>
+                </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-4 sm:p-6 border-b">
-                  <h3 className="text-base sm:text-lg font-semibold">Mesas Configuradas</h3>
-                </div>
-                {loading ? (
-                  <div className="p-6 text-center text-gray-500">
-                    Carregando mesas...
-                  </div>
-                ) : (
-                  <>
-                    {/* Layout em cards no mobile */}
-                    <div className="block lg:hidden divide-y divide-gray-100">
-                      {mesas.map((mesa) => (
-                        <div key={mesa.id} className="p-4 sm:p-5">
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <span className="font-semibold text-gray-900">Mesa {mesa.numero}</span>
-                            <button
-                              onClick={() => removerMesa(mesa.id)}
-                              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 shrink-0"
-                              title="Remover"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <p className="text-sm text-gray-600 font-mono break-all mb-4">
-                            {generateTableUrl(mesa.numero)}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => visualizarQRCode(mesa.numero)}
-                              className="bg-blue-500 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-blue-600"
-                            >
-                              <Eye className="w-4 h-4" />
-                              Visualizar
-                            </button>
-                            <button
-                              onClick={() => baixarQRCode(mesa.numero)}
-                              className="bg-green-500 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-green-600"
-                            >
-                              <Download className="w-4 h-4" />
-                              Baixar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Tabela no desktop */}
-                    <div className="hidden lg:block overflow-x-auto">
-                      <table className="w-full min-w-[600px]">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="text-left p-4 font-medium">Mesa</th>
-                            <th className="text-left p-4 font-medium">URL</th>
-                            <th className="text-left p-4 font-medium">QR Code</th>
-                            <th className="text-left p-4 font-medium">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {mesas.map((mesa) => (
-                            <tr key={mesa.id} className="hover:bg-gray-50">
-                              <td className="p-4 font-medium">Mesa {mesa.numero}</td>
-                              <td className="p-4 text-sm text-gray-600 font-mono break-all max-w-xs">
-                                {generateTableUrl(mesa.numero)}
-                              </td>
-                              <td className="p-4">
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    onClick={() => visualizarQRCode(mesa.numero)}
-                                    className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 hover:bg-blue-600"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                    <span>Visualizar</span>
-                                  </button>
-                                  <button
-                                    onClick={() => baixarQRCode(mesa.numero)}
-                                    className="bg-green-500 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 hover:bg-green-600"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                    <span>Baixar</span>
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="p-4">
-                                <button
-                                  onClick={() => removerMesa(mesa.id)}
-                                  className="bg-red-500 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 hover:bg-red-600"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  <span>Remover</span>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                )}
-              </div>
+              {mesasSubTab === 'salao' && (
+                <VisaoSalao
+                  mesas={mesas}
+                  areas={areas}
+                  loading={loading}
+                  onOpenMesa={handleOpenMesa}
+                  onVerDetalhe={setSelectedMesaDetail}
+                  onAtribuirResponsavel={handleAtribuirResponsavel}
+                  generateTableUrl={generateTableUrl}
+                />
+              )}
+
+              {mesasSubTab === 'editor' && (
+                <EditorSalao
+                  restaurantId={restaurantId ?? ''}
+                  mesas={mesas}
+                  areas={areas}
+                  maxTables={maxTables}
+                  loading={loading}
+                  loadTables={loadTables}
+                  loadAreas={loadAreas}
+                  onAddTable={adicionarMesa}
+                  onRemoveTable={removerMesa}
+                  onAddArea={handleAddArea}
+                  onRemoveArea={handleRemoveArea}
+                  visualizarQRCode={visualizarQRCode}
+                  baixarQRCode={baixarQRCode}
+                  generateTableUrl={generateTableUrl}
+                  setShowAddModal={setShowAddModal}
+                  novaMesa={novaMesa}
+                  setNovaMesa={setNovaMesa}
+                />
+              )}
+
+              {mesasSubTab === 'historico' && (
+                <HistoricoAuditoria
+                  events={auditEvents}
+                  mesas={mesas}
+                  filters={auditFilters}
+                  onFilterChange={(f) => {
+                    setAuditFilters(f);
+                    loadAuditEvents(f);
+                  }}
+                  onRefresh={() => loadAuditEvents(auditFilters)}
+                />
+              )}
+
+              {selectedMesaDetail && (
+                <DetalheMesaModal
+                  mesa={selectedMesaDetail}
+                  onClose={() => setSelectedMesaDetail(null)}
+                  restaurantId={restaurantId ?? ''}
+                  onMesaUpdated={loadTables}
+                />
+              )}
             </div>
           )}
 

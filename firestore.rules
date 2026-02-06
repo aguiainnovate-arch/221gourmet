@@ -53,6 +53,18 @@ service cloud.firestore {
     match /registrationTokens/{document} {
       allow read, write: if true;
     }
+
+    match /areas/{document} {
+      allow read, write: if true;
+    }
+
+    match /tableSessions/{document} {
+      allow read, write: if true;
+    }
+
+    match /tableAuditEvents/{document} {
+      allow read, write: if true;
+    }
     
     // Regra padrão - negar acesso a outras coleções
     match /{document=**} {

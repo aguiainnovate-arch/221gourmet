@@ -2,18 +2,21 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getTables } from '../services/tableService';
 import { useSettings } from '../contexts/SettingsContext';
+import { useRestaurantId } from '../hooks/useRestaurantId';
 import type { Table } from '../services/tableService';
 
 export default function Home() {
   const { settings } = useSettings();
+  const restaurantId = useRestaurantId();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!restaurantId) return;
     const loadTables = async () => {
       try {
         setLoading(true);
-        const tablesData = await getTables();
+        const tablesData = await getTables(restaurantId);
         setTables(tablesData);
       } catch (error) {
         console.error('Erro ao carregar mesas:', error);
@@ -23,7 +26,7 @@ export default function Home() {
     };
 
     loadTables();
-  }, []);
+  }, [restaurantId]);
 
   // Atualizar título da aba do navegador
   useEffect(() => {

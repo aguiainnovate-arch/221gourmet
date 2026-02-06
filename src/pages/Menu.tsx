@@ -51,12 +51,12 @@ export default function Menu() {
 
   useEffect(() => {
     const carregarMesaInfo = async () => {
-      if (!mesaId) return;
-      
+      if (!mesaId || !restaurantId) return;
+
       try {
         setLoading(true);
-        const tables = await getTables();
-        const mesa = tables.find(table => table.numero === mesaId);
+        const tables = await getTables(restaurantId);
+        const mesa = tables.find((table) => table.numero === mesaId);
         setMesaInfo(mesa || null);
       } catch (error) {
         // Erro silencioso
@@ -66,7 +66,7 @@ export default function Menu() {
     };
 
     carregarMesaInfo();
-  }, [mesaId]);
+  }, [mesaId, restaurantId]);
 
   // Aplicar cores personalizadas
   useEffect(() => {
@@ -301,6 +301,11 @@ export default function Menu() {
       alert(t('menu.tableInfoNotFound'));
       return;
     }
+    const statusAceito = mesaInfo.status === 'ocupada' || mesaInfo.status === 'em_fechamento';
+    if (!statusAceito) {
+      alert('Esta mesa não está aberta para pedidos. Peça ao garçom para abrir a mesa no painel.');
+      return;
+    }
 
     const itensSelecionados = selectedItems.map(item => {
       const translatedProduct = getProductTranslation(item.product, i18n.language);
@@ -509,6 +514,8 @@ export default function Menu() {
   );
 }
 
+  const mesaAbertaParaPedidos = mesaInfo.status === 'ocupada' || mesaInfo.status === 'em_fechamento';
+
   // Tela Normal do Menu
   return (
     <div className="min-h-screen bg-secondary-50 animate-fadeInUp">
@@ -527,6 +534,12 @@ export default function Menu() {
           </div>
         </div>
       </div>
+
+      {!mesaAbertaParaPedidos && (
+        <div className="bg-amber-100 border-b border-amber-200 text-amber-900 px-4 py-3 text-center text-sm">
+          Esta mesa não está aberta para pedidos no momento. Avise o garçom para abrir a mesa no painel.
+        </div>
+      )}
 
       {settings?.bannerUrl && (
         <div className="bg-secondary-50 py-8 px-4">

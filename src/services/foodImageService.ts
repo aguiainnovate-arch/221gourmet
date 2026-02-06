@@ -15,20 +15,40 @@ export interface FoodImage {
   thumb?: string;
 }
 
-/** Imagens de fallback (Unsplash CDN, sem API) quando não há chave */
+/** Imagens de fallback (Unsplash CDN, sem API) quando não há chave – várias para carrossel em loop */
 const FALLBACK_FOOD_IMAGES: FoodImage[] = [
   { url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=320&fit=crop', alt: 'Pizza' },
   { url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&h=320&fit=crop', alt: 'Prato' },
   { url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&h=320&fit=crop', alt: 'Lanches' },
-  { url: 'https://images.unsplash.com/photo-1551183053-bf0a3f510e27?w=500&h=320&fit=crop', alt: 'Massas' },
+  { url: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=500&h=320&fit=crop', alt: 'Massas' },
+  { url: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&h=320&fit=crop', alt: 'Café da manhã' },
+  { url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&h=320&fit=crop', alt: 'Comida caseira' },
+  { url: 'https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=500&h=320&fit=crop', alt: 'Sushi' },
+  { url: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=500&h=320&fit=crop', alt: 'Salada' },
+  { url: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=500&h=320&fit=crop', alt: 'Panquecas' },
+  { url: 'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=500&h=320&fit=crop', alt: 'Hambúrguer' },
 ];
 
-/** Queries para buscar fotos de comida na API Unsplash */
-const FOOD_QUERIES = ['pizza', 'prato comida', 'hamburguer lanches', 'massas comida'];
+/** Queries para buscar fotos de comida na API Unsplash (várias imagens por categoria) */
+const FOOD_QUERIES = [
+  'pizza',
+  'hamburger food',
+  'sushi',
+  'pasta',
+  'breakfast',
+  'salad',
+  'dessert',
+  'grilled food',
+  'brazilian food',
+  'healthy bowl',
+];
+
+/** Quantidade de fotos por query na API (máximo sugerido pela Unsplash: 30) */
+const PER_PAGE = 2;
 
 /**
- * Busca imagens de comida na API Unsplash (uma por query).
- * Retorna até 4 imagens. Em caso de erro ou sem chave, retorna fallback.
+ * Busca imagens de comida na API Unsplash (várias por query).
+ * Retorna até 20 imagens para o carrossel. Em caso de erro ou sem chave, retorna fallback.
  */
 export async function fetchFeaturedFoodImages(): Promise<FoodImage[]> {
   if (!UNSPLASH_ACCESS_KEY?.trim()) {
@@ -41,7 +61,7 @@ export async function fetchFeaturedFoodImages(): Promise<FoodImage[]> {
       const url = new URL('https://api.unsplash.com/search/photos');
       url.searchParams.set('query', query);
       url.searchParams.set('client_id', UNSPLASH_ACCESS_KEY);
-      url.searchParams.set('per_page', '1');
+      url.searchParams.set('per_page', String(PER_PAGE));
       url.searchParams.set('orientation', 'landscape');
 
       const res = await fetch(url.toString());
@@ -53,14 +73,16 @@ export async function fetchFeaturedFoodImages(): Promise<FoodImage[]> {
         continue;
       }
       const data = await res.json();
-      const hit = data.results?.[0];
-      if (hit?.urls?.regular) {
-        const imgUrl = `${hit.urls.regular}?w=500&h=320&fit=crop`;
-        results.push({
-          url: imgUrl,
-          alt: hit.alt_description || query,
-          thumb: hit.urls.small,
-        });
+      const items = data.results ?? [];
+      for (const hit of items) {
+        if (hit?.urls?.regular) {
+          const imgUrl = `${hit.urls.regular}?w=500&h=320&fit=crop`;
+          results.push({
+            url: imgUrl,
+            alt: hit.alt_description || query,
+            thumb: hit.urls.small,
+          });
+        }
       }
     }
     if (results.length >= 2) {

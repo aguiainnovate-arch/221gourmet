@@ -2,6 +2,7 @@ import {
   collection, 
   addDoc, 
   getDocs, 
+  getDoc,
   updateDoc, 
   doc, 
   query, 
@@ -124,6 +125,35 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
   } catch (error) {
     console.error('Erro ao buscar restaurantes:', error);
     throw new Error('Falha ao buscar restaurantes');
+  }
+};
+
+// Buscar restaurante por ID
+export const getRestaurantById = async (id: string): Promise<Restaurant | null> => {
+  try {
+    const docSnap = await getDoc(doc(db, 'restaurants', id));
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      name: data.name,
+      domain: data.domain,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      password: data.password || '',
+      planId: data.planId,
+      active: data.active,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+      theme: data.theme,
+      settings: data.settings,
+      permissions: data.permissions,
+      deliverySettings: data.deliverySettings ?? { enabled: true, aiDescription: '' }
+    };
+  } catch (error) {
+    console.error('Erro ao buscar restaurante por ID:', error);
+    return null;
   }
 };
 
