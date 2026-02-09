@@ -2,8 +2,10 @@ import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getTables } from '../services/tableService';
+import { getOrdersByRestaurant } from '../services/orderService';
+import type { FirestoreOrder } from '../services/orderService';
 import { useRestaurantData } from '../hooks/useRestaurantData';
 import { applyCustomColors } from '../utils/colorUtils';
 import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
@@ -30,7 +32,7 @@ interface ExpandedItem {
 
 export default function Menu() {
   const { mesaId } = useParams<{ mesaId: string }>();
-  const { addOrder } = useOrders();
+  const { addOrder, setRestaurantId } = useOrders();
   const { settings } = useSettings();
   const { t, i18n } = useTranslation();
   const { products, categories, restaurantId } = useRestaurantData();
@@ -48,6 +50,12 @@ export default function Menu() {
   });
   const [loading, setLoading] = useState(true);
   const [showLoadingAnimation, setShowLoadingAnimation] = useState(true);
+  const [meusPedidos, setMeusPedidos] = useState<FirestoreOrder[]>([]);
+
+  // Sincroniza o contexto de pedidos com o restaurante da URL (quando abre pelo QR)
+  useEffect(() => {
+    if (restaurantId) setRestaurantId(restaurantId);
+  }, [restaurantId, setRestaurantId]);
 
   useEffect(() => {
     const carregarMesaInfo = async () => {
@@ -67,6 +75,29 @@ export default function Menu() {
 
     carregarMesaInfo();
   }, [mesaId, restaurantId]);
+
+  // Pedidos desta mesa para o cliente acompanhar status (atualiza a cada 15s)
+  const carregarMeusPedidos = useCallback(async () => {
+    if (!restaurantId || !mesaInfo?.id) return;
+    try {
+      const all = await getOrdersByRestaurant(restaurantId);
+      const daMesa = all.filter(
+        (o) =>
+          (o.mesaId === mesaInfo.id || String(o.mesaNumero) === String(mesaInfo.numero)) &&
+          (o.orderType === 'mesa' || !o.orderType)
+      );
+      setMeusPedidos(daMesa);
+    } catch {
+      // silencioso
+    }
+  }, [restaurantId, mesaInfo?.id, mesaInfo?.numero]);
+
+  useEffect(() => {
+    if (!restaurantId || !mesaInfo?.id) return;
+    carregarMeusPedidos();
+    const interval = setInterval(carregarMeusPedidos, 5 * 60 * 1000); // a cada 5 min
+    return () => clearInterval(interval);
+  }, [carregarMeusPedidos, restaurantId, mesaInfo?.id]);
 
   // Aplicar cores personalizadas
   useEffect(() => {
@@ -297,7 +328,7 @@ export default function Menu() {
   };
 
   const handleConfirmarPedido = async () => {
-    if (!mesaInfo) {
+    if (!mesaInfo || !mesaInfo.id) {
       alert(t('menu.tableInfoNotFound'));
       return;
     }
@@ -337,6 +368,7 @@ export default function Menu() {
     setSelectedItems([]);
     setExpandedItems([]);
     setShowConfirmation(false);
+    carregarMeusPedidos(); // atualiza "Seus pedidos" na hora
     alert(t('menu.orderSent', { number: mesaInfo.numero }));
   };
 
@@ -538,6 +570,46 @@ export default function Menu() {
       {!mesaAbertaParaPedidos && (
         <div className="bg-amber-100 border-b border-amber-200 text-amber-900 px-4 py-3 text-center text-sm">
           Esta mesa não está aberta para pedidos no momento. Avise o garçom para abrir a mesa no painel.
+        </div>
+      )}
+
+      {/* Seus pedidos — status para o cliente acompanhar */}
+      {meusPedidos.length > 0 && (
+        <div className="bg-primary-100/80 border-b border-primary-200 px-4 py-4">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-lg font-semibold text-primary-900 mb-3 flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Seus pedidos
+            </h2>
+            <ul className="space-y-2">
+              {meusPedidos.map((o) => (
+                <li
+                  key={o.id}
+                  className={`flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border ${
+                    o.status === 'novo'
+                      ? 'bg-amber-50 border-amber-200'
+                      : o.status === 'preparando'
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-green-50 border-green-200'
+                  }`}
+                >
+                  <span className="text-primary-800 text-sm">{o.itens?.join(' · ') ?? o.timestamp}</span>
+                  <span
+                    className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
+                      o.status === 'novo'
+                        ? 'bg-amber-200 text-amber-900'
+                        : o.status === 'preparando'
+                          ? 'bg-blue-200 text-blue-900'
+                          : 'bg-green-200 text-green-900'
+                    }`}
+                  >
+                    {o.status === 'novo' ? 'Na fila' : o.status === 'preparando' ? 'Em preparo' : 'Pronto'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-primary-600 mt-2">Atualizado automaticamente a cada 5 minutos.</p>
+          </div>
         </div>
       )}
 

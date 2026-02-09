@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
-import { X, Clock } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { X, Clock, RefreshCw, ChefHat, CheckCircle, Undo2 } from 'lucide-react';
 import type { Table } from '../../services/tableService';
 import { getActiveSessionByTable, closeSession, addSessionAdjustment, type TableSession } from '../../services/tableSessionService';
-import { getOrdersByRestaurant } from '../../services/orderService';
+import { getOrdersByRestaurant, getOrdersByTable, updateOrderStatus } from '../../services/orderService';
 import { updateTable } from '../../services/tableService';
 import { logTableEvent } from '../../services/tableAuditService';
 import type { FirestoreOrder } from '../../services/orderService';
+
+const STATUS_LABEL: Record<FirestoreOrder['status'], string> = {
+  novo: 'Na fila',
+  preparando: 'Em preparo',
+  pronto: 'Pronto'
+};
 
 interface DetalheMesaModalProps {
   mesa: Table;
@@ -22,25 +28,51 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
   const [adjustValor, setAdjustValor] = useState('');
   const [adjustMotivo, setAdjustMotivo] = useState('');
 
-  useEffect(() => {
-    const load = async () => {
-      if (!restaurantId || !mesa.id) return;
-      setLoading(true);
+  const loadOrdersAndSession = useCallback(async () => {
+    if (!restaurantId || !mesa.id) return;
+    setLoading(true);
+    try {
+      const [sess, ordersByTableResult] = await Promise.all([
+        getActiveSessionByTable(mesa.id),
+        // Tenta por id da mesa; se falhar (ex.: índice), busca por restaurante e filtra por id ou número
+        getOrdersByTable(mesa.id).catch(async () => {
+          const all = await getOrdersByRestaurant(restaurantId);
+          return all.filter(
+            (o) =>
+              (o.mesaId === mesa.id || String(o.mesaNumero) === String(mesa.numero)) &&
+              (o.orderType === 'mesa' || !o.orderType)
+          );
+        })
+      ]);
+      setSession(sess ?? null);
+      // Garante que só entram pedidos de mesa (não delivery)
+      const mesaOrders = (ordersByTableResult || []).filter(
+        (o) => o.orderType === 'mesa' || !o.orderType
+      );
+      setOrders(mesaOrders);
+    } catch (e) {
+      console.error(e);
+      // Fallback: buscar todos do restaurante e filtrar por mesa (id ou número)
       try {
-        const [sess, allOrders] = await Promise.all([
-          getActiveSessionByTable(mesa.id),
-          getOrdersByRestaurant(restaurantId)
-        ]);
-        setSession(sess ?? null);
-        setOrders(allOrders.filter((o) => o.mesaId === mesa.id));
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+        const all = await getOrdersByRestaurant(restaurantId);
+        setOrders(
+          all.filter(
+            (o) =>
+              (o.mesaId === mesa.id || String(o.mesaNumero) === String(mesa.numero)) &&
+              (o.orderType === 'mesa' || !o.orderType)
+          )
+        );
+      } catch (e2) {
+        console.error(e2);
       }
-    };
-    load();
-  }, [restaurantId, mesa.id]);
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId, mesa.id, mesa.numero]);
+
+  useEffect(() => {
+    loadOrdersAndSession();
+  }, [loadOrdersAndSession]);
 
   const handleEmFechamento = async () => {
     try {
@@ -83,6 +115,19 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
     }
   };
 
+  const handleOrderStatus = async (orderId: string, newStatus: FirestoreOrder['status']) => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+      onMesaUpdated();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao atualizar status do pedido.');
+    }
+  };
+
   const handleAddAjuste = async () => {
     if (!session) return;
     const valor = parseFloat(adjustValor.replace(',', '.'));
@@ -118,9 +163,18 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b flex justify-between items-center">
           <h3 className="text-xl font-semibold">Mesa {mesa.numero}</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => loadOrdersAndSession()}
+              className="p-2 rounded-lg hover:bg-gray-100"
+              title="Atualizar pedidos"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         <div className="p-6 space-y-4">
           {mesa.responsavel && (
@@ -138,16 +192,76 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
           )}
 
           <div>
-            <h4 className="font-medium mb-2">Pedidos nesta sessão</h4>
+            <h4 className="font-medium mb-2">Pedidos nesta mesa</h4>
             {orders.length === 0 ? (
-              <p className="text-sm text-gray-500">Nenhum pedido nesta sessão.</p>
+              <p className="text-sm text-gray-500">
+                Nenhum pedido ainda. Pedidos feitos pelo QR/cardápio desta mesa aparecem aqui. Use o ícone de atualizar para recarregar.
+              </p>
             ) : (
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-3 text-sm">
                 {orders.map((o) => (
-                  <li key={o.id} className="flex justify-between">
-                    <span>{o.itens?.join(', ') ?? o.timestamp}</span>
-                    <span>{o.status}</span>
-                  </li>
+                    <li key={o.id} className="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-gray-800">{o.itens?.join(' · ') ?? o.timestamp}</span>
+                        <span
+                          className={`shrink-0 px-2 py-0.5 rounded text-xs font-medium ${
+                            o.status === 'novo'
+                              ? 'bg-amber-100 text-amber-800'
+                              : o.status === 'preparando'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                          }`}
+                        >
+                          {STATUS_LABEL[o.status]}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {o.status === 'novo' && (
+                          <button
+                            onClick={() => handleOrderStatus(o.id, 'preparando')}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs"
+                          >
+                            <ChefHat className="w-3.5 h-3.5" />
+                            Colocar em preparo
+                          </button>
+                        )}
+                        {o.status === 'preparando' && (
+                          <>
+                            <button
+                              onClick={() => handleOrderStatus(o.id, 'pronto')}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 text-xs"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Marcar pronto
+                            </button>
+                            <button
+                              onClick={() => handleOrderStatus(o.id, 'novo')}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs"
+                              title="Voltar para na fila"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
+                              Voltar para na fila
+                            </button>
+                          </>
+                        )}
+                        {o.status === 'pronto' && (
+                          <>
+                            <span className="inline-flex items-center gap-1 text-green-600 text-xs">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Entregar à mesa
+                            </span>
+                            <button
+                              onClick={() => handleOrderStatus(o.id, 'preparando')}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs"
+                              title="Voltar para em preparo"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
+                              Voltar para em preparo
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </li>
                 ))}
               </ul>
             )}

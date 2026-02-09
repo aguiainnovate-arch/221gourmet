@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Eye, Download } from 'lucide-react';
+import { Plus, Trash2, Eye, Download, QrCode } from 'lucide-react';
 import type { Table } from '../../services/tableService';
 import type { Area } from '../../services/areaService';
 
@@ -15,6 +15,7 @@ interface EditorSalaoProps {
   onRemoveTable: (id: string) => void;
   onAddArea: (nome: string) => void;
   onRemoveArea: (id: string) => void;
+  onVerDetalhe?: (mesa: Table) => void;
   visualizarQRCode: (numero: string) => void;
   baixarQRCode: (numero: string) => void;
   generateTableUrl?: (numero: string) => string;
@@ -31,6 +32,7 @@ export default function EditorSalao({
   onRemoveTable,
   onAddArea,
   onRemoveArea,
+  onVerDetalhe,
   visualizarQRCode,
   baixarQRCode,
   setShowAddModal
@@ -97,11 +99,18 @@ export default function EditorSalao({
                     <span className="text-xs text-gray-500">Cap. {m.capacidade} · Ordem {m.ordem}</span>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => visualizarQRCode(m.numero)}
+                        onClick={() => onVerDetalhe?.(m)}
                         className="p-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100"
-                        title="Ver QR Code"
+                        title="Ver detalhes da mesa (pedidos, sessão)"
                       >
                         <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => visualizarQRCode(m.numero)}
+                        className="p-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        title="Ver QR Code"
+                      >
+                        <QrCode className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => baixarQRCode(m.numero)}
@@ -133,14 +142,26 @@ export default function EditorSalao({
               {mesasByArea(null).map((m) => (
                 <li key={m.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
                   <span className="font-medium">Mesa {m.numero}</span>
+                  <span className="text-xs text-gray-500">Cap. {m.capacidade} · Ordem {m.ordem}</span>
                   <div className="flex gap-2">
-                    <button onClick={() => visualizarQRCode(m.numero)} className="p-1.5 rounded bg-blue-50 text-blue-600">
+                    <button
+                      onClick={() => onVerDetalhe?.(m)}
+                      className="p-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100"
+                      title="Ver detalhes da mesa (pedidos, sessão)"
+                    >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button onClick={() => baixarQRCode(m.numero)} className="p-1.5 rounded bg-green-50 text-green-600">
+                    <button
+                      onClick={() => visualizarQRCode(m.numero)}
+                      className="p-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      title="Ver QR Code"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => baixarQRCode(m.numero)} className="p-1.5 rounded bg-green-50 text-green-600 hover:bg-green-100" title="Baixar QR Code">
                       <Download className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onRemoveTable(m.id)} className="p-1.5 rounded bg-red-50 text-red-600">
+                    <button onClick={() => onRemoveTable(m.id)} className="p-1.5 rounded bg-red-50 text-red-600" title="Remover">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

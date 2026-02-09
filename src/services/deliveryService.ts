@@ -6,6 +6,7 @@ import {
   doc,
   query,
   where,
+  onSnapshot,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -14,6 +15,27 @@ import { addOrder } from './orderService';
 
 // Re-exportar os tipos para facilitar imports
 export type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
+
+/** Converte documento Firestore em DeliveryOrder */
+function docToOrder(docId: string, data: Record<string, unknown>): DeliveryOrder {
+  return {
+    id: docId,
+    restaurantId: data.restaurantId as string,
+    restaurantName: data.restaurantName as string,
+    customerName: data.customerName as string,
+    customerPhone: data.customerPhone as string,
+    customerAddress: data.customerAddress as string,
+    items: (data.items as DeliveryOrder['items']) || [],
+    total: (data.total as number) ?? 0,
+    status: (data.status as DeliveryOrder['status']) || 'pending',
+    paymentMethod: (data.paymentMethod as DeliveryOrder['paymentMethod']) || 'money',
+    deliveryFee: (data.deliveryFee as number) ?? 0,
+    observations: data.observations as string | undefined,
+    cancellationReason: data.cancellationReason as string | undefined,
+    createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.() || new Date(),
+    updatedAt: (data.updatedAt as { toDate?: () => Date })?.toDate?.() || new Date()
+  };
+}
 
 // Função auxiliar para traduzir método de pagamento
 const translatePaymentMethod = (method: string): string => {
@@ -208,3 +230,26 @@ export const getDeliveryOrdersByRestaurant = async (restaurantId: string): Promi
     throw new Error('Falha ao buscar pedidos por restaurante');
   }
 };
+
+/**
+ * Inscreve para atualizações em tempo real dos pedidos de delivery do restaurante.
+ * Retorna função para cancelar a inscrição.
+ */
+export function subscribeDeliveryOrdersByRestaurant(
+  restaurantId: string,
+  onOrders: (orders: DeliveryOrder[]) => void
+): () => void {
+  const q = query(
+    collection(db, 'deliveries'),
+    where('restaurantId', '==', restaurantId)
+  );
+  return onSnapshot(q, (snapshot) => {
+    const orders: DeliveryOrder[] = snapshot.docs.map((d) =>
+      docToOrder(d.id, d.data())
+    );
+    orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    onOrders(orders);
+  }, (err) => {
+    console.error('Erro no listener de delivery:', err);
+  });
+}

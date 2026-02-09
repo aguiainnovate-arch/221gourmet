@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
@@ -36,7 +36,8 @@ import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImpor
 import { getStatistics, type GeneralStats } from '../services/statisticsService';
 import { hasRestaurantPermission } from '../services/permissionService';
 import { translateProduct } from '../services/openaiService';
-import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder } from '../services/deliveryService';
+import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder, subscribeDeliveryOrdersByRestaurant } from '../services/deliveryService';
+import { playNotificationSound, getNotificationSoundEnabled, setNotificationSoundEnabled } from '../utils/notificationSound';
 import { getRestaurants } from '../services/restaurantService';
 import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
@@ -137,6 +138,13 @@ export default function Settings() {
   const [orderToCancel, setOrderToCancel] = useState<DeliveryOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [deliveryToast, setDeliveryToast] = useState<{ message: string; orderId: string } | null>(null);
+  const [deliveryPendingCount, setDeliveryPendingCount] = useState(0);
+  const [notificationSoundEnabled, setNotificationSoundEnabledState] = useState(true);
+  const [selectedDeliveryOrder, setSelectedDeliveryOrder] = useState<DeliveryOrder | null>(null);
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<string>('all');
+  const [deliverySearch, setDeliverySearch] = useState('');
+  const deliveryOrderIdsRef = useRef<Set<string>>(new Set());
 
   // Nome da loja (exibido no header após login)
   const [restaurantDisplayName, setRestaurantDisplayName] = useState<string>('');
@@ -757,7 +765,7 @@ export default function Settings() {
 
   const visualizarQRCode = async (numeroMesa: string) => {
     try {
-      const url = generateTableUrl(numeroMesa);
+      const url = generateTableUrl(restaurantId ?? '', numeroMesa);
       const qrDataUrl = await qrcode.toDataURL(url, {
         width: 300,
         margin: 2,
@@ -779,7 +787,7 @@ export default function Settings() {
 
   const baixarQRCode = async (numeroMesa: string) => {
     try {
-      const url = generateTableUrl(numeroMesa);
+      const url = generateTableUrl(restaurantId ?? '', numeroMesa);
       const qrDataUrl = await qrcode.toDataURL(url, {
         width: 300,
         margin: 2,
@@ -1480,7 +1488,63 @@ export default function Settings() {
     }
   }, [activeTab, selectedPeriod]);
 
-  // Carregar pedidos de delivery quando a aba da cozinha for selecionada
+  // Inicializar preferência de som a partir do localStorage
+  useEffect(() => {
+    if (restaurantId) {
+      setNotificationSoundEnabledState(getNotificationSoundEnabled(restaurantId));
+    }
+  }, [restaurantId]);
+
+  // Listener em tempo real dos pedidos de delivery + notificação de novo pedido
+  useEffect(() => {
+    if (!restaurantId) return;
+    const unsubscribe = subscribeDeliveryOrdersByRestaurant(restaurantId, (orders) => {
+      setDeliveryOrders(orders);
+      const pending = orders.filter((o) => o.status === 'pending').length;
+      setDeliveryPendingCount(pending);
+      const currentIds = new Set(orders.map((o) => o.id));
+      const prevIds = deliveryOrderIdsRef.current;
+      const newOrders = orders.filter((o) => o.status === 'pending' && !prevIds.has(o.id));
+      if (prevIds.size > 0 && newOrders.length > 0) {
+        const first = newOrders[0];
+        setDeliveryToast({ message: `Novo pedido de delivery #${first.id.substring(0, 8)}`, orderId: first.id });
+        if (getNotificationSoundEnabled(restaurantId)) {
+          playNotificationSound();
+        }
+      }
+      deliveryOrderIdsRef.current = currentIds;
+    });
+    return () => unsubscribe();
+  }, [restaurantId]);
+
+  // Auto-esconder toast após 5s
+  useEffect(() => {
+    if (!deliveryToast) return;
+    const t = setTimeout(() => setDeliveryToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [deliveryToast]);
+
+  // Polling fallback (a cada 30s) quando estiver na aba Pedidos Delivery
+  useEffect(() => {
+    if (activeTab !== 'cozinha' || kitchenSubTab !== 'delivery' || !restaurantId) return;
+    const interval = setInterval(() => {
+      getDeliveryOrdersByRestaurant(restaurantId).then((orders) => {
+        setDeliveryOrders((prev) => {
+          const prevIds = new Set(prev.map((o) => o.id));
+          const newOnes = orders.filter((o) => !prevIds.has(o.id) && o.status === 'pending');
+          if (newOnes.length > 0 && getNotificationSoundEnabled(restaurantId)) {
+            playNotificationSound();
+            setDeliveryToast({ message: `Novo pedido #${newOnes[0].id.substring(0, 8)}`, orderId: newOnes[0].id });
+          }
+          return orders;
+        });
+        setDeliveryPendingCount(orders.filter((o) => o.status === 'pending').length);
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [activeTab, kitchenSubTab, restaurantId]);
+
+  // Carregar pedidos de delivery quando a aba da cozinha for selecionada (primeira carga)
   useEffect(() => {
     if (activeTab === 'cozinha' && kitchenSubTab === 'delivery') {
       loadDeliveryOrders();
@@ -1669,19 +1733,42 @@ export default function Settings() {
   const closeSidebar = () => setSidebarOpen(false);
   const openSidebar = () => setSidebarOpen(true);
 
-  const navButton = (tab: string, icon: React.ReactNode, label: string) => (
+  const navButton = (tab: string, icon: React.ReactNode, label: string, badge?: number) => (
     <button
       key={tab}
       onClick={() => { setActiveTab(tab); closeSidebar(); }}
       className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 ${activeTab === tab ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
     >
       {icon}
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </button>
   );
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Toast: novo pedido de delivery */}
+      {deliveryToast && (
+        <div
+          className="fixed top-4 right-4 z-[100] max-w-sm animate-in fade-in slide-in-from-top-2 rounded-lg bg-amber-500 text-white px-4 py-3 shadow-lg flex items-center gap-3"
+          role="alert"
+        >
+          <Truck className="w-5 h-5 shrink-0" />
+          <span className="font-medium">{deliveryToast.message}</span>
+          <button
+            onClick={() => setDeliveryToast(null)}
+            className="p-1 rounded hover:bg-amber-600"
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b p-3 sm:p-4 sticky top-0 z-30">
         <div className="flex justify-between items-center gap-2">
@@ -1768,7 +1855,7 @@ export default function Settings() {
             {navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
             {navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
             {navButton('relatorios', <BarChart3 className="w-5 h-5 shrink-0" />, 'Relatórios')}
-            {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha')}
+            {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha', deliveryPendingCount)}
             {navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
           </nav>
         </aside>
@@ -1809,7 +1896,7 @@ export default function Settings() {
                   onOpenMesa={handleOpenMesa}
                   onVerDetalhe={setSelectedMesaDetail}
                   onAtribuirResponsavel={handleAtribuirResponsavel}
-                  generateTableUrl={generateTableUrl}
+                  generateTableUrl={(numero) => generateTableUrl(restaurantId ?? '', numero)}
                 />
               )}
 
@@ -1826,9 +1913,10 @@ export default function Settings() {
                   onRemoveTable={removerMesa}
                   onAddArea={handleAddArea}
                   onRemoveArea={handleRemoveArea}
+                  onVerDetalhe={setSelectedMesaDetail}
                   visualizarQRCode={visualizarQRCode}
                   baixarQRCode={baixarQRCode}
-                  generateTableUrl={generateTableUrl}
+                  generateTableUrl={(numero) => generateTableUrl(restaurantId ?? '', numero)}
                   setShowAddModal={setShowAddModal}
                   novaMesa={novaMesa}
                   setNovaMesa={setNovaMesa}
@@ -2686,6 +2774,10 @@ export default function Settings() {
               </div>
 
               {/* Sub-abas da Cozinha */}
+              {(() => {
+                const mesaPendentes = orders.filter((o) => o.orderType === 'mesa' && o.status === 'novo').length;
+                const deliveryPendentes = deliveryOrders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length;
+                return (
               <div className="mb-6">
                 <div className="border-b border-gray-200">
                   <nav className="-mb-px flex space-x-8">
@@ -2699,6 +2791,11 @@ export default function Settings() {
                       <div className="flex items-center space-x-2">
                         <Users className="w-4 h-4" />
                         <span>Pedidos Mesa</span>
+                        {mesaPendentes > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
+                            {mesaPendentes > 99 ? '99+' : mesaPendentes}
+                          </span>
+                        )}
                       </div>
                     </button>
                     <button
@@ -2711,11 +2808,18 @@ export default function Settings() {
                       <div className="flex items-center space-x-2">
                         <Truck className="w-4 h-4" />
                         <span>Pedidos Delivery</span>
+                        {deliveryPendentes > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
+                            {deliveryPendentes > 99 ? '99+' : deliveryPendentes}
+                          </span>
+                        )}
                       </div>
                     </button>
                   </nav>
                 </div>
               </div>
+                );
+              })()}
 
               {/* Estatísticas */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
@@ -2853,6 +2957,51 @@ export default function Settings() {
 
               {kitchenSubTab === 'delivery' && (
                 <div>
+                  {/* Barra: filtros, busca, som e atualizar */}
+                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <select
+                      value={deliveryStatusFilter}
+                      onChange={(e) => setDeliveryStatusFilter(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="all">Todos os status</option>
+                      <option value="pending">Aguardando</option>
+                      <option value="confirmed">Confirmado</option>
+                      <option value="preparing">Preparando</option>
+                      <option value="delivering">Saindo</option>
+                      <option value="delivered">Entregue</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Buscar por cliente, telefone ou ID"
+                      value={deliverySearch}
+                      onChange={(e) => setDeliverySearch(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px]"
+                    />
+                    <button
+                      onClick={() => loadDeliveryOrders()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm"
+                      title="Atualizar lista"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Atualizar
+                    </button>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notificationSoundEnabled}
+                        onChange={(e) => {
+                          const v = e.target.checked;
+                          setNotificationSoundEnabledState(v);
+                          if (restaurantId) setNotificationSoundEnabled(restaurantId, v);
+                        }}
+                        className="rounded border-gray-300"
+                      />
+                      Som ao receber novo pedido
+                    </label>
+                  </div>
+
                   {deliveryLoading ? (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -2864,14 +3013,27 @@ export default function Settings() {
                       <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido de delivery no momento</h3>
                       <p className="text-gray-500">Os pedidos de delivery aparecerão aqui quando forem enviados pelos clientes</p>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                      {['pending', 'confirmed', 'preparing', 'delivering', 'cancelled'].map((status) => {
+                  ) : (() => {
+                    const searchLower = deliverySearch.trim().toLowerCase();
+                    const filteredOrders = deliveryOrders.filter((order) => {
+                      if (deliveryStatusFilter !== 'all' && order.status !== deliveryStatusFilter) return false;
+                      if (searchLower) {
+                        const matchName = order.customerName?.toLowerCase().includes(searchLower);
+                        const matchPhone = order.customerPhone?.includes(deliverySearch.trim());
+                        const matchId = order.id.toLowerCase().includes(searchLower);
+                        if (!matchName && !matchPhone && !matchId) return false;
+                      }
+                      return true;
+                    });
+                    return (
+                    <div className="overflow-x-auto pb-2">
+                      <div className="grid gap-6 min-w-0" style={{ gridTemplateColumns: 'repeat(6, minmax(300px, 1fr))' }}>
+                      {['pending', 'confirmed', 'preparing', 'delivering', 'delivered', 'cancelled'].map((status) => {
                         const statusInfo = getDeliveryStatusInfo(status as DeliveryOrder['status']);
-                        const ordersInStatus = deliveryOrders.filter(order => order.status === status);
+                        const ordersInStatus = filteredOrders.filter(order => order.status === status);
 
                         return (
-                          <div key={status} className="space-y-4">
+                          <div key={status} className="space-y-4 min-w-0">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-3">
                                 <div className={`p-2 rounded-lg ${statusInfo.bgColor}`}>
@@ -2890,91 +3052,87 @@ export default function Settings() {
                               {ordersInStatus.map((order) => (
                                 <div
                                   key={order.id}
-                                  className="p-6 rounded-lg border border-gray-200 bg-white shadow-sm"
+                                  className="p-4 sm:p-5 rounded-lg border border-gray-200 bg-white shadow-sm min-w-0 w-full"
                                 >
-                                  <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center space-x-3">
-                                      <div className="p-2 rounded-lg shadow-sm bg-blue-100">
+                                  <div className="flex justify-between items-start gap-2 mb-4">
+                                    <div className="flex items-center space-x-2 min-w-0">
+                                      <div className="p-1.5 rounded-lg shadow-sm bg-blue-100 shrink-0">
                                         <Truck className="w-4 h-4 text-blue-600" />
                                       </div>
-                                      <div>
-                                        <h4 className="font-semibold text-gray-900">
+                                      <div className="min-w-0">
+                                        <h4 className="font-semibold text-gray-900 truncate">
                                           #{order.id.substring(0, 8)}
                                         </h4>
-                                        <p className="text-sm text-gray-500">
+                                        <p className="text-xs text-gray-500 whitespace-nowrap">
                                           {new Date(order.createdAt).toLocaleString('pt-BR')}
                                         </p>
                                       </div>
                                     </div>
-                                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.bgColor} ${statusInfo.color}`}>
+                                    <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.bgColor} ${statusInfo.color}`}>
                                       {statusInfo.label}
-                                    </div>
+                                    </span>
                                   </div>
 
                                   {/* Informações do Cliente */}
-                                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                    <h5 className="font-medium text-gray-900 mb-2 text-sm flex items-center">
-                                      <Users className="w-4 h-4 mr-2 text-blue-600" />
+                                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100 min-w-0">
+                                    <h5 className="font-medium text-gray-900 mb-2 text-sm flex items-center shrink-0">
+                                      <Users className="w-4 h-4 mr-2 text-blue-600 shrink-0" />
                                       Cliente
                                     </h5>
-                                    <div className="space-y-1 text-sm">
-                                      <div className="flex items-center text-gray-700">
-                                        <span className="font-medium mr-2">Nome:</span>
-                                        <span>{order.customerName}</span>
+                                    <div className="space-y-1 text-sm min-w-0">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="font-medium shrink-0">Nome:</span>
+                                        <span className="truncate">{order.customerName}</span>
                                       </div>
-                                      <div className="flex items-center text-gray-700">
-                                        <Phone className="w-3 h-3 mr-2" />
-                                        <span>{order.customerPhone}</span>
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <Phone className="w-3 h-3 shrink-0" />
+                                        <span className="break-all">{order.customerPhone}</span>
                                       </div>
-                                      <div className="flex items-start text-gray-700">
-                                        <MapPin className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
-                                        <span className="flex-1">{order.customerAddress}</span>
+                                      <div className="flex items-start gap-2 min-w-0">
+                                        <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                        <span className="break-words">{order.customerAddress}</span>
                                       </div>
-                                      <div className="flex items-center text-gray-700">
-                                        <CreditCard className="w-3 h-3 mr-2" />
-                                        <span>{order.paymentMethod === 'money' ? 'Dinheiro' :
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <CreditCard className="w-3 h-3 shrink-0" />
+                                        <span className="shrink-0">{order.paymentMethod === 'money' ? 'Dinheiro' :
                                           order.paymentMethod === 'credit' ? 'Cartão de Crédito' :
                                             order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}</span>
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="mb-6">
-                                    <h5 className="font-medium text-gray-900 mb-3 flex items-center">
-                                      <Package className="w-4 h-4 mr-2 text-gray-500" />
+                                  <div className="mb-4 min-w-0">
+                                    <h5 className="font-medium text-gray-900 mb-2 text-sm flex items-center shrink-0">
+                                      <Package className="w-4 h-4 mr-2 text-gray-500 shrink-0" />
                                       Itens do Pedido
                                     </h5>
                                     <ul className="space-y-2">
                                       {order.items.map((item, index) => (
-                                        <li key={index} className="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-100">
-                                          <div className="flex justify-between items-start">
-                                            <div>
-                                              <span className="font-medium">{item.quantity}x {item.productName}</span>
-                                              {item.observations && (
-                                                <p className="text-xs text-gray-500 italic mt-1">
-                                                  Obs: {item.observations}
-                                                </p>
-                                              )}
-                                            </div>
-                                            <span className="font-semibold text-gray-900">
-                                              R$ {(item.price * item.quantity).toFixed(2)}
-                                            </span>
+                                        <li key={index} className="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-100 min-w-0">
+                                          <div className="flex justify-between items-start gap-2">
+                                            <span className="font-medium min-w-0 break-words">{item.quantity}x {item.productName}</span>
+                                            <span className="font-semibold text-gray-900 shrink-0 whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</span>
                                           </div>
+                                          {item.observations && (
+                                            <p className="text-xs text-gray-500 italic mt-1 break-words">
+                                              Obs: {item.observations}
+                                            </p>
+                                          )}
                                         </li>
                                       ))}
                                     </ul>
-                                    <div className="mt-3 pt-3 border-t border-gray-200">
-                                      <div className="flex justify-between items-center text-sm">
+                                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-1">
+                                      <div className="flex justify-between items-center text-sm gap-2">
                                         <span className="text-gray-600">Subtotal:</span>
-                                        <span className="font-semibold">R$ {order.total.toFixed(2)}</span>
+                                        <span className="font-semibold whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
                                       </div>
-                                      <div className="flex justify-between items-center text-sm">
+                                      <div className="flex justify-between items-center text-sm gap-2">
                                         <span className="text-gray-600">Taxa de entrega:</span>
-                                        <span className="font-semibold">R$ {order.deliveryFee.toFixed(2)}</span>
+                                        <span className="font-semibold whitespace-nowrap">R$ {order.deliveryFee.toFixed(2)}</span>
                                       </div>
-                                      <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
+                                      <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-2 border-t border-gray-200 gap-2">
                                         <span>Total:</span>
-                                        <span>R$ {(order.total + order.deliveryFee).toFixed(2)}</span>
+                                        <span className="whitespace-nowrap">R$ {(order.total + order.deliveryFee).toFixed(2)}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -3013,6 +3171,14 @@ export default function Settings() {
                                         Pedido Cancelado
                                       </div>
                                     )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedDeliveryOrder(order)}
+                                      className="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                                    >
+                                      Ver detalhes
+                                    </button>
                                   </div>
                                 </div>
                               ))}
@@ -3020,8 +3186,66 @@ export default function Settings() {
                           </div>
                         );
                       })}
+                      </div>
                     </div>
-                  )}
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Modal de detalhes do pedido de delivery */}
+              {selectedDeliveryOrder && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedDeliveryOrder(null)}>
+                  <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                    <div className="p-6 border-b flex justify-between items-center">
+                      <h3 className="text-xl font-semibold">Pedido #{selectedDeliveryOrder.id.substring(0, 8)}</h3>
+                      <button type="button" onClick={() => setSelectedDeliveryOrder(null)} className="p-2 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" /></button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <p className="text-sm text-gray-500">{new Date(selectedDeliveryOrder.createdAt).toLocaleString('pt-BR')} · {getDeliveryStatusInfo(selectedDeliveryOrder.status).label}</p>
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2">Cliente</h4>
+                        <p className="text-sm text-gray-700">{selectedDeliveryOrder.customerName}</p>
+                        <p className="text-sm text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedDeliveryOrder.customerPhone}</p>
+                        <p className="text-sm text-gray-700 flex items-start gap-1"><MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {selectedDeliveryOrder.customerAddress}</p>
+                        <p className="text-sm text-gray-600">Pagamento: {selectedDeliveryOrder.paymentMethod === 'money' ? 'Dinheiro' : selectedDeliveryOrder.paymentMethod === 'credit' ? 'Crédito' : selectedDeliveryOrder.paymentMethod === 'debit' ? 'Débito' : 'PIX'}</p>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2">Itens</h4>
+                        <ul className="space-y-1 text-sm">
+                          {selectedDeliveryOrder.items.map((item, i) => (
+                            <li key={i} className="flex justify-between">{item.quantity}x {item.productName} <span>R$ {(item.price * item.quantity).toFixed(2)}</span></li>
+                          ))}
+                        </ul>
+                        <div className="mt-2 pt-2 border-t text-sm flex justify-between"><span>Subtotal</span><span>R$ {selectedDeliveryOrder.total.toFixed(2)}</span></div>
+                        <div className="flex justify-between text-sm"><span>Taxa de entrega</span><span>R$ {selectedDeliveryOrder.deliveryFee.toFixed(2)}</span></div>
+                        <div className="flex justify-between font-semibold"><span>Total</span><span>R$ {(selectedDeliveryOrder.total + selectedDeliveryOrder.deliveryFee).toFixed(2)}</span></div>
+                      </div>
+                      {selectedDeliveryOrder.observations && <p className="text-sm text-gray-600"><strong>Obs.:</strong> {selectedDeliveryOrder.observations}</p>}
+                      {selectedDeliveryOrder.status === 'cancelled' && selectedDeliveryOrder.cancellationReason && <p className="text-sm text-red-600"><strong>Motivo do cancelamento:</strong> {selectedDeliveryOrder.cancellationReason}</p>}
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {getDeliveryStatusInfo(selectedDeliveryOrder.status).nextStatus && (
+                          <button
+                            onClick={async () => {
+                              await handleDeliveryStatusChange(selectedDeliveryOrder.id, getDeliveryStatusInfo(selectedDeliveryOrder.status).nextStatus!);
+                              setSelectedDeliveryOrder(null);
+                            }}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+                          >
+                            {getDeliveryStatusButtonText(selectedDeliveryOrder.status)}
+                          </button>
+                        )}
+                        {['pending', 'confirmed', 'preparing'].includes(selectedDeliveryOrder.status) && (
+                          <button
+                            onClick={() => { setOrderToCancel(selectedDeliveryOrder); setShowCancelModal(true); setSelectedDeliveryOrder(null); }}
+                            className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm hover:bg-red-50"
+                          >
+                            Recusar / Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -3694,7 +3918,7 @@ export default function Settings() {
                 className="mx-auto mb-4"
               />
               <p className="text-sm text-gray-600 mb-4">
-                URL: {generateTableUrl(qrCodeModal.numero)}
+                URL: {generateTableUrl(restaurantId ?? '', qrCodeModal.numero)}
               </p>
               <div className="flex space-x-2 justify-center">
                 <button

@@ -6,10 +6,15 @@ Sistema completo de gerenciamento de restaurantes com cardápio digital, control
 
 ### Variáveis de Ambiente
 
-Para usar a funcionalidade de tradução automática, crie um arquivo `.env` na raiz do projeto com:
+Crie um arquivo `.env` na raiz do projeto. Exemplo:
 
 ```bash
 VITE_OPENAI_API_KEY=sua_chave_openai_aqui
+
+# URL do app em produção (opcional). Usado nos QR codes das mesas.
+# Se não definir, os QR codes usam a URL de onde o app está aberto.
+# Na Netlify: defina em Site settings > Environment variables e faça um novo deploy.
+VITE_APP_URL=https://seu-site.netlify.app
 ```
 
 ### Instalação

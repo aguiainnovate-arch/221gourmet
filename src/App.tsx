@@ -72,15 +72,17 @@ function App() {
                 } />
                 <Route path="/delivery/:restaurantId/settings" element={<DeliverySettingsRedirect />} />
 
-                {/* Rota do QR code da mesa: /mesa/1 abre o cardápio da mesa 1 */}
+                {/* QR code da mesa: /:restaurantId/mesa/1 abre o cardápio do restaurante */}
                 <Route
-                  path="/mesa/:mesaId"
+                  path="/:restaurantId/mesa/:mesaId"
                   element={
                     <PrivateRoute>
                       <Menu />
                     </PrivateRoute>
                   }
                 />
+                {/* Antigo /mesa/1 sem restaurante: redireciona para delivery */}
+                <Route path="/mesa/:mesaId" element={<Navigate to="/delivery" replace />} />
 
                 {/* Rota de testing (pode ser desabilitada em produção) */}
                 {ENABLE_TESTING_ROUTE && (

@@ -5,7 +5,7 @@ interface PrivateRouteProps {
 }
 
 export default function PrivateRoute({ children }: PrivateRouteProps) {
-  const { mesaId } = useParams();
+  const { mesaId, restaurantId } = useParams();
   
   // Recupera a mesa original do sessionStorage
   const mesaOriginal = sessionStorage.getItem('mesa_id');
@@ -16,9 +16,10 @@ export default function PrivateRoute({ children }: PrivateRouteProps) {
     return <>{children}</>;
   }
   
-  // Se já há uma mesa definida e é diferente da atual, redireciona
+  // Se já há uma mesa definida e é diferente da atual, redireciona (mantendo o restaurante na URL)
   if (mesaOriginal !== mesaId) {
-    return <Navigate to={`/mesa/${mesaOriginal}`} replace />;
+    const to = restaurantId ? `/${restaurantId}/mesa/${mesaOriginal}` : `/mesa/${mesaOriginal}`;
+    return <Navigate to={to} replace />;
   }
 
   return <>{children}</>;

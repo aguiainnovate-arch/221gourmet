@@ -143,7 +143,16 @@ export const deleteTable = async (id: string): Promise<void> => {
   }
 };
 
-export const generateTableUrl = (numero: string): string => {
-  const base = import.meta.env.VITE_APP_URL || 'https://golden-gelato-091b37.netlify.app';
-  return `${base.replace(/\/$/, '')}/mesa/${numero}`;
+/**
+ * Gera a URL do cardápio da mesa para QR code. Inclui o restaurantId para o menu certo.
+ * Ordem da base: 1) VITE_APP_URL (produção), 2) origem atual no browser.
+ */
+export const generateTableUrl = (restaurantId: string, numero: string): string => {
+  const envBase = import.meta.env.VITE_APP_URL as string | undefined;
+  const base =
+    (envBase && envBase.trim()) ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
+  const baseClean = base.replace(/\/$/, '');
+  const path = `/${restaurantId}/mesa/${numero}`;
+  return baseClean ? `${baseClean}${path}` : path;
 };
