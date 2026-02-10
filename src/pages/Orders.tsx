@@ -2,130 +2,118 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
-    Clock,
-    CheckCircle,
-    Truck,
     MapPin,
     Phone,
-    CreditCard,
-    Package,
     RefreshCw,
     Receipt,
     Search,
-    Filter,
-    X,
     ChevronDown,
     ChevronUp,
-    AlertCircle,
-    User,
+    ChevronRight,
+    Filter,
     ShoppingBag
 } from 'lucide-react';
 import { getDeliveryOrdersByPhone } from '../services/deliveryService';
-import type { DeliveryOrder } from '../types/delivery';
+import type { DeliveryOrder, DeliveryOrderItem } from '../types/delivery';
 
-// Funções auxiliares
-const getStatusInfo = (status: DeliveryOrder['status']) => {
-    switch (status) {
-        case 'pending':
-            return {
-                label: 'Aguardando confirmação',
-                color: 'text-yellow-600',
-                bgColor: 'bg-yellow-100',
-                borderColor: 'border-yellow-200',
-                icon: Clock,
-                progress: 1,
-                description: 'Seu pedido foi recebido e está aguardando confirmação do restaurante'
-            };
-        case 'confirmed':
-            return {
-                label: 'Confirmado',
-                color: 'text-blue-600',
-                bgColor: 'bg-blue-100',
-                borderColor: 'border-blue-200',
-                icon: CheckCircle,
-                progress: 2,
-                description: 'Restaurante confirmou seu pedido e começará o preparo'
-            };
-        case 'preparing':
-            return {
-                label: 'Preparando',
-                color: 'text-orange-600',
-                bgColor: 'bg-orange-100',
-                borderColor: 'border-orange-200',
-                icon: Package,
-                progress: 3,
-                description: 'Seu pedido está sendo preparado pela cozinha'
-            };
-        case 'delivering':
-            return {
-                label: 'Saindo para entrega',
-                color: 'text-purple-600',
-                bgColor: 'bg-purple-100',
-                borderColor: 'border-purple-200',
-                icon: Truck,
-                progress: 4,
-                description: 'Seu pedido saiu para entrega e está a caminho'
-            };
-        case 'delivered':
-            return {
-                label: 'Entregue',
-                color: 'text-green-600',
-                bgColor: 'bg-green-100',
-                borderColor: 'border-green-200',
-                icon: CheckCircle,
-                progress: 5,
-                description: 'Pedido entregue com sucesso! Aproveite sua refeição'
-            };
-        case 'cancelled':
-            return {
-                label: 'Cancelado',
-                color: 'text-red-600',
-                bgColor: 'bg-red-100',
-                borderColor: 'border-red-200',
-                icon: X,
-                progress: 0,
-                description: 'Este pedido foi cancelado'
-            };
-        default:
-            return {
-                label: 'Desconhecido',
-                color: 'text-gray-600',
-                bgColor: 'bg-gray-100',
-                borderColor: 'border-gray-200',
-                icon: AlertCircle,
-                progress: 0,
-                description: 'Status desconhecido'
-            };
-    }
+const formatDate = (d: Date) =>
+    new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(d instanceof Date ? d : new Date(d));
+
+const formatDateShort = (d: Date) =>
+    new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(d instanceof Date ? d : new Date(d));
+
+const formatCurrency = (v: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+const paymentLabel: Record<string, string> = {
+    money: 'Dinheiro',
+    credit: 'Cartão de crédito',
+    debit: 'Cartão de débito',
+    pix: 'PIX',
 };
 
-const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-
-    if (diffInHours < 1) {
-        return 'Há poucos minutos';
-    } else if (diffInHours < 24) {
-        return `Há ${diffInHours}h`;
-    } else {
-        return new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        }).format(date);
-    }
+// Status: badge + progresso compacto (Etapa X/5)
+const STATUS_CONFIG: Record<
+    DeliveryOrder['status'],
+    { label: string; step: number; stepLabel: string; badgeClass: string; progressClass: string }
+> = {
+    pending: {
+        label: 'Aguardando confirmação',
+        step: 1,
+        stepLabel: 'Etapa 1/5: Aguardando confirmação',
+        badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+        progressClass: 'bg-amber-500',
+    },
+    confirmed: {
+        label: 'Confirmado',
+        step: 2,
+        stepLabel: 'Etapa 2/5: Confirmado',
+        badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+        progressClass: 'bg-blue-500',
+    },
+    preparing: {
+        label: 'Em preparo',
+        step: 3,
+        stepLabel: 'Etapa 3/5: Em preparo',
+        badgeClass: 'bg-orange-100 text-orange-800 border-orange-200',
+        progressClass: 'bg-orange-500',
+    },
+    delivering: {
+        label: 'Saiu para entrega',
+        step: 4,
+        stepLabel: 'Etapa 4/5: Saiu para entrega',
+        badgeClass: 'bg-violet-100 text-violet-800 border-violet-200',
+        progressClass: 'bg-violet-500',
+    },
+    delivered: {
+        label: 'Entregue',
+        step: 5,
+        stepLabel: 'Entregue',
+        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        progressClass: 'bg-emerald-500',
+    },
+    cancelled: {
+        label: 'Cancelado',
+        step: 0,
+        stepLabel: 'Cancelado',
+        badgeClass: 'bg-gray-100 text-gray-600 border-gray-200',
+        progressClass: 'bg-gray-300',
+    },
 };
 
-const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-    }).format(value);
-};
+// Resumo: 2–3 itens + "+N itens"
+function getOrderSummary(order: DeliveryOrder, maxItems = 3): string {
+    const items = order.items || [];
+    if (items.length === 0) return 'Pedido sem itens';
+    const parts = items.slice(0, maxItems).map((i) => `${i.quantity}x ${i.productName}`);
+    const rest = items.length - maxItems;
+    if (rest > 0) return `${parts.join(', ')} +${rest} ${rest === 1 ? 'item' : 'itens'}`;
+    return parts.join(', ');
+}
 
-// Componente separado para cada pedido para evitar conflitos de renderização
+// Referência amigável (sem ID interno)
+function getOrderReference(order: DeliveryOrder): string {
+    const d = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
+    return `Pedido de ${formatDateShort(d)}`;
+}
+
+function truncate(str: string, max: number): string {
+    if (!str?.trim()) return '';
+    const s = str.trim();
+    return s.length <= max ? s : s.slice(0, max) + '…';
+}
+
 const OrderCard = memo(({
     order,
     isExpanded,
@@ -135,174 +123,135 @@ const OrderCard = memo(({
     isExpanded: boolean;
     onToggleExpansion: (orderId: string) => void;
 }) => {
-    const statusInfo = getStatusInfo(order.status);
-    const StatusIcon = statusInfo.icon;
-
-    console.log(`Renderizando pedido ${order.id.substring(0, 8)}, expandido: ${isExpanded}`);
+    const config = STATUS_CONFIG[order.status];
+    const summary = getOrderSummary(order);
+    const reference = getOrderReference(order);
+    const progressPct = config.step > 0 ? (config.step / 5) * 100 : 0;
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            {/* Header do Pedido */}
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
             <div className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-start space-x-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${statusInfo.bgColor}`}>
-                            <StatusIcon className={`w-5 h-5 ${statusInfo.color}`} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-1">
-                                Pedido #{order.id.substring(0, 8)}
-                            </h3>
-                            <p className="text-sm text-gray-600">{order.restaurantName}</p>
-                            <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
-                        </div>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-bold text-gray-900 truncate">{order.restaurantName}</h3>
+                        <p className="text-sm text-gray-500 mt-0.5">{reference}</p>
                     </div>
-                    <div className="text-right">
-                        <div className={`px-2 py-1 rounded-full text-xs font-semibold ${statusInfo.bgColor} ${statusInfo.color}`}>
-                            {statusInfo.label}
-                        </div>
-                        <p className="text-lg font-bold text-gray-900 mt-1">
-                            {formatCurrency(order.total + order.deliveryFee)}
-                        </p>
-                    </div>
+                    <span className={`shrink-0 px-2.5 py-1 text-xs font-semibold border rounded-lg ${config.badgeClass}`}>
+                        {config.label}
+                    </span>
                 </div>
 
-                {/* Timeline de Progresso */}
-                <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-semibold text-gray-900">Status</h4>
-                        <div className="flex items-center space-x-1">
-                            <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
-                            <span className={`text-xs font-medium ${statusInfo.color}`}>
-                                {statusInfo.label}
-                            </span>
-                        </div>
-                    </div>
+                <p className="text-xs text-gray-500 mt-1">Entrega · {formatDate(order.createdAt)}</p>
 
-                    <div className="relative">
-                        <div className="flex items-center justify-between">
-                            {[
-                                { step: 1, label: 'Pedido', icon: Clock },
-                                { step: 2, label: 'Confirmado', icon: CheckCircle },
-                                { step: 3, label: 'Preparando', icon: Package },
-                                { step: 4, label: 'Saindo', icon: Truck },
-                                { step: 5, label: 'Entregue', icon: CheckCircle }
-                            ].map((step) => {
-                                const StepIcon = step.icon;
-                                const isCompleted = statusInfo.progress >= step.step;
-                                const isCurrent = statusInfo.progress === step.step;
-
-                                return (
-                                    <div key={step.step} className="flex flex-col items-center">
-                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${isCompleted
-                                            ? 'bg-green-500 border-green-500 text-white'
-                                            : isCurrent
-                                                ? 'bg-red-500 border-red-500 text-white'
-                                                : 'bg-gray-100 border-gray-300 text-gray-400'
-                                            }`}>
-                                            <StepIcon className="w-3 h-3" />
-                                        </div>
-                                        <span className={`text-xs font-medium mt-1 text-center ${isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'
-                                            }`}>
-                                            {step.label}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Linha de progresso */}
-                        <div className="absolute top-3 left-3 right-3 h-0.5 bg-gray-200 -z-10">
+                {config.step > 0 && config.step < 5 && (
+                    <div className="mt-2">
+                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-green-500 transition-all duration-500"
-                                style={{ width: `${(statusInfo.progress / 5) * 100}%` }}
+                                className={`h-full ${config.progressClass} rounded-full transition-colors`}
+                                style={{ width: `${progressPct}%` }}
                             />
                         </div>
+                        <p className="text-xs text-gray-600 mt-1">{config.stepLabel}</p>
                     </div>
-                </div>
+                )}
+            </div>
 
-                {/* Informações Resumidas */}
-                <div className="space-y-2 mb-3">
-                    <div className="flex items-center space-x-2 text-xs text-gray-600">
-                        <User className="w-3 h-3" />
-                        <span className="truncate">{order.customerName}</span>
+            <div className="px-4 pb-3">
+                <p className="text-sm text-gray-700 leading-snug">
+                    {order.items?.length ? (
+                        <>
+                            {summary}
+                            {order.observations?.trim() && (
+                                <span className="block mt-1 text-gray-500 text-xs">
+                                    Obs.: {truncate(order.observations, 60)}
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        `Pedido com ${order.items?.length || 0} itens`
+                    )}
+                </p>
+                {order.customerAddress?.trim() && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
+                        <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                        <span className="truncate">{truncate(order.customerAddress, 50)}</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-xs text-gray-600">
-                        <MapPin className="w-3 h-3" />
-                        <span className="truncate">{order.customerAddress}</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-xs text-gray-600">
-                        <CreditCard className="w-3 h-3" />
-                        <span>{order.paymentMethod === 'money' ? 'Dinheiro' :
-                            order.paymentMethod === 'credit' ? 'Cartão de Crédito' :
-                                order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}</span>
-                    </div>
-                </div>
+                )}
+            </div>
 
-                {/* Botão para expandir/recolher */}
+            <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/60 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-base font-bold text-gray-900">
+                    {formatCurrency(order.total + order.deliveryFee)}
+                </span>
                 <button
                     onClick={() => onToggleExpansion(order.id)}
-                    className="w-full flex items-center justify-center space-x-1 py-2 text-xs text-gray-600 hover:text-gray-900 transition-colors"
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold"
                 >
-                    <span className="font-medium">
-                        {isExpanded ? 'Ver menos' : 'Ver mais'}
-                    </span>
-                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    Ver detalhes
+                    <ChevronRight className="w-4 h-4" />
                 </button>
             </div>
 
-            {/* Detalhes Expandidos */}
             {isExpanded && (
-                <div className="border-t border-gray-100 p-4 bg-gray-50">
-                    <div className="text-xs text-gray-500 mb-2">
-                        DEBUG: Pedido {order.id.substring(0, 8)} está expandido
+                <div className="border-t border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-gray-900">Detalhes do pedido</h4>
+                        <button
+                            onClick={() => onToggleExpansion(order.id)}
+                            className="p-1 rounded-lg hover:bg-gray-200 text-gray-600"
+                            aria-label="Fechar"
+                        >
+                            <ChevronUp className="w-4 h-4" />
+                        </button>
                     </div>
-                    <div className="space-y-4">
-                        {/* Itens do Pedido */}
+                    <div className="space-y-3">
                         <div>
-                            <h5 className="font-semibold text-gray-900 mb-2 flex items-center text-sm">
-                                <ShoppingBag className="w-4 h-4 mr-2 text-gray-500" />
-                                Itens do Pedido
+                            <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                Itens
                             </h5>
-                            <div className="space-y-2">
-                                {order.items.map((item, index) => (
-                                    <div key={index} className="flex justify-between items-start bg-white p-2 rounded text-xs">
-                                        <div className="flex-1">
-                                            <p className="font-medium text-gray-900">
-                                                {item.quantity}x {item.productName}
-                                            </p>
+                            <ul className="space-y-1.5">
+                                {(order.items || []).map((item: DeliveryOrderItem, idx: number) => (
+                                    <li key={idx} className="flex justify-between text-sm">
+                                        <span className="text-gray-800">
+                                            {item.quantity}x {item.productName}
                                             {item.observations && (
-                                                <p className="text-gray-500 italic">
-                                                    Obs: {item.observations}
-                                                </p>
+                                                <span className="text-gray-500 text-xs block">Obs.: {item.observations}</span>
                                             )}
-                                        </div>
-                                        <span className="font-semibold text-gray-900 ml-2">
+                                        </span>
+                                        <span className="font-medium text-gray-900">
                                             {formatCurrency(item.price * item.quantity)}
                                         </span>
-                                    </div>
+                                    </li>
                                 ))}
+                            </ul>
+                        </div>
+                        {order.customerAddress?.trim() && (
+                            <div>
+                                <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                    <MapPin className="w-3.5 h-3.5" />
+                                    Endereço de entrega
+                                </h5>
+                                <p className="text-sm text-gray-700">{order.customerAddress}</p>
+                            </div>
+                        )}
+                        <div className="pt-2 border-t border-gray-200 space-y-1 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Subtotal</span>
+                                <span className="font-medium">{formatCurrency(order.total)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Taxa de entrega</span>
+                                <span className="font-medium">{formatCurrency(order.deliveryFee)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-gray-900 pt-1">
+                                <span>Total</span>
+                                <span>{formatCurrency(order.total + order.deliveryFee)}</span>
                             </div>
                         </div>
-
-                        {/* Resumo Financeiro */}
-                        <div className="bg-white rounded p-3">
-                            <h5 className="font-semibold text-gray-900 mb-2 text-sm">Resumo</h5>
-                            <div className="space-y-1 text-xs">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-600">Subtotal:</span>
-                                    <span className="font-semibold">{formatCurrency(order.total)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-600">Taxa de entrega:</span>
-                                    <span className="font-semibold">{formatCurrency(order.deliveryFee)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-200">
-                                    <span>Total:</span>
-                                    <span>{formatCurrency(order.total + order.deliveryFee)}</span>
-                                </div>
-                            </div>
-                        </div>
+                        <p className="text-xs text-gray-500">
+                            Pagamento: {paymentLabel[order.paymentMethod] || order.paymentMethod}
+                        </p>
                     </div>
                 </div>
             )}
@@ -366,22 +315,13 @@ export default function Orders() {
 
 
     const toggleOrderExpansion = useCallback((orderId: string) => {
-        console.log('Toggle para pedido:', orderId);
-        setExpandedOrders(prev => {
-            const newState = { ...prev };
-            newState[orderId] = !prev[orderId];
-            console.log('Novo estado de expansão:', newState);
-            return newState;
-        });
+        setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
     }, []);
 
     const filteredOrders = orders.filter(order => {
         if (selectedStatus === 'all') return true;
         return order.status === selectedStatus;
     });
-
-    // Debug: verificar se há IDs duplicados
-    console.log('Pedidos filtrados:', filteredOrders.map(o => o.id.substring(0, 8)));
 
     const statusOptions = [
         { value: 'all', label: 'Todos os pedidos', count: orders.length },
@@ -439,7 +379,7 @@ export default function Orders() {
                                             value={searchPhone}
                                             onChange={(e) => setSearchPhone(e.target.value)}
                                             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                         />
                                     </div>
                                 </div>

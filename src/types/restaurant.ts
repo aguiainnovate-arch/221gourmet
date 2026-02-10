@@ -1,3 +1,12 @@
+export interface DeliveryFeeRule {
+  baseFee: number;
+  perKmFee: number;
+  maxRadiusKm: number;
+  minFee?: number;
+  maxFee?: number;
+  freeDeliveryAboveSubtotal?: number;
+}
+
 export interface Restaurant {
   id: string;
   name: string;
