@@ -1,4 +1,4 @@
-// Configuração de cores do projeto 221Gourmet
+// Configuração de cores do projeto Noctis
 // Este arquivo centraliza todas as cores principais para fácil customização
 
 export const colors = {

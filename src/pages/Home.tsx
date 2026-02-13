@@ -33,7 +33,7 @@ export default function Home() {
     if (settings?.restaurantName) {
       document.title = settings.restaurantName;
     } else {
-      document.title = '221 Gourmet';
+      document.title = 'Noctis';
     }
   }, [settings?.restaurantName]);
 
@@ -53,7 +53,7 @@ export default function Home() {
           </div>
         )}
         
-        <h1 className="text-4xl font-bold text-center mb-8">{settings?.restaurantName || '221 Gourmet'}</h1>
+        <h1 className="text-4xl font-bold text-center mb-8">{settings?.restaurantName || 'Noctis'}</h1>
         
         <div className="bg-white p-6 rounded-lg shadow mb-6">
           <h2 className="text-2xl font-bold mb-4">Teste de Mesas</h2>

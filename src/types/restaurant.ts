@@ -1,3 +1,13 @@
+/** Regra de taxa de entrega por distância (base + por km, min/máx, isenção por subtotal). */
+export interface DeliveryFeeRule {
+  baseFee: number;
+  perKmFee: number;
+  maxRadiusKm: number;
+  minFee?: number;
+  maxFee?: number;
+  freeDeliveryAboveSubtotal?: number;
+}
+
 export interface Restaurant {
   id: string;
   name: string;

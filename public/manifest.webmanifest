@@ -1,0 +1,23 @@
+{
+  "name": "Noctis",
+  "short_name": "Noctis",
+  "description": "Sua comida favorita em casa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050A1A",
+  "theme_color": "#050A1A",
+  "icons": [
+    {
+      "src": "/logoDelivery.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logoDelivery.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

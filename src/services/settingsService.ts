@@ -21,7 +21,7 @@ const SETTINGS_DOC_ID = 'restaurant-config';
 
 // Configurações padrão
 const DEFAULT_SETTINGS: Omit<RestaurantSettings, 'id' | 'updatedAt'> = {
-  restaurantName: '221 Gourmet',
+  restaurantName: 'Noctis',
   primaryColor: '#92400e', // amber-800
   secondaryColor: '#fffbeb', // amber-50
   bannerUrl: '',

@@ -24,7 +24,7 @@ export default function Staff() {
     if (settings?.restaurantName) {
       document.title = `${settings.restaurantName} - Cozinha`;
     } else {
-      document.title = '221 Gourmet - Cozinha';
+      document.title = 'Noctis - Cozinha';
     }
   }, [settings?.restaurantName]);
 

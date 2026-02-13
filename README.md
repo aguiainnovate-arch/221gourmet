@@ -1,4 +1,4 @@
-# 221gourmet - Sistema de Gerenciamento de Restaurantes
+# Noctis - Sistema de Gerenciamento de Restaurantes
 
 Sistema completo de gerenciamento de restaurantes com cardápio digital, controle de pedidos e tradução automática.
 
