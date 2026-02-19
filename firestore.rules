@@ -65,6 +65,14 @@ service cloud.firestore {
     match /tableAuditEvents/{document} {
       allow read, write: if true;
     }
+
+    match /deliveryRequests/{document} {
+      allow read, write: if true;
+    }
+
+    match /motoboyDailyFinances/{document} {
+      allow read, write: if true;
+    }
     
     // Regra padrão - negar acesso a outras coleções
     match /{document=**} {

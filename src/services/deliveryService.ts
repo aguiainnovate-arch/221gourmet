@@ -2,6 +2,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   doc,
   query,
@@ -28,6 +29,7 @@ function docToOrder(docId: string, data: Record<string, unknown>): DeliveryOrder
     items: (data.items as DeliveryOrder['items']) || [],
     total: (data.total as number) ?? 0,
     status: (data.status as DeliveryOrder['status']) || 'pending',
+    motoboyUserId: data.motoboyUserId as string | null | undefined,
     paymentMethod: (data.paymentMethod as DeliveryOrder['paymentMethod']) || 'money',
     deliveryFee: (data.deliveryFee as number) ?? 0,
     observations: data.observations as string | undefined,
@@ -46,6 +48,19 @@ const translatePaymentMethod = (method: string): string => {
     'pix': 'PIX'
   };
   return labels[method] || method;
+};
+
+/** Buscar um pedido de delivery por ID (para painel do motoboy, etc.) */
+export const getDeliveryOrderById = async (orderId: string): Promise<DeliveryOrder | null> => {
+  try {
+    const orderRef = doc(db, 'deliveries', orderId);
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) return null;
+    return docToOrder(snap.id, snap.data());
+  } catch (error) {
+    console.error('Erro ao buscar pedido:', error);
+    return null;
+  }
 };
 
 // Buscar pedidos de delivery por cliente (usando telefone como identificador)
@@ -78,6 +93,30 @@ export const getDeliveryOrdersByPhone = async (phone: string): Promise<DeliveryO
   }
 };
 
+/**
+ * Inscreve para atualizações em tempo real dos pedidos do cliente (por telefone).
+ * Qualquer mudança de status no Firestore atualiza a lista na hora.
+ * Retorna função para cancelar a inscrição.
+ */
+export function subscribeDeliveryOrdersByPhone(
+  phone: string,
+  onOrders: (orders: DeliveryOrder[]) => void
+): () => void {
+  const q = query(
+    collection(db, 'deliveries'),
+    where('customerPhone', '==', phone)
+  );
+  return onSnapshot(q, (snapshot) => {
+    const orders: DeliveryOrder[] = snapshot.docs.map((d) =>
+      docToOrder(d.id, d.data())
+    );
+    orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    onOrders(orders);
+  }, (err) => {
+    console.error('Erro no listener de pedidos por telefone:', err);
+  });
+}
+
 // Atualizar status do pedido
 export const updateDeliveryOrderStatus = async (orderId: string, status: DeliveryOrder['status']): Promise<void> => {
   try {
@@ -88,6 +127,24 @@ export const updateDeliveryOrderStatus = async (orderId: string, status: Deliver
     });
   } catch (error) {
     console.error('Erro ao atualizar status do pedido:', error);
+    throw new Error('Falha ao atualizar pedido');
+  }
+};
+
+/** Atualiza pedido quando motoboy aceita: status delivering + motoboyUserId */
+export const assignMotoboyToDeliveryOrder = async (
+  orderId: string,
+  motoboyUserId: string
+): Promise<void> => {
+  try {
+    const orderRef = doc(db, 'deliveries', orderId);
+    await updateDoc(orderRef, {
+      status: 'delivering',
+      motoboyUserId,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Erro ao atribuir motoboy ao pedido:', error);
     throw new Error('Falha ao atualizar pedido');
   }
 };
@@ -203,31 +260,30 @@ export const getDeliveryOrdersByRestaurant = async (restaurantId: string): Promi
     const querySnapshot = await getDocs(q);
 
     const orders: DeliveryOrder[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      orders.push({
-        id: doc.id,
-        restaurantId: data.restaurantId,
-        restaurantName: data.restaurantName,
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerAddress: data.customerAddress,
-        items: data.items,
-        total: data.total,
-        status: data.status,
-        paymentMethod: data.paymentMethod,
-        deliveryFee: data.deliveryFee,
-        observations: data.observations,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      });
+    querySnapshot.forEach((d) => {
+      orders.push(docToOrder(d.id, d.data()));
     });
 
-    // Ordenar no cliente por data de criação (mais recente primeiro)
     return orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   } catch (error) {
     console.error('Erro ao buscar pedidos por restaurante:', error);
     throw new Error('Falha ao buscar pedidos por restaurante');
+  }
+};
+
+/** Buscar pedidos atribuídos a um motoboy (para métricas e histórico). */
+export const getDeliveryOrdersByMotoboy = async (motoboyUserId: string): Promise<DeliveryOrder[]> => {
+  try {
+    const q = query(
+      collection(db, 'deliveries'),
+      where('motoboyUserId', '==', motoboyUserId)
+    );
+    const snapshot = await getDocs(q);
+    const orders = snapshot.docs.map((d) => docToOrder(d.id, d.data()));
+    return orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  } catch (error) {
+    console.error('Erro ao buscar pedidos por motoboy:', error);
+    return [];
   }
 };
 

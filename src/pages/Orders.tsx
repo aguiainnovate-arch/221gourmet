@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ArrowLeft,
     Clock,
@@ -20,7 +20,7 @@ import {
     User,
     ShoppingBag
 } from 'lucide-react';
-import { getDeliveryOrdersByPhone } from '../services/deliveryService';
+import { getDeliveryOrdersByPhone, subscribeDeliveryOrdersByPhone } from '../services/deliveryService';
 import type { DeliveryOrder } from '../types/delivery';
 
 // Funções auxiliares
@@ -56,6 +56,16 @@ const getStatusInfo = (status: DeliveryOrder['status']) => {
                 progress: 3,
                 description: 'Seu pedido está sendo preparado pela cozinha'
             };
+        case 'ready_for_delivery':
+            return {
+                label: 'Pronto para entrega',
+                color: 'text-teal-600',
+                bgColor: 'bg-teal-100',
+                borderColor: 'border-teal-200',
+                icon: Truck,
+                progress: 4,
+                description: 'Pedido pronto. O restaurante está chamando um motoboy para a entrega'
+            };
         case 'delivering':
             return {
                 label: 'Saindo para entrega',
@@ -63,8 +73,8 @@ const getStatusInfo = (status: DeliveryOrder['status']) => {
                 bgColor: 'bg-purple-100',
                 borderColor: 'border-purple-200',
                 icon: Truck,
-                progress: 4,
-                description: 'Seu pedido saiu para entrega e está a caminho'
+                progress: 5,
+                description: 'Motoboy a caminho com seu pedido'
             };
         case 'delivered':
             return {
@@ -73,7 +83,7 @@ const getStatusInfo = (status: DeliveryOrder['status']) => {
                 bgColor: 'bg-green-100',
                 borderColor: 'border-green-200',
                 icon: CheckCircle,
-                progress: 5,
+                progress: 6,
                 description: 'Pedido entregue com sucesso! Aproveite sua refeição'
             };
         case 'cancelled':
@@ -185,8 +195,9 @@ const OrderCard = memo(({
                                 { step: 1, label: 'Pedido', icon: Clock },
                                 { step: 2, label: 'Confirmado', icon: CheckCircle },
                                 { step: 3, label: 'Preparando', icon: Package },
-                                { step: 4, label: 'Saindo', icon: Truck },
-                                { step: 5, label: 'Entregue', icon: CheckCircle }
+                                { step: 4, label: 'Pronto p/ entrega', icon: Truck },
+                                { step: 5, label: 'Saindo', icon: Truck },
+                                { step: 6, label: 'Entregue', icon: CheckCircle }
                             ].map((step) => {
                                 const StepIcon = step.icon;
                                 const isCompleted = statusInfo.progress >= step.step;
@@ -215,7 +226,7 @@ const OrderCard = memo(({
                         <div className="absolute top-3 left-3 right-3 h-0.5 bg-gray-200 -z-10">
                             <div
                                 className="h-full bg-green-500 transition-all duration-500"
-                                style={{ width: `${(statusInfo.progress / 5) * 100}%` }}
+                                style={{ width: `${(statusInfo.progress / 6) * 100}%` }}
                             />
                         </div>
                     </div>
@@ -288,14 +299,14 @@ const OrderCard = memo(({
                         {/* Resumo Financeiro */}
                         <div className="bg-white rounded p-3">
                             <h5 className="font-semibold text-gray-900 mb-2 text-sm">Resumo</h5>
-                            <div className="space-y-1 text-xs">
+                            <div className="space-y-1 text-xs text-gray-800">
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Subtotal:</span>
-                                    <span className="font-semibold">{formatCurrency(order.total)}</span>
+                                    <span className="text-gray-700">Subtotal:</span>
+                                    <span className="font-semibold text-gray-900">{formatCurrency(order.total)}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Taxa de entrega:</span>
-                                    <span className="font-semibold">{formatCurrency(order.deliveryFee)}</span>
+                                    <span className="text-gray-700">Taxa de entrega:</span>
+                                    <span className="font-semibold text-gray-900">{formatCurrency(order.deliveryFee)}</span>
                                 </div>
                                 <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-200">
                                     <span>Total:</span>
@@ -312,6 +323,7 @@ const OrderCard = memo(({
 
 export default function Orders() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [orders, setOrders] = useState<DeliveryOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [customerPhone, setCustomerPhone] = useState('');
@@ -322,27 +334,30 @@ export default function Orders() {
     const [autoRefresh, setAutoRefresh] = useState(true);
 
     useEffect(() => {
-        // Tentar buscar pedidos se já tiver um telefone salvo
+        const phoneFromState = (location.state as { phone?: string } | null)?.phone?.trim();
         const savedPhone = localStorage.getItem('customerPhone');
-        if (savedPhone) {
-            setCustomerPhone(savedPhone);
-            setSearchPhone(savedPhone);
-            loadOrders(savedPhone);
+        const phoneToUse = phoneFromState || savedPhone;
+        if (phoneToUse) {
+            setCustomerPhone(phoneToUse);
+            setSearchPhone(phoneToUse);
+            if (phoneFromState) localStorage.setItem('customerPhone', phoneFromState);
         } else {
             setLoading(false);
         }
     }, []);
 
-    // Auto-refresh a cada 30 segundos
+    // Atualização em tempo real: escuta mudanças no Firestore (status, etc.)
     useEffect(() => {
-        if (!autoRefresh || !customerPhone) return;
+        if (!customerPhone) return;
 
-        const interval = setInterval(() => {
-            loadOrders(customerPhone);
-        }, 30000);
+        setLoading(true);
+        const unsubscribe = subscribeDeliveryOrdersByPhone(customerPhone, (ordersData) => {
+            setOrders(ordersData);
+            setLoading(false);
+        });
 
-        return () => clearInterval(interval);
-    }, [autoRefresh, customerPhone]);
+        return () => unsubscribe();
+    }, [customerPhone]);
 
     const loadOrders = async (phone: string) => {
         try {
