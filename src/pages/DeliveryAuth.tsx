@@ -5,8 +5,9 @@ import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
 import { saveDeliveryUser, getDeliveryUserByEmail } from '../services/deliveryUserService';
+import { getAppUserByEmail } from '../services/userService';
 
-type Step = 'email' | 'restaurant_password' | 'delivery_register';
+type Step = 'email' | 'restaurant_password' | 'motoboy_password' | 'delivery_register';
 
 export default function DeliveryAuth() {
   const navigate = useNavigate();
@@ -60,6 +61,15 @@ export default function DeliveryAuth() {
         return;
       }
 
+      const appUser = await getAppUserByEmail(emailTrim);
+      if (appUser && appUser.role === 'MOTOBOY') {
+        setRestaurantId(null);
+        setRestaurantEmail(emailTrim);
+        setPassword('');
+        setStep('motoboy_password');
+        return;
+      }
+
       const deliveryUser = await getDeliveryUserByEmail(emailTrim);
       if (deliveryUser) {
         await deliveryLogin(deliveryUser.id);
@@ -91,6 +101,32 @@ export default function DeliveryAuth() {
       const success = await restaurantLogin(restaurantEmail, password);
       if (success) {
         navigate(`/${restaurantId}/settings`, { replace: true });
+      } else {
+        setError('Senha incorreta. Tente novamente.');
+      }
+    } catch (err) {
+      console.error('Erro ao fazer login:', err);
+      setError('Erro ao entrar. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /** Login motoboy: email já identificado, usuário digitou senha */
+  const handleMotoboyLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!password.trim()) {
+      setError('Informe sua senha.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const success = await restaurantLogin(restaurantEmail, password);
+      if (success) {
+        const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+        navigate(returnUrl && returnUrl.startsWith('/motoboy') ? returnUrl : '/motoboy', { replace: true });
       } else {
         setError('Senha incorreta. Tente novamente.');
       }
@@ -160,9 +196,11 @@ export default function DeliveryAuth() {
           <p className="text-white/90 text-sm max-w-sm leading-relaxed">
             {step === 'restaurant_password'
               ? 'Este email é de um restaurante. Digite sua senha para acessar as configurações.'
-              : step === 'delivery_register'
-                ? 'Preencha seus dados para criar sua conta e pedir com mais facilidade.'
-                : 'Entre com seu email. Se for restaurante, você poderá acessar as configurações.'}
+              : step === 'motoboy_password'
+                ? 'Digite sua senha para acessar o painel do motoboy.'
+                : step === 'delivery_register'
+                  ? 'Preencha seus dados para criar sua conta e pedir com mais facilidade.'
+                  : 'Entre com seu email. Restaurante, motoboy ou cliente delivery.'}
           </p>
         </div>
         <p className="text-white/70 text-xs">
@@ -184,11 +222,13 @@ export default function DeliveryAuth() {
             <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
               {step === 'email' && 'Entrar na sua conta'}
               {step === 'restaurant_password' && 'Acesso do restaurante'}
+              {step === 'motoboy_password' && 'Acesso do motoboy'}
               {step === 'delivery_register' && 'Criar conta'}
             </h1>
             <p className="mt-1 text-gray-600 text-sm">
-              {step === 'email' && 'Informe seu email. Se for restaurante, você digitará a senha em seguida.'}
+              {step === 'email' && 'Informe seu email. Restaurante, motoboy ou cliente — você digitará a senha se for o caso.'}
               {step === 'restaurant_password' && 'Digite sua senha para acessar as configurações do restaurante.'}
+              {step === 'motoboy_password' && 'Digite sua senha para acessar o painel do motoboy.'}
               {step === 'delivery_register' && 'Preencha seus dados para começar a pedir.'}
             </p>
           </div>
@@ -210,7 +250,7 @@ export default function DeliveryAuth() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="seu@email.com"
                     required
                     autoComplete="username"
@@ -247,7 +287,7 @@ export default function DeliveryAuth() {
                     type="email"
                     value={restaurantEmail}
                     readOnly
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 text-sm"
                   />
                 </div>
               </div>
@@ -259,7 +299,56 @@ export default function DeliveryAuth() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
+                    placeholder="Sua senha"
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={goBackToEmail}
+                  className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold text-sm transition-colors"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md"
+                >
+                  {isSubmitting ? 'Entrando...' : 'Entrar'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Passo: senha do motoboy */}
+          {step === 'motoboy_password' && (
+            <form onSubmit={handleMotoboyLogin} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="email"
+                    value={restaurantEmail}
+                    readOnly
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Senha</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="Sua senha"
                     required
                     autoComplete="current-password"
@@ -296,7 +385,7 @@ export default function DeliveryAuth() {
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="Seu nome completo"
                     required
                   />
@@ -310,7 +399,7 @@ export default function DeliveryAuth() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="seu@email.com"
                     required
                   />
@@ -324,7 +413,7 @@ export default function DeliveryAuth() {
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -337,7 +426,7 @@ export default function DeliveryAuth() {
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm resize-none"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm resize-none text-gray-900 placeholder:text-gray-500 bg-white"
                     rows={2}
                     placeholder="Rua, número, complemento, bairro, cidade"
                     required
@@ -351,7 +440,7 @@ export default function DeliveryAuth() {
                   <select
                     value={defaultPaymentMethod}
                     onChange={(e) => setDefaultPaymentMethod(e.target.value as 'money' | 'credit' | 'debit' | 'pix')}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-sm appearance-none"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-gray-900 text-sm appearance-none"
                   >
                     <option value="money">Dinheiro</option>
                     <option value="credit">Cartão de Crédito</option>

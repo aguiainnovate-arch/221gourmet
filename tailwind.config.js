@@ -6,6 +6,14 @@ export default {
   ],
   theme: {
     extend: {
+      /* Breakpoints mobile alvo (além dos padrões sm/md/lg) */
+      screens: {
+        xs: '360px',
+        'mobile-sm': '375px',
+        'mobile-md': '390px',
+        'mobile-lg': '412px',
+        'mobile-xl': '430px',
+      },
       fontFamily: {
         sans: ['DM Sans', 'system-ui', 'sans-serif'],
       },

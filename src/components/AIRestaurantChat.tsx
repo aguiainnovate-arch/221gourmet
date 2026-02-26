@@ -4,6 +4,16 @@ import { recommendRestaurants } from '../services/openaiService';
 import { getAllRestaurantsWithMenus, type RestaurantWithMenu } from '../services/restaurantService';
 import { getChatbotConfig } from '../services/chatbotConfigService';
 import RestaurantChatCard from './RestaurantChatCard';
+import {
+  runRecommendationAgent,
+  buildMenuCatalogFromRestaurants,
+  recommendRestaurantsClaude,
+  type RecommendationItem,
+} from '../services/recommendationAgentService';
+import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
+
+const useClaudeForChat = Boolean(import.meta.env.VITE_ANTHROPIC_API_KEY);
+const STORAGE_KEY_PREFIX = 'airestaurantchat_messages';
 
 interface RecommendedRestaurant {
   id: string;
@@ -17,9 +27,12 @@ interface Message {
   sender: 'user' | 'ai';
   timestamp: Date;
   restaurants?: RecommendedRestaurant[];
+  /** Resposta do agente de recomendações de pratos (Claude) */
+  dishRecommendations?: { quick_summary: string; recommendations: RecommendationItem[]; fallback_if_unavailable: string };
 }
 
 export default function AIRestaurantChat() {
+  const { user } = useDeliveryAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [greeting, setGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
 
@@ -30,6 +43,10 @@ export default function AIRestaurantChat() {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasRestoredFromStorage = useRef(false);
+
+  /** Chave de armazenamento por usuário: cada usuário (ou anônimo) tem seu próprio chat. */
+  const storageKey = `${STORAGE_KEY_PREFIX}_${user?.id ?? 'anonymous'}`;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,19 +68,49 @@ export default function AIRestaurantChat() {
     }
   }, [isOpen]);
 
-  // Inicializar mensagens quando greeting for carregado
+  // Restaurar ou inicializar conversa ao mudar de usuário (login/logout) ou ao montar
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        {
-          id: '1',
-          text: greeting,
-          sender: 'ai',
-          timestamp: new Date()
+    hasRestoredFromStorage.current = false;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Message[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          hasRestoredFromStorage.current = true;
+          setMessages(parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) })));
+          return;
         }
+      }
+      setMessages([
+        { id: '1', text: greeting, sender: 'ai', timestamp: new Date() }
+      ]);
+    } catch {
+      setMessages([
+        { id: '1', text: greeting, sender: 'ai', timestamp: new Date() }
       ]);
     }
+  }, [storageKey]);
+
+  // Atualizar só a mensagem inicial quando o greeting for carregado (ex.: config do Firestore) e ainda temos só ela
+  useEffect(() => {
+    if (messages.length === 1 && messages[0].sender === 'ai' && !hasRestoredFromStorage.current) {
+      setMessages(prev => prev.map((m, i) => i === 0 ? { ...m, text: greeting } : m));
+    }
   }, [greeting]);
+
+  // Salvar conversa do usuário atual sempre que as mensagens mudarem
+  useEffect(() => {
+    if (messages.length === 0) return;
+    try {
+      const toSave = messages.map(m => ({
+        ...m,
+        timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+      }));
+      sessionStorage.setItem(storageKey, JSON.stringify(toSave));
+    } catch {
+      // ignora falha ao salvar (ex.: modo privado)
+    }
+  }, [messages, storageKey]);
 
   const loadChatbotGreeting = async () => {
     try {
@@ -115,18 +162,15 @@ export default function AIRestaurantChat() {
     }
 
     try {
-      // Preparar histórico de conversa para a AI
       const conversationHistory = messages.slice(1).map(msg => ({
-        role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+        role: (msg.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
         content: msg.text
       }));
 
-      // Chamar a AI para recomendar restaurantes
-      const result = await recommendRestaurants(
-        currentInput,
-        conversationHistory,
-        restaurantsData
-      );
+      // Usar Claude (Anthropic) quando VITE_ANTHROPIC_API_KEY estiver definida; senão OpenAI
+      const result = useClaudeForChat
+        ? await recommendRestaurantsClaude(currentInput, conversationHistory, restaurantsData)
+        : await recommendRestaurants(currentInput, conversationHistory, restaurantsData);
 
       if (result.success && result.response) {
         const aiResponse: Message = {
@@ -138,7 +182,6 @@ export default function AIRestaurantChat() {
         };
         setMessages(prev => [...prev, aiResponse]);
       } else {
-        // Fallback para resposta padrão se a AI falhar
         const fallbackResponse: Message = {
           id: Date.now().toString(),
           text: getFallbackResponse(result.error || ''),
@@ -147,8 +190,7 @@ export default function AIRestaurantChat() {
           restaurants: []
         };
         setMessages(prev => [...prev, fallbackResponse]);
-        
-        if (result.error?.includes('não configurado')) {
+        if (result.error?.includes('não configurado') || result.error?.toLowerCase().includes('claude não configurado')) {
           setAiConfigured(false);
         }
       }
@@ -167,13 +209,82 @@ export default function AIRestaurantChat() {
   };
 
   const getFallbackResponse = (error: string): string => {
-    if (error.includes('não configurado')) {
-      return '🤖 Para ativar as recomendações inteligentes, é necessário configurar a chave da API OpenAI. Entre em contato com o administrador.\n\nEnquanto isso, me conte: que tipo de comida você está procurando hoje? 🍽️';
+    if (error.includes('não configurado') || error.toLowerCase().includes('claude não configurado')) {
+      return '🤖 Para ativar as recomendações, configure a chave da Claude (Anthropic) no .env: VITE_ANTHROPIC_API_KEY.\n\nEnquanto isso, me conte: que tipo de comida você está procurando hoje? 🍽️';
     }
     return '🤔 Interessante! Para te recomendar os melhores restaurantes, me conte mais: você tem preferência por algum tipo de comida específica? Italiana, japonesa, brasileira, lanches... Ou prefere que eu te mostre os mais populares?';
   };
 
+  /** Agente de recomendações de pratos (Claude): usa cardápio dos restaurantes e retorna pratos + motivo. */
+  const handleRecommendDishes = async () => {
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      text: '🍽️ Recomendar pratos',
+      sender: 'user',
+      timestamp: new Date()
+    }]);
+    setIsTyping(true);
+    if (restaurantsData.length === 0) await loadRestaurantsData();
+
+    try {
+      const menuCatalog = buildMenuCatalogFromRestaurants(restaurantsData);
+      if (menuCatalog.length === 0) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: '😅 Ainda não temos cardápios carregados. Tente abrir o chat de novo em instantes.',
+          sender: 'ai',
+          timestamp: new Date()
+        }]);
+        return;
+      }
+
+      const result = await runRecommendationAgent({
+        current_context: { message: 'Cliente pediu recomendações de pratos.' },
+        menu_catalog: menuCatalog,
+      });
+
+      if (result.success && result.data.recommendations.length > 0) {
+        const text = result.data.quick_summary || 'Aqui vão algumas sugestões de pratos para você:';
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text,
+          sender: 'ai',
+          timestamp: new Date(),
+          dishRecommendations: {
+            quick_summary: result.data.quick_summary,
+            recommendations: result.data.recommendations,
+            fallback_if_unavailable: result.data.fallback_if_unavailable,
+          }
+        }]);
+      } else if (result.success && result.data.questions?.length > 0) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: result.data.questions[0],
+          sender: 'ai',
+          timestamp: new Date()
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: result.success ? 'Não encontrei recomendações no cardápio atual.' : `😅 ${result.error || 'Erro ao recomendar pratos.'}`,
+          sender: 'ai',
+          timestamp: new Date()
+        }]);
+      }
+    } catch (e) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: '😔 Não consegui gerar recomendações agora. Tente de novo em instantes.',
+        sender: 'ai',
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   const quickSuggestions = [
+    '🍽️ Recomendar pratos',
     '🍕 Quero pizza',
     '🍣 Comida japonesa',
     '💰 Opções baratas',
@@ -229,13 +340,13 @@ export default function AIRestaurantChat() {
             <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 text-yellow-600" />
               <p className="text-xs text-yellow-800">
-                IA em modo limitado. Configure a API OpenAI para recomendações completas.
+                IA em modo limitado. Configure VITE_ANTHROPIC_API_KEY no .env para recomendações completas.
               </p>
             </div>
           )}
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-orange-50/30 to-white space-y-4">
+          {/* Messages Area - text-stone-900 para legibilidade em fundo claro */}
+          <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-orange-50/30 to-white text-stone-900 space-y-4">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -260,9 +371,9 @@ export default function AIRestaurantChat() {
                     <div className={`rounded-2xl px-4 py-2.5 ${
                       message.sender === 'user'
                         ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white'
-                        : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
+                        : 'bg-white border border-gray-200 text-stone-900 shadow-sm'
                     }`}>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-stone-900">{message.text}</p>
                     </div>
 
                     {/* Restaurant Cards */}
@@ -285,6 +396,29 @@ export default function AIRestaurantChat() {
                       </div>
                     )}
 
+                    {/* Recomendações de pratos (agente Claude) */}
+                    {message.sender === 'ai' && message.dishRecommendations && message.dishRecommendations.recommendations.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {message.dishRecommendations.recommendations.map((rec, i) => (
+                          <div key={i} className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-left">
+                            <p className="font-semibold text-stone-800">{rec.name}</p>
+                            <p className="text-sm text-amber-700">R$ {rec.price.toFixed(2)}</p>
+                            <p className="text-xs text-stone-600 mt-1">{rec.why}</p>
+                            {(rec.suggested_addon?.name || rec.suggested_drink?.name) && (
+                              <p className="text-xs text-stone-500 mt-1">
+                                {rec.suggested_addon?.name && `+ ${rec.suggested_addon.name}`}
+                                {rec.suggested_addon?.name && rec.suggested_drink?.name && ' · '}
+                                {rec.suggested_drink?.name && `${rec.suggested_drink.name}`}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                        {message.dishRecommendations.fallback_if_unavailable && (
+                          <p className="text-xs text-stone-500 italic">{message.dishRecommendations.fallback_if_unavailable}</p>
+                        )}
+                      </div>
+                    )}
+
                     <p className={`text-xs text-gray-400 mt-1 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
                       {message.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
@@ -300,7 +434,7 @@ export default function AIRestaurantChat() {
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center">
                     <Bot className="w-4 h-4 text-white" />
                   </div>
-                  <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+                  <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm text-stone-900">
                     <div className="flex space-x-1.5">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -323,8 +457,12 @@ export default function AIRestaurantChat() {
                   <button
                     key={index}
                     onClick={() => {
-                      setInputText(suggestion);
-                      setTimeout(() => handleSendMessage(), 100);
+                      if (suggestion === '🍽️ Recomendar pratos') {
+                        handleRecommendDishes();
+                      } else {
+                        setInputText(suggestion);
+                        setTimeout(() => handleSendMessage(), 100);
+                      }
                     }}
                     className="text-xs bg-white border border-orange-200 text-orange-700 px-3 py-1.5 rounded-full hover:bg-orange-50 hover:border-orange-300 transition-colors"
                   >
@@ -336,7 +474,7 @@ export default function AIRestaurantChat() {
           )}
 
           {/* Input Area */}
-          <div className="p-4 bg-white border-t border-gray-200">
+          <div className="p-4 bg-white border-t border-gray-200 text-stone-900">
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -345,7 +483,7 @@ export default function AIRestaurantChat() {
                 onKeyPress={(e) => e.key === 'Enter' && !isLoadingData && handleSendMessage()}
                 placeholder={isLoadingData ? "Carregando dados..." : "Digite sua mensagem..."}
                 disabled={isLoadingData}
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-stone-900 placeholder:text-stone-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               <button
                 onClick={handleSendMessage}

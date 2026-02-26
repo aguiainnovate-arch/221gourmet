@@ -37,6 +37,7 @@ import { getStatistics, type GeneralStats } from '../services/statisticsService'
 import { hasRestaurantPermission } from '../services/permissionService';
 import { translateProduct } from '../services/openaiService';
 import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder, subscribeDeliveryOrdersByRestaurant } from '../services/deliveryService';
+import { createDeliveryRequest } from '../services/deliveryRequestService';
 import { playNotificationSound, getNotificationSoundEnabled, setNotificationSoundEnabled } from '../utils/notificationSound';
 import { getRestaurants } from '../services/restaurantService';
 import type { DeliveryOrder } from '../types/delivery';
@@ -57,7 +58,7 @@ export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { orders, updateOrderStatus, deleteOrder, refreshOrders, setRestaurantId } = useOrders();
   const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
-  const { isAuthenticated, currentRestaurantId, logout, isLoading: authLoading } = useRestaurantAuth();
+  const { isAuthenticated, authType, currentRestaurantId, logout, isLoading: authLoading } = useRestaurantAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
@@ -145,6 +146,10 @@ export default function Settings() {
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<string>('all');
   const [deliverySearch, setDeliverySearch] = useState('');
   const deliveryOrderIdsRef = useRef<Set<string>>(new Set());
+  const [showCallMotoboyModal, setShowCallMotoboyModal] = useState(false);
+  const [orderForMotoboy, setOrderForMotoboy] = useState<DeliveryOrder | null>(null);
+  const [motoboyFee, setMotoboyFee] = useState<string>('10');
+  const [callMotoboyLoading, setCallMotoboyLoading] = useState(false);
 
   // Nome da loja (exibido no header após login)
   const [restaurantDisplayName, setRestaurantDisplayName] = useState<string>('');
@@ -224,14 +229,20 @@ export default function Settings() {
     currentRestaurantId === restaurantId
   );
 
+  // Motoboy logado não acessa painel do restaurante: redireciona para /motoboy
   useEffect(() => {
     if (authLoading) return;
+    if (isAuthenticated && authType === 'motoboy') {
+      navigate('/motoboy', { replace: true });
+      return;
+    }
     if (!hasAccess) {
       setShowLoginModal(true);
     } else {
       setShowLoginModal(false);
     }
-  }, [authLoading, hasAccess]);
+  }, [authLoading, isAuthenticated, authType, hasAccess, navigate]);
+
 
   // Carregar nome da loja para exibir no header (pós-login)
   useEffect(() => {
@@ -1632,7 +1643,9 @@ export default function Settings() {
       case 'confirmed':
         return { label: 'Confirmado', color: 'text-blue-600', bgColor: 'bg-blue-100', nextStatus: 'preparing' as const };
       case 'preparing':
-        return { label: 'Preparando', color: 'text-orange-600', bgColor: 'bg-orange-100', nextStatus: 'delivering' as const };
+        return { label: 'Preparando', color: 'text-orange-600', bgColor: 'bg-orange-100', nextStatus: 'ready_for_delivery' as const };
+      case 'ready_for_delivery':
+        return { label: 'Pronto p/ entrega', color: 'text-teal-600', bgColor: 'bg-teal-100', nextStatus: null };
       case 'delivering':
         return { label: 'Saindo', color: 'text-purple-600', bgColor: 'bg-purple-100', nextStatus: 'delivered' as const };
       case 'delivered':
@@ -1651,7 +1664,9 @@ export default function Settings() {
       case 'confirmed':
         return 'Iniciar Preparo';
       case 'preparing':
-        return 'Sair para Entrega';
+        return 'Pronto para entrega';
+      case 'ready_for_delivery':
+        return 'Chamar motoboy';
       case 'delivering':
         return 'Marcar como Entregue';
       default:
@@ -1685,6 +1700,42 @@ export default function Settings() {
     setShowCancelModal(false);
     setOrderToCancel(null);
     setCancelReason('');
+  };
+
+  const openCallMotoboyModal = (order: DeliveryOrder) => {
+    setOrderForMotoboy(order);
+    setMotoboyFee('10');
+    setShowCallMotoboyModal(true);
+  };
+
+  const confirmCallMotoboy = async () => {
+    if (!orderForMotoboy || !restaurantId) return;
+    const fee = parseFloat(motoboyFee.replace(',', '.'));
+    if (isNaN(fee) || fee < 0) {
+      alert('Informe um valor válido para a tele.');
+      return;
+    }
+    setCallMotoboyLoading(true);
+    try {
+      await createDeliveryRequest({
+        orderId: orderForMotoboy.id,
+        restaurantId,
+        fee
+      });
+      setShowCallMotoboyModal(false);
+      setOrderForMotoboy(null);
+      await loadDeliveryOrders();
+    } catch (err) {
+      console.error('Erro ao chamar motoboy:', err);
+      alert('Erro ao criar chamada. Tente novamente.');
+    } finally {
+      setCallMotoboyLoading(false);
+    }
+  };
+
+  const closeCallMotoboyModal = () => {
+    setShowCallMotoboyModal(false);
+    setOrderForMotoboy(null);
   };
 
   const getStatusButtonText = (status: string) => {
@@ -2968,6 +3019,7 @@ export default function Settings() {
                       <option value="pending">Aguardando</option>
                       <option value="confirmed">Confirmado</option>
                       <option value="preparing">Preparando</option>
+                      <option value="ready_for_delivery">Pronto p/ entrega</option>
                       <option value="delivering">Saindo</option>
                       <option value="delivered">Entregue</option>
                       <option value="cancelled">Cancelado</option>
@@ -3027,8 +3079,8 @@ export default function Settings() {
                     });
                     return (
                     <div className="overflow-x-auto pb-2">
-                      <div className="grid gap-6 min-w-0" style={{ gridTemplateColumns: 'repeat(6, minmax(300px, 1fr))' }}>
-                      {['pending', 'confirmed', 'preparing', 'delivering', 'delivered', 'cancelled'].map((status) => {
+                      <div className="grid gap-6 min-w-0" style={{ gridTemplateColumns: 'repeat(7, minmax(280px, 1fr))' }}>
+                      {['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'delivering', 'delivered', 'cancelled'].map((status) => {
                         const statusInfo = getDeliveryStatusInfo(status as DeliveryOrder['status']);
                         const ordersInStatus = filteredOrders.filter(order => order.status === status);
 
@@ -3121,14 +3173,14 @@ export default function Settings() {
                                         </li>
                                       ))}
                                     </ul>
-                                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-1">
+                                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-1 text-gray-800">
                                       <div className="flex justify-between items-center text-sm gap-2">
-                                        <span className="text-gray-600">Subtotal:</span>
-                                        <span className="font-semibold whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
+                                        <span className="text-gray-700">Subtotal:</span>
+                                        <span className="font-semibold text-gray-900 whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
                                       </div>
                                       <div className="flex justify-between items-center text-sm gap-2">
-                                        <span className="text-gray-600">Taxa de entrega:</span>
-                                        <span className="font-semibold whitespace-nowrap">R$ {order.deliveryFee.toFixed(2)}</span>
+                                        <span className="text-gray-700">Taxa de entrega:</span>
+                                        <span className="font-semibold text-gray-900 whitespace-nowrap">R$ {order.deliveryFee.toFixed(2)}</span>
                                       </div>
                                       <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-2 border-t border-gray-200 gap-2">
                                         <span>Total:</span>
@@ -3147,6 +3199,15 @@ export default function Settings() {
                                       </button>
                                     )}
 
+                                    {order.status === 'ready_for_delivery' && (
+                                      <button
+                                        onClick={() => openCallMotoboyModal(order)}
+                                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                                      >
+                                        Chamar motoboy
+                                      </button>
+                                    )}
+
                                     {order.status === 'delivered' && (
                                       <div className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600">
                                         <CheckCircle className="w-4 h-4 mr-2" />
@@ -3155,7 +3216,7 @@ export default function Settings() {
                                     )}
 
                                     {/* Botão de cancelar para pedidos que podem ser cancelados */}
-                                    {['pending', 'confirmed', 'preparing'].includes(order.status) && (
+                                    {['pending', 'confirmed', 'preparing', 'ready_for_delivery'].includes(order.status) && (
                                       <button
                                         onClick={() => handleCancelOrder(order)}
                                         className="w-full inline-flex items-center justify-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
@@ -3235,7 +3296,15 @@ export default function Settings() {
                             {getDeliveryStatusButtonText(selectedDeliveryOrder.status)}
                           </button>
                         )}
-                        {['pending', 'confirmed', 'preparing'].includes(selectedDeliveryOrder.status) && (
+                        {selectedDeliveryOrder.status === 'ready_for_delivery' && (
+                          <button
+                            onClick={() => { openCallMotoboyModal(selectedDeliveryOrder); setSelectedDeliveryOrder(null); }}
+                            className="px-4 py-2 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700"
+                          >
+                            Chamar motoboy
+                          </button>
+                        )}
+                        {['pending', 'confirmed', 'preparing', 'ready_for_delivery'].includes(selectedDeliveryOrder.status) && (
                           <button
                             onClick={() => { setOrderToCancel(selectedDeliveryOrder); setShowCancelModal(true); setSelectedDeliveryOrder(null); }}
                             className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm hover:bg-red-50"
@@ -3555,6 +3624,48 @@ export default function Settings() {
                   Recusar Pedido
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chamar motoboy */}
+      {showCallMotoboyModal && orderForMotoboy && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-teal-700">Chamar motoboy</h3>
+              <button type="button" onClick={closeCallMotoboyModal} className="text-gray-500 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Pedido #{orderForMotoboy.id.substring(0, 8)} · {orderForMotoboy.customerName}</p>
+              <p className="text-sm text-gray-600">Endereço: {orderForMotoboy.customerAddress}</p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-teal-700 mb-2">Valor da tele/corrida (R$)</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={motoboyFee}
+                onChange={(e) => setMotoboyFee(e.target.value)}
+                placeholder="Ex: 10,00"
+                className="w-full border-2 border-teal-200 rounded-lg px-3 py-2.5 text-lg font-semibold text-teal-800 bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 placeholder:text-teal-300"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={closeCallMotoboyModal} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmCallMotoboy}
+                disabled={callMotoboyLoading}
+                className="px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+              >
+                {callMotoboyLoading ? 'Enviando...' : 'Chamar motoboy'}
+              </button>
             </div>
           </div>
         </div>

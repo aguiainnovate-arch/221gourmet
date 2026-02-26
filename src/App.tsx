@@ -8,9 +8,12 @@ import Register from './pages/Register';
 import Delivery from './pages/Delivery';
 import DeliveryAuth from './pages/DeliveryAuth';
 import DeliveryMenu from './pages/DeliveryMenu';
+import Orders from './pages/Orders';
 import RestaurantAuth from './pages/RestaurantAuth';
+import MotoboyDashboard from './pages/MotoboyDashboard';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
+import MotoboyRoute from './components/MotoboyRoute';
 import { OrderProvider } from './contexts/OrderContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -45,10 +48,19 @@ function App() {
                 {/* Rota de cadastro de restaurante (pública) */}
                 <Route path="/register/:token" element={<Register />} />
 
-                {/* Rota de login de restaurante */}
+                {/* Rota de login (restaurante e motoboy) */}
                 <Route path="/restaurant/auth" element={
                   <RestaurantAuthProvider>
                     <RestaurantAuth />
+                  </RestaurantAuthProvider>
+                } />
+
+                {/* Painel do motoboy */}
+                <Route path="/motoboy" element={
+                  <RestaurantAuthProvider>
+                    <MotoboyRoute>
+                      <MotoboyDashboard />
+                    </MotoboyRoute>
                   </RestaurantAuthProvider>
                 } />
 
@@ -71,6 +83,11 @@ function App() {
                   </DeliveryAuthProvider>
                 } />
                 <Route path="/delivery/:restaurantId/settings" element={<DeliverySettingsRedirect />} />
+                <Route path="/delivery/orders" element={
+                  <DeliveryAuthProvider>
+                    <Orders />
+                  </DeliveryAuthProvider>
+                } />
 
                 {/* QR code da mesa: /:restaurantId/mesa/1 abre o cardápio do restaurante */}
                 <Route

@@ -15,7 +15,9 @@ export interface DeliveryOrder {
   customerAddress: string;
   items: DeliveryOrderItem[];
   total: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready_for_delivery' | 'delivering' | 'delivered' | 'cancelled';
+  /** ID do usuário motoboy que aceitou a entrega (se houver) */
+  motoboyUserId?: string | null;
   paymentMethod: 'money' | 'credit' | 'debit' | 'pix';
   deliveryFee: number;
   observations?: string;

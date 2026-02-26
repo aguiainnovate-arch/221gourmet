@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Star, Receipt } from 'lucide-react';
+import { Store, MapPin, Phone, ChevronRight, Utensils, User, LogOut, Clock, Truck, Star, Receipt } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
 import { fetchFeaturedFoodImages, getDefaultFoodImages } from '../services/foodImageService';
@@ -211,7 +211,6 @@ export default function Delivery() {
       <div className="container mx-auto px-4 mt-8 relative z-10">
         <div className="max-w-5xl mx-auto delivery-searchbar flex items-center justify-center overflow-hidden rounded-2xl p-4">
           <div id="poda">
-            <div className="glow" aria-hidden />
             <div className="darkBorderBg" aria-hidden />
             <div className="darkBorderBg" aria-hidden />
             <div className="darkBorderBg" aria-hidden />
@@ -327,7 +326,7 @@ export default function Delivery() {
             </div>
             {/* Badge circular com logo no centro do carrossel */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 hidden sm:flex">
-              <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-[#2F7BFF] shadow-xl flex items-center justify-center bg-[#0B1630]">
+              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden ring-4 ring-[#2F7BFF] shadow-xl flex items-center justify-center bg-[#0B1630]">
                 <img src="/logoDelivery.jpeg" alt="Noctis" className="w-full h-full object-cover" />
               </div>
             </div>

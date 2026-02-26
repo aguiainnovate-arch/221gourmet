@@ -1,0 +1,81 @@
+Entrega: tempo real em Meus Pedidos, taxa aceitação motoboy, despesas do dia e UI
+
+O QUE FOI ALTERADO
+------------------
+
+1) Atualização em tempo real na página Meus Pedidos (Orders)
+   - Adicionada função subscribeDeliveryOrdersByPhone() no deliveryService,
+     usando onSnapshot do Firestore na coleção deliveries filtrada por
+     customerPhone.
+   - Na página Orders, o carregamento único e o polling de 30s foram
+     substituídos por essa inscrição em tempo real.
+   - Corrigido erro de sintaxe (const duplicado) na declaração de estado
+     expandedOrders.
+   Por quê: o cliente via o status do pedido (ex.: Pronto para entrega)
+   apenas ao recarregar a página; ao mudar o status no painel do
+   restaurante, a tela do cliente não refletia a mudança. Com o listener,
+   qualquer alteração no Firestore atualiza a lista na hora.
+
+2) Correção do cálculo da taxa de aceitação do motoboy
+   - refuseDeliveryRequest() passou a receber motoboyUserId e a gravar
+     no documento (motoboyUserId + status RECUSADA + updatedAt) ao recusar.
+   - MotoboyDashboard chama refuseDeliveryRequest(requestId, motoboyUserId).
+   Por quê: getDeliveryRequestsByMotoboy() filtra por motoboyUserId; ao
+   recusar sem gravar o id, a recusa não entrava na lista e a taxa de
+   aceitação/recusa ficava incorreta (recusas sempre 0). Agora as recusas
+   são contabilizadas corretamente.
+
+3) Melhorias de cores no resumo do pedido (DeliveryMenu)
+   - Card "Seu Pedido": borda e sombra refinadas (rounded-xl, shadow-lg,
+     border-stone-100), título com ícone em destaque (bg-amber-100/
+     text-amber-600), itens e totais em stone, linha do total com
+     bg-amber-50 e valor em amber-700, botão Finalizar em gradiente
+     amber com hover e active:scale.
+   Por quê: harmonizar visual do carrinho com hierarquia clara e
+   destaque para total e CTA.
+
+4) Funcionalidade Despesas do dia e totais (painel do motoboy)
+   - Novo tipo DailyFinance e serviço dailyFinanceService (Firestore,
+     coleção motoboyDailyFinances): getDailyFinance, saveDailyFinance,
+     listDailyFinances, getDaySummary, getTotalsForPeriod.
+   - Utilitários: currencyUtils (formatação/parse R$), dateUtils
+     (YYYY-MM-DD, períodos 7d/30d).
+   - deliveryRequestService: getMotoboyDayStats(motoboyUserId, dateStr)
+     e getMotoboyDayStatsBatch para lucro bruto e entregas por dia.
+   - Componente MotoboyFinanceDrawer: drawer com Detalhes do dia
+     (gasolina, outras despesas, observação), Resumo do dia e Totais
+     (7d/30d/1 ano); máscara de moeda e validação.
+   - MotoboyDashboard: exibe apenas resumo do dia (entregas, lucro
+     bruto, despesas, lucro líquido); botão "Despesas e totais" abre
+     o drawer; KPIs acumulados removidos da tela principal e ficam
+     só no drawer.
+   - firestore.rules: regras para deliveryRequests e
+     motoboyDailyFinances.
+   - Documentação em docs/MOTOBOY_DESPESAS_E_TOTAIS.md.
+   Por quê: permitir ao motoboy registrar despesas (ex.: gasolina),
+   ver lucro líquido do dia e totais por período sem poluir a tela
+   principal.
+
+5) Estilo do botão Despesas e totais
+   - Botão com gradiente (144deg, #af40ff, #5b42f3, #00ddeb), borda
+     em gradiente via span interno (bg rgb(5,6,45)), hover com span
+     transparente, active:scale-90, sombra roxa.
+   Por quê: destaque visual e identidade alinhada ao pedido de UI.
+
+6) Harmonização de cores da tela do motoboy
+   - Header em gradiente igual ao botão (roxo/índigo/ciano); fundo
+     da página slate-50; card de perfil, abas, cards de resumo e
+     chamadas com bordas e acentos em violeta; botões Editar perfil,
+     Atualizar e Salvar (modal) em violeta; drawer Despesas e totais
+     com header e controles em violeta.
+   Por quê: página coerente com o botão em gradiente e leitura mais
+   clara.
+
+BENEFÍCIOS
+---------
+- Cliente vê mudança de status do pedido imediatamente.
+- Métricas do motoboy (taxa de aceitação/recusa) corretas.
+- Motoboy consegue controlar despesas e lucro líquido por dia e por
+  período, com persistência em Firestore e tela principal limpa.
+- Interface do motoboy e do carrinho delivery mais consistente e
+  profissional.

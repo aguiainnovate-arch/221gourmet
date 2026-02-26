@@ -135,7 +135,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                   placeholder="Seu nome completo"
                   required={!isLogin}
                 />
@@ -152,7 +152,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   type="text"
                   value={emailOrPhone}
                   onChange={(e) => setEmailOrPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                   placeholder="seu@email.com ou (00) 00000-0000"
                   required
                   autoComplete="username"
@@ -169,7 +169,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="seu@email.com"
                     required
                   />
@@ -184,7 +184,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -202,7 +202,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     rows={3}
                     placeholder="Rua, número, complemento, bairro, cidade"
                     required
@@ -217,7 +217,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   <select
                     value={defaultPaymentMethod}
                     onChange={(e) => setDefaultPaymentMethod(e.target.value as any)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 bg-white"
                   >
                     <option value="money">Dinheiro</option>
                     <option value="credit">Cartão de Crédito</option>

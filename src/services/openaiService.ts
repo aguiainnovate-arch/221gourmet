@@ -66,9 +66,16 @@ class OpenAIService {
       ...config
     };
 
+    // Em desenvolvimento, usar proxy do Vite para evitar CORS (navegador não pode chamar api.openai.com direto)
+    const baseURL =
+      import.meta.env.DEV && typeof window !== 'undefined'
+        ? `${window.location.origin}/api-openai/v1`
+        : undefined;
+
     this.client = new OpenAI({
       apiKey: config.apiKey,
-      dangerouslyAllowBrowser: true
+      dangerouslyAllowBrowser: true,
+      ...(baseURL && { baseURL }),
     });
   }
 

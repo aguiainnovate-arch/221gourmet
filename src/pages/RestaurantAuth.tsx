@@ -31,11 +31,22 @@ export default function RestaurantAuth() {
       const success = await login(email, password);
 
       if (success) {
-        // Buscar o ID do restaurante pelo email
+        // Redirecionamento por role: motoboy → /motoboy; restaurante → settings ou returnUrl
+        const session = localStorage.getItem('restaurant_auth_session');
+        let sessionType: string | null = null;
+        if (session) {
+          try {
+            sessionType = JSON.parse(session).type ?? 'restaurant';
+          } catch {
+            sessionType = 'restaurant';
+          }
+        }
+        if (sessionType === 'motoboy') {
+          navigate(returnUrl && returnUrl.startsWith('/motoboy') ? returnUrl : '/motoboy', { replace: true });
+          return;
+        }
         const restaurants = await getRestaurants();
         const restaurant = restaurants.find(r => r.email.toLowerCase() === email.toLowerCase());
-        
-        // Redirecionar para a URL de retorno ou para as configurações do restaurante
         if (returnUrl) {
           navigate(returnUrl, { replace: true });
         } else if (restaurant?.id) {
@@ -119,7 +130,7 @@ export default function RestaurantAuth() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                   placeholder="seu@email.com"
                   required
                   autoComplete="username"
@@ -137,7 +148,7 @@ export default function RestaurantAuth() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-900 placeholder:text-gray-500 bg-white"
                   placeholder="Digite sua senha"
                   required
                   autoComplete="current-password"

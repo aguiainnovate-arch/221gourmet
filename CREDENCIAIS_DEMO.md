@@ -54,6 +54,19 @@ Usuários de exemplo para cada tipo de acesso no sistema.
 
 ---
 
+## 4. Motoboy (painel delivery)
+
+| Campo   | Valor              |
+|--------|--------------------|
+| **Email**  | `motoboy@teste.com`   |
+| **Senha**  | `XBs7WPmEaA`          |
+
+**Onde usar:** rota `/delivery/auth` (mesma página de login do delivery). Após o login, o motoboy é redirecionado para o **Painel do Motoboy** (`/motoboy`), onde pode ver chamadas pendentes e aceitar ou recusar.
+
+**Observação:** o motoboy demo é criado no Firestore ao rodar o script de criação de motoboys (ver documentação em `docs/motoboys/`).
+
+---
+
 ## Como criar os usuários demo no Firestore
 
 Execute no terminal, na raiz do projeto:
@@ -67,5 +80,6 @@ Isso irá:
 1. **Admin:** nada (já está no código).
 2. **Restaurante:** criar um restaurante com email `restaurante@demo.com` e senha `Demo@123` (ou atualizar a senha se o restaurante já existir). É necessário ter pelo menos um **plano** cadastrado (ex.: rodar a inicialização de planos antes).
 3. **Cliente delivery:** criar ou atualizar um usuário com email `cliente@demo.com` e telefone `(11) 99999-9999`.
+4. **Motoboy:** ver documentação em `docs/motoboys/` para criar o usuário com email `motoboy@teste.com` e senha `XBs7WPmEaA`.
 
-Após rodar o script, use as credenciais acima para testar cada tipo de usuário.
+Após rodar os scripts, use as credenciais acima para testar cada tipo de usuário.

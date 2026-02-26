@@ -147,6 +147,7 @@ export default function MotoboyDashboard() {
       await acceptDeliveryRequest(requestId, motoboyUserId);
       await assignMotoboyToDeliveryOrder(orderId, motoboyUserId);
       await loadHistory();
+      await loadDaySummary(); // atualiza lucro bruto/entregas do dia na hora
     } catch (err) {
       console.error('Erro ao aceitar chamada:', err);
     } finally {
