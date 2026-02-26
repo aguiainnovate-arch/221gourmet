@@ -239,7 +239,7 @@ export default function Menu() {
     if (settings?.restaurantName) {
       document.title = `${settings.restaurantName} - Mesa ${mesaInfo?.numero || ''}`;
     } else {
-      document.title = '221 Gourmet - Menu';
+      document.title = 'Noctis - Menu';
     }
   }, [settings?.restaurantName, mesaInfo?.numero]);
 
@@ -445,7 +445,7 @@ export default function Menu() {
             <div className="flex justify-between items-center">
               <div className="flex-1"></div>
               <div className="text-center">
-                <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
+                <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || 'Noctis'}</h1>
                 <p className="text-primary-200 text-lg">{t('menu.table', { number: mesaInfo.numero })}</p>
               </div>
               <div className="flex-1 flex justify-end">
@@ -557,7 +557,7 @@ export default function Menu() {
           <div className="flex justify-between items-center">
             <div className="flex-1"></div>
             <div className="text-center">
-              <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || '221 Gourmet'}</h1>
+              <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || 'Noctis'}</h1>
               <p className="text-primary-200 text-lg">{t('menu.table', { number: mesaInfo.numero })}</p>
             </div>
             <div className="flex-1 flex justify-end">

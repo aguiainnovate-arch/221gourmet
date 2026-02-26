@@ -187,7 +187,7 @@ export default function DeliveryMenu() {
       });
 
       alert('Pedido realizado com sucesso! O restaurante receberá em breve.');
-      navigate('/delivery');
+      navigate('/delivery/orders', { state: { phone: customerPhone } });
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       alert('Erro ao realizar pedido. Tente novamente.');
@@ -443,51 +443,53 @@ export default function DeliveryMenu() {
 
           {/* Cart Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                <ShoppingCart className="w-5 h-5 mr-2" />
+            <div className="bg-white rounded-xl shadow-lg border border-stone-100 p-6 sticky top-4">
+              <h2 className="text-xl font-bold text-stone-800 mb-4 flex items-center">
+                <span className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mr-3">
+                  <ShoppingCart className="w-5 h-5 text-amber-600" />
+                </span>
                 Seu Pedido
               </h2>
 
               {selectedItems.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Carrinho vazio</p>
+                <p className="text-stone-500 text-center py-8">Carrinho vazio</p>
               ) : (
                 <>
                   <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
                     {selectedItems.map((item) => (
                       <div key={item.product.id} className="flex justify-between items-start text-sm">
-                        <div className="flex-1">
-                          <p className="font-medium">{item.quantity}x {item.product.name}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-stone-700">{item.quantity}x {item.product.name}</p>
                           {item.observations && (
-                            <p className="text-xs text-gray-500 mt-1">Obs: {item.observations}</p>
+                            <p className="text-xs text-stone-500 mt-1">Obs: {item.observations}</p>
                           )}
                         </div>
-                        <p className="font-semibold ml-2">R$ {(item.product.price * item.quantity).toFixed(2)}</p>
+                        <p className="font-semibold text-stone-800 ml-2 shrink-0">R$ {(item.product.price * item.quantity).toFixed(2)}</p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="border-t border-gray-200 pt-4 space-y-2">
-                    <div className="flex justify-between text-sm">
+                  <div className="border-t border-stone-200 pt-4 space-y-2">
+                    <div className="flex justify-between text-sm text-stone-600">
                       <span>Subtotal</span>
                       <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-sm text-stone-600">
                       <span className="flex items-center">
-                        <Bike className="w-4 h-4 mr-1" />
+                        <Bike className="w-4 h-4 mr-1.5 text-stone-500" />
                         Taxa de entrega
                       </span>
                       <span>R$ {deliveryFee.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200">
-                      <span>Total</span>
-                      <span className="text-amber-600">R$ {calculateTotal().toFixed(2)}</span>
+                    <div className="flex justify-between items-center font-bold text-lg pt-3 mt-3 border-t-2 border-amber-100 bg-amber-50/80 rounded-lg px-3 py-2.5">
+                      <span className="text-stone-700">Total</span>
+                      <span className="text-amber-700">R$ {calculateTotal().toFixed(2)}</span>
                     </div>
                   </div>
 
                   <button
                     onClick={() => setShowCheckout(true)}
-                    className="w-full bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700 mt-4"
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:from-amber-600 hover:to-amber-700 active:scale-[0.98] transition-all mt-4"
                   >
                     Finalizar Pedido
                   </button>
@@ -529,7 +531,7 @@ export default function DeliveryMenu() {
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="Seu nome"
                   />
                 </div>
@@ -543,7 +545,7 @@ export default function DeliveryMenu() {
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     placeholder="(00) 00000-0000"
                   />
                 </div>
@@ -556,7 +558,7 @@ export default function DeliveryMenu() {
                   <textarea
                     value={customerAddress}
                     onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     rows={3}
                     placeholder="Rua, número, complemento, bairro, cidade"
                   />
@@ -570,7 +572,7 @@ export default function DeliveryMenu() {
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 bg-white"
                   >
                     <option value="money">Dinheiro</option>
                     <option value="credit">Cartão de Crédito</option>
@@ -586,15 +588,15 @@ export default function DeliveryMenu() {
                   <textarea
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     rows={2}
                     placeholder="Informações adicionais para o restaurante"
                   />
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold mb-2">Resumo do pedido</h3>
-                  <div className="space-y-1 text-sm">
+                  <h3 className="font-semibold text-gray-900 mb-2">Resumo do pedido</h3>
+                  <div className="space-y-1 text-sm text-gray-700">
                     <div className="flex justify-between">
                       <span>Subtotal</span>
                       <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
@@ -603,7 +605,7 @@ export default function DeliveryMenu() {
                       <span>Taxa de entrega</span>
                       <span>R$ {deliveryFee.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
+                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300 text-gray-900">
                       <span>Total</span>
                       <span className="text-amber-600">R$ {calculateTotal().toFixed(2)}</span>
                     </div>

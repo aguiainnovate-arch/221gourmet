@@ -155,7 +155,7 @@ export default function DeliveryAuth() {
             <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
               <Utensils className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">221 Delivery</span>
+            <span className="text-2xl font-bold text-white">Noctis</span>
           </div>
           <p className="text-white/90 text-sm max-w-sm leading-relaxed">
             {step === 'restaurant_password'

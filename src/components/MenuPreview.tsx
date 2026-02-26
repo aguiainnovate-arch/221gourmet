@@ -18,7 +18,7 @@ interface MenuPreviewProps {
 }
 
 export default function MenuPreview({ 
-  restaurantName = '221 Gourmet', 
+  restaurantName = 'Noctis', 
   primaryColor = '#1e3a8a', 
   secondaryColor = '#f3f4f6',
   bannerUrl,

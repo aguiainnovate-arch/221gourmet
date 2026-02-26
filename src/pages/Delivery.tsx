@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Star } from 'lucide-react';
+import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Star, Receipt } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
 import { fetchFeaturedFoodImages, getDefaultFoodImages } from '../services/foodImageService';
@@ -158,21 +158,27 @@ export default function Delivery() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-amber-50/30 font-sans">
+    <div className="min-h-screen bg-noctis-background font-sans" style={{ background: 'linear-gradient(180deg, #050A1A 0%, #0B1630 50%, #0A2A5E 100%)' }}>
       {/* Header */}
-      <header className="bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white py-6 sm:py-7 shadow-lg shadow-amber-900/10">
+      <header className="bg-gradient-to-br from-[#050A1A] via-[#0B1630] to-[#0A2A5E] text-[#EAF2FF] py-6 sm:py-7 shadow-lg border-b border-[#1B2A4A]">
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center shadow-inner">
-                <Utensils className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">221 Delivery</h1>
-                <p className="text-white/85 text-xs sm:text-sm font-medium hidden sm:block">Sua comida favorita em casa</p>
-              </div>
+            <div className="flex items-center min-h-[64px] sm:min-h-[72px]">
+              <img
+                src="/logoDelivery.jpeg"
+                alt="Noctis Delivery"
+                className="h-14 sm:h-20 w-auto max-w-[480px] sm:max-w-[640px] object-contain object-left"
+              />
             </div>
             <div className="flex items-center gap-2">
+              <Link
+                to="/delivery/orders"
+                className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/20 transition-colors"
+                title="Meus pedidos"
+              >
+                <Receipt className="w-4 h-4" />
+                <span className="font-medium text-sm hidden sm:inline">Meus pedidos</span>
+              </Link>
               {user ? (
                 <>
                   <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/20">
@@ -201,28 +207,55 @@ export default function Delivery() {
         </div>
       </header>
 
-      {/* Busca + Filtros */}
-      <div className="container mx-auto px-4 -mt-5 relative z-10">
-        <div className="max-w-5xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-4 sm:p-5">
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar restaurantes, pratos ou categorias..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder:text-stone-400 focus:ring-2 focus:ring-amber-400/60 focus:border-amber-400 focus:bg-white transition-all outline-none text-sm sm:text-base"
-                />
-              </div>
+      {/* Busca + Filtros - searchbar (grid + bordas animadas, CSS exato) */}
+      <div className="container mx-auto px-4 mt-8 relative z-10">
+        <div className="max-w-5xl mx-auto delivery-searchbar flex items-center justify-center overflow-hidden rounded-2xl p-4">
+          <div id="poda">
+            <div className="glow" aria-hidden />
+            <div className="darkBorderBg" aria-hidden />
+            <div className="darkBorderBg" aria-hidden />
+            <div className="darkBorderBg" aria-hidden />
+            <div className="white" aria-hidden />
+            <div className="border" aria-hidden />
+            <div id="main">
+              <input
+                type="text"
+                name="text"
+                className="input"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <div className="input-mask" aria-hidden />
+              <div className="pink-mask" aria-hidden />
+              <div className="filterBorder" aria-hidden />
               <button
+                type="button"
+                id="filter-icon"
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl font-medium text-sm transition-all sm:shrink-0 border ${showFilters ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'}`}
+                title="Filtros"
+                aria-label="Filtros"
               >
-                <Filter className="w-4 h-4" />
-                Filtros
+                <svg preserveAspectRatio="none" height="27" width="27" viewBox="4.8 4.56 14.832 15.408" fill="none">
+                  <path d="M8.16 6.65002H15.83C16.47 6.65002 16.99 7.17002 16.99 7.81002V9.09002C16.99 9.56002 16.7 10.14 16.41 10.43L13.91 12.64C13.56 12.93 13.33 13.51 13.33 13.98V16.48C13.33 16.83 13.1 17.29 12.81 17.47L12 17.98C11.24 18.45 10.2 17.92 10.2 16.99V13.91C10.2 13.5 9.97 12.98 9.73 12.69L7.52 10.36C7.23 10.08 7 9.55002 7 9.20002V7.87002C7 7.17002 7.52 6.65002 8.16 6.65002Z" stroke="#d6d6e6" strokeWidth="1" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
+              <div id="search-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" viewBox="0 0 24 24" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" height="24" fill="none" className="feather feather-search">
+                  <circle stroke="url(#search)" r="8" cy="11" cx="11" />
+                  <line stroke="url(#searchl)" y2="16.65" y1="22" x2="16.65" x1="22" />
+                  <defs>
+                    <linearGradient gradientTransform="rotate(50)" id="search">
+                      <stop stopColor="#f8e7f8" offset="0%" />
+                      <stop stopColor="#b6a9b7" offset="50%" />
+                    </linearGradient>
+                    <linearGradient id="searchl">
+                      <stop stopColor="#b6a9b7" offset="0%" />
+                      <stop stopColor="#837484" offset="50%" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
             </div>
           </div>
         </div>
@@ -233,7 +266,7 @@ export default function Delivery() {
         <div className="max-w-5xl mx-auto">
           {/* Linha: Restaurantes próximos | Pizza | Lanches | Saudável | 4 restaurantes */}
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-5">
-            <h2 className="text-lg font-bold text-stone-900 shrink-0">
+            <h2 className="text-lg font-bold text-noctis-textPrimary shrink-0">
               {searchTerm ? 'Resultados da busca' : 'Restaurantes próximos'}
             </h2>
             <div className="flex items-center gap-2 flex-wrap">
@@ -243,14 +276,14 @@ export default function Delivery() {
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 ${active ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'}`}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 ${active ? 'bg-noctis-primary text-white shadow-md' : 'bg-noctis-surface text-noctis-textSecondary border border-noctis-border hover:bg-[#0A2A5E]'}`}
                   >
                     {cat.label}
                   </button>
                 );
               })}
             </div>
-            <span className="text-sm font-medium text-stone-500 tabular-nums ml-auto shrink-0">
+            <span className="text-sm font-medium text-noctis-textSecondary tabular-nums ml-auto shrink-0">
               {filteredRestaurants.length} {filteredRestaurants.length === 1 ? 'restaurante' : 'restaurantes'}
             </span>
           </div>
@@ -292,23 +325,23 @@ export default function Delivery() {
                 </div>
               ))}
             </div>
-            {/* Badge circular "221 Delivery" no centro do carrossel */}
+            {/* Badge circular com logo no centro do carrossel */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 hidden sm:flex">
-              <div className="w-20 h-20 rounded-full bg-stone-800 ring-4 ring-amber-500 flex items-center justify-center shadow-xl">
-                <span className="text-white text-xs font-bold text-center leading-tight px-1">221<br />Delivery</span>
+              <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-[#2F7BFF] shadow-xl flex items-center justify-center bg-[#0B1630]">
+                <img src="/logoDelivery.jpeg" alt="Noctis" className="w-full h-full object-cover" />
               </div>
             </div>
           </div>
 
           {filteredRestaurants.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 sm:p-14 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-5">
-                <Store className="w-8 h-8 text-stone-400" />
+            <div className="bg-noctis-surface rounded-2xl border border-noctis-border shadow-sm p-10 sm:p-14 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-noctis-background flex items-center justify-center mx-auto mb-5">
+                <Store className="w-8 h-8 text-noctis-textSecondary" />
               </div>
-              <h3 className="text-xl font-semibold text-stone-900 mb-2">
+              <h3 className="text-xl font-semibold text-noctis-textPrimary mb-2">
                 {searchTerm ? 'Nenhum restaurante encontrado' : 'Nenhum restaurante disponível'}
               </h3>
-              <p className="text-stone-500 text-sm max-w-sm mx-auto">
+              <p className="text-noctis-textSecondary text-sm max-w-sm mx-auto">
                 {searchTerm ? 'Tente outros termos na busca.' : 'Em breve teremos opções por aqui.'}
               </p>
             </div>
@@ -319,7 +352,7 @@ export default function Delivery() {
                   type="button"
                   key={restaurant.id}
                   onClick={() => handleRestaurantClick(restaurant.id)}
-                  className="w-full text-left bg-white rounded-2xl border border-stone-100 shadow-sm hover:shadow-md hover:border-amber-200/60 transition-all duration-200 overflow-hidden group focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:ring-offset-2 focus:ring-offset-stone-50"
+                  className="w-full text-left bg-noctis-surface rounded-2xl border border-noctis-border shadow-sm hover:shadow-md hover:border-noctis-primary/50 transition-all duration-200 overflow-hidden group focus:outline-none focus:ring-2 focus:ring-noctis-primary/50 focus:ring-offset-2 focus:ring-offset-noctis-background"
                 >
                   <div className="p-4 sm:p-5 flex items-start gap-4">
                     <div
@@ -329,46 +362,46 @@ export default function Delivery() {
                       {restaurant.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-stone-900 text-lg group-hover:text-amber-700 transition-colors mb-1">
+                      <h3 className="font-semibold text-noctis-textPrimary text-lg group-hover:text-noctis-primaryGlow transition-colors mb-1">
                         {restaurant.name}
                       </h3>
-                      <p className="text-stone-500 text-sm flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
+                      <p className="text-noctis-textSecondary text-sm flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
                         <span className="inline-flex items-center gap-1">
-                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          <Star className="w-3.5 h-3.5 text-noctis-accent fill-noctis-accent" />
                           4,5
                         </span>
                         <span>·</span>
                         <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-stone-400" />
+                          <Clock className="w-3.5 h-3.5 text-noctis-textSecondary" />
                           25–35 min
                         </span>
                         <span>·</span>
                         <span className="inline-flex items-center gap-1">
-                          <Truck className="w-3.5 h-3.5 text-stone-400" />
+                          <Truck className="w-3.5 h-3.5 text-noctis-textSecondary" />
                           R$ 3,50
                         </span>
                       </p>
                       <div className="flex flex-wrap gap-1.5 mb-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400">
                           Aberto
                         </span>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-noctis-primary/20 text-noctis-primaryGlow">
                           Entrega rápida
                         </span>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-noctis-accent/20 text-noctis-accent">
                           10% OFF
                         </span>
                       </div>
-                      <p className="text-stone-500 text-xs flex items-center gap-1.5 truncate">
-                        <MapPin className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                      <p className="text-noctis-textSecondary text-xs flex items-center gap-1.5 truncate">
+                        <MapPin className="w-3.5 h-3.5 shrink-0 text-noctis-textSecondary" />
                         {restaurant.address}
                       </p>
-                      <p className="text-stone-500 text-xs flex items-center gap-1.5 mt-0.5">
-                        <Phone className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                      <p className="text-noctis-textSecondary text-xs flex items-center gap-1.5 mt-0.5">
+                        <Phone className="w-3.5 h-3.5 shrink-0 text-noctis-textSecondary" />
                         {restaurant.phone}
                       </p>
                     </div>
-                    <div className="shrink-0 w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors">
+                    <div className="shrink-0 w-10 h-10 rounded-full bg-noctis-background flex items-center justify-center text-noctis-textSecondary group-hover:bg-noctis-primary/20 group-hover:text-noctis-primary transition-colors">
                       <ChevronRight className="w-5 h-5" />
                     </div>
                   </div>

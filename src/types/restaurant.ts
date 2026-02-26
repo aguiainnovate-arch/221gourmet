@@ -1,3 +1,4 @@
+/** Regra de taxa de entrega por distância (base + por km, min/máx, isenção por subtotal). */
 export interface DeliveryFeeRule {
   baseFee: number;
   perKmFee: number;

@@ -544,7 +544,7 @@ function PlanSummaryCard({ plan, tokenData }: PlanSummaryCardProps) {
         </span>
       </div>
       <p className="text-sm text-gray-600 mb-5">
-        {plan?.description || 'Plano especial configurado pelo time 221 Gourmet para o seu restaurante.'}
+        {plan?.description || 'Plano especial configurado pelo time Noctis para o seu restaurante.'}
       </p>
       <ul className="space-y-3 text-sm text-gray-700">
         {features.slice(0, 5).map((feature) => (
@@ -577,7 +577,7 @@ function MobileMenuPreview({ restaurantName, domainPreview, primaryColor, second
           style={{ backgroundColor: primaryColor }}
         >
           <div className="pt-6 px-6 text-white">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/70">221 Gourmet</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-white/70">Noctis</p>
             <h3 className="text-lg font-semibold mt-1">{restaurantName}</h3>
             <p className="text-xs text-white/70 flex items-center gap-2 mt-1">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-300" />
@@ -695,7 +695,7 @@ function SuccessPage({ restaurantName, domain }: SuccessPageProps) {
 
           {/* Footer Note */}
           <p className="text-xs text-gray-500 mt-8">
-            Precisa de ajuda? Entre em contato com o suporte da 221 Gourmet
+            Precisa de ajuda? Entre em contato com o suporte da Noctis
           </p>
         </div>
       </div>

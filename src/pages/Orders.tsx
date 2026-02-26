@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ArrowLeft,
     MapPin,
@@ -13,7 +13,7 @@ import {
     Filter,
     ShoppingBag
 } from 'lucide-react';
-import { getDeliveryOrdersByPhone } from '../services/deliveryService';
+import { getDeliveryOrdersByPhone, subscribeDeliveryOrdersByPhone } from '../services/deliveryService';
 import type { DeliveryOrder, DeliveryOrderItem } from '../types/delivery';
 
 const formatDate = (d: Date) =>
@@ -261,6 +261,7 @@ const OrderCard = memo(({
 
 export default function Orders() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [orders, setOrders] = useState<DeliveryOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [customerPhone, setCustomerPhone] = useState('');
@@ -271,27 +272,30 @@ export default function Orders() {
     const [autoRefresh, setAutoRefresh] = useState(true);
 
     useEffect(() => {
-        // Tentar buscar pedidos se já tiver um telefone salvo
+        const phoneFromState = (location.state as { phone?: string } | null)?.phone?.trim();
         const savedPhone = localStorage.getItem('customerPhone');
-        if (savedPhone) {
-            setCustomerPhone(savedPhone);
-            setSearchPhone(savedPhone);
-            loadOrders(savedPhone);
+        const phoneToUse = phoneFromState || savedPhone;
+        if (phoneToUse) {
+            setCustomerPhone(phoneToUse);
+            setSearchPhone(phoneToUse);
+            if (phoneFromState) localStorage.setItem('customerPhone', phoneFromState);
         } else {
             setLoading(false);
         }
     }, []);
 
-    // Auto-refresh a cada 30 segundos
+    // Atualização em tempo real: escuta mudanças no Firestore (status, etc.)
     useEffect(() => {
-        if (!autoRefresh || !customerPhone) return;
+        if (!customerPhone) return;
 
-        const interval = setInterval(() => {
-            loadOrders(customerPhone);
-        }, 30000);
+        setLoading(true);
+        const unsubscribe = subscribeDeliveryOrdersByPhone(customerPhone, (ordersData) => {
+            setOrders(ordersData);
+            setLoading(false);
+        });
 
-        return () => clearInterval(interval);
-    }, [autoRefresh, customerPhone]);
+        return () => unsubscribe();
+    }, [customerPhone]);
 
     const loadOrders = async (phone: string) => {
         try {

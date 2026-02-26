@@ -1,5 +1,5 @@
 {
-  "name": "221gourmet",
+  "name": "noctis",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,7 +12,7 @@
     "migrate:delivery-settings": "tsx src/scripts/migrateDeliverySettings.ts",
     "create:demo-users": "tsx src/scripts/createDemoUsers.ts",
     "cap:sync": "npm run build && npx cap sync",
-    "cap:android": "npm run cap:sync && npx cap open android",
+    "cap:android": "CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npm run cap:sync && CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npx cap open android",
     "cap:ios": "npm run cap:sync && npx cap cap open ios",
     "cap:run:android": "npm run cap:sync && npx cap run android",
     "cap:run:ios": "npm run cap:sync && npx cap run ios"
@@ -39,6 +39,7 @@
     "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.30.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/qrcode": "^1.5.5",
