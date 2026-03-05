@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search, ChevronDown } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
@@ -36,6 +36,18 @@ export default function DeliveryMenu() {
   const [loading, setLoading] = useState(true);
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // Modal de detalhes do produto (slide de baixo + arrastar para fechar)
+  const [productModalProduct, setProductModalProduct] = useState<Product | null>(null);
+  const [modalQuantity, setModalQuantity] = useState(1);
+  const [modalObservations, setModalObservations] = useState('');
+  const [sheetTranslateY, setSheetTranslateY] = useState(0);
+  const dragStartY = useRef(0);
+  const dragStartTranslate = useRef(0);
+  const isDragging = useRef(false);
+  const [isDraggingSheet, setIsDraggingSheet] = useState(false);
+  const [sheetAnimateIn, setSheetAnimateIn] = useState(false);
+  const [backdropVisible, setBackdropVisible] = useState(false);
+
   // Dados do cliente
   const [customerName, setCustomerName] = useState(user?.name || '');
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
@@ -61,6 +73,18 @@ export default function DeliveryMenu() {
   useEffect(() => {
     loadRestaurantData();
   }, [restaurantId]);
+
+  // Disparar animação de entrada do modal (slide de baixo) após o primeiro paint
+  useEffect(() => {
+    if (!productModalProduct) return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setSheetAnimateIn(true);
+        setBackdropVisible(true);
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [productModalProduct]);
 
   const loadRestaurantData = async () => {
     if (!restaurantId) return;
@@ -128,6 +152,70 @@ export default function DeliveryMenu() {
         : item
     ));
   };
+
+  const openProductModal = useCallback((product: Product) => {
+    const inCart = selectedItems.find(item => item.product.id === product.id);
+    setProductModalProduct(product);
+    setModalQuantity(inCart?.quantity ?? 1);
+    setModalObservations(inCart?.observations ?? '');
+    setSheetTranslateY(0);
+    setSheetAnimateIn(false);
+    setBackdropVisible(false);
+  }, [selectedItems]);
+
+  const closeProductModal = useCallback(() => {
+    setProductModalProduct(null);
+    setSheetTranslateY(0);
+    setSheetAnimateIn(false);
+    setBackdropVisible(false);
+  }, []);
+
+  const handleAddFromModal = useCallback(() => {
+    if (!productModalProduct) return;
+    const existing = selectedItems.find(item => item.product.id === productModalProduct.id);
+    if (existing) {
+      setSelectedItems(selectedItems.map(item =>
+        item.product.id === productModalProduct.id
+          ? { ...item, quantity: modalQuantity, observations: modalObservations }
+          : item
+      ));
+    } else {
+      setSelectedItems([...selectedItems, {
+        product: productModalProduct,
+        quantity: modalQuantity,
+        observations: modalObservations
+      }]);
+    }
+    closeProductModal();
+  }, [productModalProduct, modalQuantity, modalObservations, selectedItems, closeProductModal]);
+
+  const DRAG_CLOSE_THRESHOLD = 120;
+
+  const handleSheetPointerDown = useCallback((e: React.PointerEvent) => {
+    isDragging.current = true;
+    setIsDraggingSheet(true);
+    dragStartY.current = e.clientY;
+    dragStartTranslate.current = sheetTranslateY;
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  }, [sheetTranslateY]);
+
+  const handleSheetPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const delta = e.clientY - dragStartY.current;
+    const next = Math.max(0, dragStartTranslate.current + delta);
+    setSheetTranslateY(next);
+  }, []);
+
+  const handleSheetPointerUp = useCallback(() => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    setIsDraggingSheet(false);
+    if (sheetTranslateY >= DRAG_CLOSE_THRESHOLD) {
+      closeProductModal();
+    } else {
+      setSheetTranslateY(0);
+    }
+  }, [sheetTranslateY, closeProductModal]);
 
   const calculateTotal = () => {
     const subtotal = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
@@ -225,11 +313,11 @@ export default function DeliveryMenu() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
-      <div className="relative">
+      {/* Header - banner + card de entrega (rolam normalmente) */}
+      <div className="relative overflow-x-hidden">
         {/* Restaurant Banner Background */}
         <div
-          className="h-48 bg-cover bg-center relative"
+          className="h-40 sm:h-48 bg-cover bg-center relative"
           style={{
             backgroundImage: restaurant.theme?.logo ? `url(${restaurant.theme.logo})` : `linear-gradient(135deg, ${restaurant.theme?.primaryColor || '#92400e'}, ${restaurant.theme?.secondaryColor || '#d97706'})`,
             backgroundSize: 'cover',
@@ -252,26 +340,26 @@ export default function DeliveryMenu() {
           </div>
 
           {/* Restaurant Info */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
-            <div className="flex items-end space-x-4">
+          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-10">
+            <div className="flex items-end gap-3 sm:gap-4">
               {/* Restaurant Logo */}
-              <div className="w-20 h-20 bg-white rounded-lg shadow-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl font-bold" style={{ color: restaurant.theme?.primaryColor || '#92400e' }}>
+              <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg shadow-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-xl sm:text-2xl font-bold" style={{ color: restaurant.theme?.primaryColor || '#92400e' }}>
                   {restaurant.name.charAt(0).toUpperCase()}
                 </span>
               </div>
 
               {/* Restaurant Details */}
-              <div className="flex-1 text-white">
-                <h1 className="text-2xl font-bold mb-1">{restaurant.name}</h1>
-                <div className="flex items-center space-x-4 text-sm text-white/90">
-                  <div className="flex items-center">
+              <div className="flex-1 min-w-0 text-white">
+                <h1 className="text-lg sm:text-2xl font-bold mb-0.5 truncate">{restaurant.name}</h1>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-white/90">
+                  <div className="flex items-center shrink-0">
                     <span className="text-yellow-400 mr-1">★</span>
                     <span>4.5</span>
                   </div>
-                  <div className="flex items-center">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    <span>{restaurant.address}</span>
+                  <div className="flex items-center min-w-0 overflow-hidden">
+                    <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 shrink-0" />
+                    <span className="truncate">{restaurant.address}</span>
                   </div>
                 </div>
               </div>
@@ -279,95 +367,106 @@ export default function DeliveryMenu() {
           </div>
         </div>
 
-        {/* Delivery Info Card */}
-        <div className="bg-white mx-4 mt-4 rounded-lg shadow-lg p-4 relative z-20">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
+        {/* Delivery Info Card - responsivo mobile */}
+        <div className="bg-white mx-3 sm:mx-4 mt-3 sm:mt-4 rounded-xl shadow-lg p-3 sm:p-4 relative z-20">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">Aberto</span>
+                <span className="text-xs sm:text-sm font-medium text-gray-700">Aberto</span>
               </div>
-              <div className="text-sm text-gray-500">
-                Pedido mínimo R$ 15,00
+              <div className="text-xs sm:text-sm text-gray-500 shrink-0">
+                Pedido mín. R$ 15,00
               </div>
             </div>
-            <button className="text-red-500 text-sm font-medium hover:text-red-600">
+            <button className="text-red-500 text-xs sm:text-sm font-medium hover:text-red-600 shrink-0">
               Ver mais
             </button>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <div className="flex-1 bg-gray-50 rounded-lg p-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="flex-1 min-w-0 bg-gray-50 rounded-lg p-2.5 sm:p-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Bike className="w-4 h-4 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Entrega</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Bike className="w-4 h-4 text-gray-600 shrink-0" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 truncate">Entrega</span>
                 </div>
-                <div className="text-xs text-gray-500">▼</div>
+                <span className="text-xs text-gray-500 shrink-0">▼</span>
               </div>
             </div>
 
-            <div className="flex-1 bg-gray-50 rounded-lg p-3">
-              <div className="text-sm font-medium text-gray-700">Hoje</div>
+            <div className="flex-1 min-w-0 bg-gray-50 rounded-lg p-2.5 sm:p-3">
+              <div className="text-xs sm:text-sm font-medium text-gray-700">Hoje</div>
               <div className="text-xs text-gray-500">25-35 min • R$ 5,99</div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Search Bar */}
-        <div className="px-4 mt-4">
+      {/* Search + Categorias: fixos no topo ao rolar (fora do header para sticky funcionar) */}
+      <div className="sticky top-0 z-30 bg-gray-50 pb-2 -mt-px shadow-[0_4px_6px_-2px_rgba(0,0,0,0.08)]">
+        <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-2">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
             <input
               type="text"
               placeholder="Buscar no cardápio"
-              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm"
+              className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm"
             />
+          </div>
+        </div>
+        <div className="px-3 sm:px-4 -mx-3 sm:mx-0">
+          <div
+            className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 scrollbar-hide overflow-y-hidden"
+            style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+          >
+            <button
+              onClick={() => setSelectedCategory('todos')}
+              className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === 'todos'
+                ? 'bg-amber-600 text-white shadow-md'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                }`}
+            >
+              {t('menu.allCategories')}
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.name)}
+                className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === category.name
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                  }`}
+              >
+                {getCategoryTranslation(category, i18n.language)}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Menu */}
-          <div className="lg:col-span-2">
-            {/* Categories */}
-            <div className="mb-6">
-              <div className="flex space-x-3 overflow-x-auto pb-2">
-                <button
-                  onClick={() => setSelectedCategory('todos')}
-                  className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === 'todos'
-                    ? 'bg-amber-600 text-white shadow-md'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-                    }`}
-                >
-                  {t('menu.allCategories')}
-                </button>
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.name)}
-                    className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === category.name
-                      ? 'bg-amber-600 text-white shadow-md'
-                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-                      }`}
-                  >
-                    {getCategoryTranslation(category, i18n.language)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Products */}
-            <div className="space-y-4">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-full overflow-x-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Menu - apenas lista de produtos */}
+          <div className="lg:col-span-2 min-w-0">
+            <div className="space-y-3 sm:space-y-4">
               {filteredProducts.map((product) => {
                 const itemInCart = selectedItems.find(item => item.product.id === product.id);
+                const translated = getProductTranslation(product, i18n.language);
 
                 return (
-                  <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div className="p-4">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-24 h-24 rounded-lg flex-shrink-0 bg-gray-200 flex items-center justify-center overflow-hidden">
+                  <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openProductModal(product)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(product); } }}
+                      className="p-3 sm:p-4 cursor-pointer active:scale-[0.99] transition-transform touch-manipulation select-none"
+                      aria-label={`Ver detalhes de ${translated.name}`}
+                    >
+                      <div className="flex items-start gap-3 sm:gap-4">
+                        {/* Imagem */}
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg flex-shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden">
                           {product.image ? (
                             <ProductImage
                               src={product.image}
@@ -375,65 +474,38 @@ export default function DeliveryMenu() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="text-center text-gray-400 p-2">
-                              <div className="text-xs font-medium">📷</div>
-                              <div className="text-xs">Sem imagem</div>
+                            <div className="text-center text-gray-400 p-1.5 sm:p-2">
+                              <div className="text-[10px] sm:text-xs font-medium">📷</div>
+                              <div className="text-[10px] sm:text-xs leading-tight">Sem imagem</div>
                             </div>
                           )}
                         </div>
 
+                        {/* Nome, descrição e preço */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-lg text-gray-900 mb-1">
-                            {getProductTranslation(product, i18n.language).name}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                            {getProductTranslation(product, i18n.language).description}
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-0.5 sm:mb-1 break-words line-clamp-2 leading-snug">
+                              {translated.name}
+                            </h3>
+                            {itemInCart && (
+                              <span className="shrink-0 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                {itemInCart.quantity} no carrinho
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2 line-clamp-2 leading-snug">
+                            {translated.description}
                           </p>
-                          <p className="text-xl font-bold text-amber-600">
+                          <p className="text-lg sm:text-xl font-bold text-amber-600 tabular-nums">
                             R$ {product.price.toFixed(2)}
                           </p>
                         </div>
 
-                        <div className="flex flex-col items-end space-y-2">
-                          {itemInCart ? (
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => updateQuantity(product.id, itemInCart.quantity - 1)}
-                                className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
-                              >
-                                <Minus className="w-4 h-4" />
-                              </button>
-                              <span className="font-bold">{itemInCart.quantity}</span>
-                              <button
-                                onClick={() => updateQuantity(product.id, itemInCart.quantity + 1)}
-                                className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center hover:bg-amber-700"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => addToCart(product)}
-                              className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 font-semibold flex items-center space-x-2"
-                            >
-                              <Plus className="w-4 h-4" />
-                              <span>Adicionar</span>
-                            </button>
-                          )}
+                        {/* Indicador de toque: seta ou chevron */}
+                        <div className="shrink-0 flex items-center text-gray-400">
+                          <ChevronDown className="w-5 h-5 rotate-[-90deg]" aria-hidden />
                         </div>
                       </div>
-
-                      {itemInCart && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <input
-                            type="text"
-                            placeholder="Observações (ex: sem cebola)"
-                            value={itemInCart.observations}
-                            onChange={(e) => updateObservations(product.id, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -441,9 +513,9 @@ export default function DeliveryMenu() {
             </div>
           </div>
 
-          {/* Cart Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg border border-stone-100 p-6 sticky top-4">
+          {/* Cart Summary - em mobile fica abaixo da lista, em lg fica sticky */}
+          <div className="lg:col-span-1 min-w-0">
+            <div className="bg-white rounded-xl shadow-lg border border-stone-100 p-4 sm:p-6 lg:sticky lg:top-4">
               <h2 className="text-xl font-bold text-stone-800 mb-4 flex items-center">
                 <span className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mr-3">
                   <ShoppingCart className="w-5 h-5 text-amber-600" />
@@ -500,10 +572,130 @@ export default function DeliveryMenu() {
         </div>
       </div>
 
-      {/* Checkout Modal */}
+      {/* Modal de detalhes do produto - slide de baixo, arrastar para fechar */}
+      {productModalProduct && (
+        <>
+          <div
+            className={`fixed inset-0 z-40 transition-opacity duration-300 ease-out ${backdropVisible ? 'bg-black/50 opacity-100' : 'bg-black/50 opacity-0'}`}
+            onClick={closeProductModal}
+            aria-hidden
+          />
+          <div
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] bg-white rounded-t-2xl shadow-2xl flex flex-col"
+            style={{
+              transform: isDraggingSheet
+                ? `translateY(${sheetTranslateY}px)`
+                : `translateY(${sheetAnimateIn ? 0 : '100%'})`,
+              transition: isDraggingSheet ? 'none' : 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)',
+            }}
+          >
+            {/* Alça para arrastar e fechar */}
+            <div
+              className="shrink-0 flex flex-col items-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none"
+              onPointerDown={handleSheetPointerDown}
+              onPointerMove={handleSheetPointerMove}
+              onPointerUp={handleSheetPointerUp}
+              onPointerCancel={handleSheetPointerUp}
+              role="button"
+              tabIndex={0}
+              aria-label="Arrastar para fechar"
+            >
+              <div className="w-12 h-1.5 rounded-full bg-gray-300" />
+            </div>
+
+            <div className="overflow-y-auto flex-1 min-h-0 pb-8">
+              {(() => {
+                const translated = getProductTranslation(productModalProduct, i18n.language);
+                const inCart = selectedItems.find(item => item.product.id === productModalProduct.id);
+
+                return (
+                  <>
+                    {/* Imagem grande do produto */}
+                    <div className="w-full aspect-[4/3] max-h-56 bg-gray-100 flex items-center justify-center overflow-hidden">
+                      {productModalProduct.image ? (
+                        <ProductImage
+                          src={productModalProduct.image}
+                          alt={productModalProduct.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-center text-gray-400 p-4">
+                          <div className="text-4xl mb-2">📷</div>
+                          <div className="text-sm font-medium">Sem imagem</div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 sm:p-6">
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                        {translated.name}
+                      </h2>
+                      <p className="text-sm text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap">
+                        {translated.description}
+                      </p>
+                      <p className="text-2xl font-bold text-amber-600 mb-6 tabular-nums">
+                        R$ {productModalProduct.price.toFixed(2)}
+                      </p>
+
+                      {/* Quantidade */}
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-sm font-medium text-gray-700">Quantidade</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setModalQuantity((q) => Math.max(1, q - 1)); }}
+                            className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 active:scale-95"
+                          >
+                            <Minus className="w-5 h-5" />
+                          </button>
+                          <span className="font-bold text-lg min-w-[2rem] text-center">{modalQuantity}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setModalQuantity((q) => q + 1); }}
+                            className="w-10 h-10 rounded-full bg-amber-600 text-white flex items-center justify-center hover:bg-amber-700 active:scale-95"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Observações */}
+                      <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Observações (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: sem cebola, ponto da carne..."
+                          value={modalObservations}
+                          onChange={(e) => setModalObservations(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+
+                      {/* Botão adicionar ao carrinho (dentro do modal) */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleAddFromModal(); }}
+                        className="w-full bg-amber-600 text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-amber-700 active:scale-[0.98] shadow-lg"
+                      >
+                        <ShoppingCart className="w-6 h-6" />
+                        {inCart ? 'Atualizar no carrinho' : 'Adicionar ao carrinho'} · R$ {(productModalProduct.price * modalQuantity).toFixed(2)}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Checkout Modal - responsivo e scrollável em mobile */}
       {showCheckout && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto pb-8">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Finalizar Pedido</h2>

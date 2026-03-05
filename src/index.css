@@ -19,7 +19,21 @@ body {
   color: var(--noctis-text-primary);
 }
 
-/* Custom scrollbar styles */
+/* Esconder barra de rolagem em todo o app (scroll continua funcionando) */
+html,
+body,
+#root {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar styles (para elementos com classe) */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
