@@ -60,7 +60,7 @@ export default function DeliveryMenu() {
 
   const deliveryFee = 5.00; // Taxa de entrega fixa
 
-  const { products: displayProducts, categories: displayCategories, loading: translating } = useLiveTranslations(
+  const { products: displayProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(
     products,
     categories,
     i18n.language
@@ -121,40 +121,6 @@ export default function DeliveryMenu() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const addToCart = (product: Product) => {
-    const existing = selectedItems.find(item => item.product.id === product.id);
-
-    if (existing) {
-      setSelectedItems(selectedItems.map(item =>
-        item.product.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      setSelectedItems([...selectedItems, { product, quantity: 1, observations: '' }]);
-    }
-  };
-
-  const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity === 0) {
-      setSelectedItems(selectedItems.filter(item => item.product.id !== productId));
-    } else {
-      setSelectedItems(selectedItems.map(item =>
-        item.product.id === productId
-          ? { ...item, quantity: newQuantity }
-          : item
-      ));
-    }
-  };
-
-  const updateObservations = (productId: string, obs: string) => {
-    setSelectedItems(selectedItems.map(item =>
-      item.product.id === productId
-        ? { ...item, observations: obs }
-        : item
-    ));
   };
 
   const openProductModal = useCallback((product: Product) => {

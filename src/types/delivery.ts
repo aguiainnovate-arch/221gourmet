@@ -20,6 +20,7 @@ export interface DeliveryOrder {
   deliveryFee: number;
   observations?: string;
   cancellationReason?: string;
+  motoboyUserId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

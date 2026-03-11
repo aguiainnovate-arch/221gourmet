@@ -7,6 +7,8 @@ const DEFAULT_PASSWORD = '123456';
 interface RestaurantAuthContextType {
   isAuthenticated: boolean;
   currentRestaurantId: string | null;
+  /** Quando logado como motoboy, ID do usuário motoboy. */
+  motoboyUserId?: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
@@ -17,6 +19,7 @@ const RestaurantAuthContext = createContext<RestaurantAuthContextType | undefine
 export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(null);
+  const [motoboyUserId, setMotoboyUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +33,7 @@ export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ chil
         if (session.expiresAt && session.expiresAt > now) {
           setIsAuthenticated(true);
           setCurrentRestaurantId(session.restaurantId);
+          setMotoboyUserId(session.motoboyUserId ?? null);
         } else {
           localStorage.removeItem('restaurant_auth_session');
         }
@@ -71,11 +75,13 @@ export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (passwordMatch) {
         setIsAuthenticated(true);
         setCurrentRestaurantId(restaurant.id);
-        
+        setMotoboyUserId(null);
+
         // Salvar sessão no localStorage (expira em 24 horas)
         const expiresAt = new Date().getTime() + (24 * 60 * 60 * 1000);
         localStorage.setItem('restaurant_auth_session', JSON.stringify({
           restaurantId: restaurant.id,
+          motoboyUserId: null,
           expiresAt
         }));
         
@@ -92,6 +98,7 @@ export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ chil
   const logout = () => {
     setIsAuthenticated(false);
     setCurrentRestaurantId(null);
+    setMotoboyUserId(null);
     localStorage.removeItem('restaurant_auth_session');
   };
 
@@ -100,6 +107,7 @@ export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ chil
       value={{
         isAuthenticated,
         currentRestaurantId,
+        motoboyUserId,
         login,
         logout,
         isLoading

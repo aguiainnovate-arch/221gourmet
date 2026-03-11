@@ -173,7 +173,7 @@ export default function MotoboyDashboard() {
     try {
       await setMotoboyOnline(motoboyUserId, next);
       const updated = await getMotoboyProfile(motoboyUserId);
-      setProfile(updated ?? { userId: motoboyUserId, name: '', isOnline: next, updatedAt: new Date() });
+      setProfile(updated ?? { id: motoboyUserId, motoboyUserId, name: '', isOnline: next, updatedAt: new Date() });
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
     }
