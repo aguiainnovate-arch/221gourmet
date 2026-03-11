@@ -12,7 +12,6 @@ import { db } from '../../firebase';
 
 interface Translation {
   'en-US': string;
-  'es-ES': string;
   'fr-FR': string;
 }
 

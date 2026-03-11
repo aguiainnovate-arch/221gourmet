@@ -94,10 +94,10 @@ export default function RestaurantAuth() {
           </Link>
 
           <div className="mb-6">
-            <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
+            <h1 className="text-xl lg:text-2xl font-bold text-black">
               Acesso para Restaurantes
             </h1>
-            <p className="mt-1 text-gray-600 text-sm">
+            <p className="mt-1 text-black text-sm">
               Entre com seu email e senha para gerenciar seu restaurante.
             </p>
           </div>
@@ -110,16 +110,16 @@ export default function RestaurantAuth() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
+              <label className="block text-xs font-semibold text-black mb-1">
                 Email *
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                   placeholder="seu@email.com"
                   required
                   autoComplete="username"
@@ -128,16 +128,16 @@ export default function RestaurantAuth() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
+              <label className="block text-xs font-semibold text-black mb-1">
                 Senha *
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                   placeholder="Digite sua senha"
                   required
                   autoComplete="current-password"
@@ -164,7 +164,7 @@ export default function RestaurantAuth() {
             </div>
           </div>
 
-          <p className="mt-4 text-xs text-gray-500 text-center">
+          <p className="mt-4 text-xs text-black text-center">
             Após fazer login, você será redirecionado para o painel de gerenciamento do seu restaurante.
           </p>
         </div>

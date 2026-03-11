@@ -8,8 +8,8 @@ import { getOrdersByRestaurant } from '../services/orderService';
 import type { FirestoreOrder } from '../services/orderService';
 import { useRestaurantData } from '../hooks/useRestaurantData';
 import { applyCustomColors } from '../utils/colorUtils';
-import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
 import LanguageSelector from '../components/LanguageSelector';
+import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import LoadingAnimation from '../components/LoadingAnimation';
 import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
 import type { Table } from '../services/tableService';
@@ -36,6 +36,11 @@ export default function Menu() {
   const { settings } = useSettings();
   const { t, i18n } = useTranslation();
   const { products, categories, restaurantId } = useRestaurantData();
+  const { products: displayProducts, categories: displayCategories } = useLiveTranslations(
+    products,
+    categories,
+    i18n.language
+  );
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -339,8 +344,8 @@ export default function Menu() {
     }
 
     const itensSelecionados = selectedItems.map(item => {
-      const translatedProduct = getProductTranslation(item.product, i18n.language);
-      return `${translatedProduct.name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`;
+      const name = item.product.name;
+      return `${name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`;
     });
 
     // Preparar dados detalhados para estatísticas
@@ -375,8 +380,7 @@ export default function Menu() {
   // Agrupar produtos por categoria quando "Todos" estiver selecionado
   const getGroupedProducts = () => {
     if (selectedCategory === 'todos') {
-      // Agrupar produtos por categoria
-      const grouped = products.reduce((acc, product) => {
+      const grouped = displayProducts.reduce((acc, product) => {
         const category = product.category || 'Sem Categoria';
         if (!acc[category]) {
           acc[category] = [];
@@ -385,13 +389,11 @@ export default function Menu() {
         return acc;
       }, {} as Record<string, Product[]>);
       
-      // Ordenar categorias alfabeticamente
       return Object.entries(grouped)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([category, products]) => ({ category, products }));
+        .map(([category, prods]) => ({ category, products: prods }));
     } else {
-      // Retornar produtos filtrados por categoria específica
-      const filtered = products.filter(product => product.category === selectedCategory);
+      const filtered = displayProducts.filter(product => product.category === selectedCategory);
       return [{ category: selectedCategory, products: filtered }];
     }
   };
@@ -474,13 +476,11 @@ export default function Menu() {
             </h2>
             
             <div className="space-y-4 mb-8">
-              {selectedItems.map((item) => {
-                const translatedProduct = getProductTranslation(item.product, i18n.language);
-                return (
+              {selectedItems.map((item) => (
                 <div key={item.product.id} className="bg-white p-6 rounded-xl border-2 border-secondary-300 shadow-lg hover:shadow-xl transition-all duration-200">
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="font-semibold text-primary-900 text-xl">
-                      {translatedProduct.name}
+                      {item.product.name}
                     </h3>
                     <span className="text-primary-800 font-bold text-xl">
                       R$ {(item.product.price * item.quantity).toFixed(2)}
@@ -500,8 +500,7 @@ export default function Menu() {
                     </div>
                   )}
                 </div>
-                );
-              })}
+              ))}
             </div>
 
             <div className="border-t-2 border-secondary-400 pt-6">
@@ -644,7 +643,9 @@ export default function Menu() {
             >
               {t('menu.all')}
             </button>
-            {categories.map((category) => (
+            {categories.map((category) => {
+              const displayName = displayCategories.find(c => c.id === category.id)?.name ?? category.name;
+              return (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.name)}
@@ -654,9 +655,9 @@ export default function Menu() {
                     : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
                 }`}
               >
-                {getCategoryTranslation(category, i18n.language)}
+                {displayName}
               </button>
-            ))}
+            );})}
           </div>
         </div>
 
@@ -682,8 +683,8 @@ export default function Menu() {
                 <div className="border-b-2 border-primary-200 pb-2">
                   <h2 className="text-2xl font-serif font-bold text-primary-900">
                     {(() => {
-                      const category = categories.find(c => c.name === group.category);
-                      return category ? getCategoryTranslation(category, i18n.language) : group.category;
+                      const origCat = categories.find(c => c.name === group.category);
+                      return origCat ? (displayCategories.find(dc => dc.id === origCat.id)?.name ?? group.category) : group.category;
                     })()}
                   </h2>
                 </div>
@@ -693,7 +694,6 @@ export default function Menu() {
                   {group.products.map((product) => {
                     const expandedItem = expandedItems.find(item => item.productId === product.id);
                     const selectedItem = selectedItems.find(item => item.product.id === product.id);
-                    const translatedProduct = getProductTranslation(product, i18n.language);
                     const isImageExpanded = expandedImage === product.id;
                     
                     return (
@@ -710,19 +710,19 @@ export default function Menu() {
                                 className={`${isImageExpanded ? 'w-full h-48 image-expanded' : 'w-24 h-24'} bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden image-expand-transition ${isImageExpanded ? 'cursor-pointer hover:shadow-lg transition-shadow duration-300' : ''}`}
                                 onClick={(e) => {
                                   if (isImageExpanded && product.image) {
-                                    handleImageClick(e, product.image!, translatedProduct.name);
+                                    handleImageClick(e, product.image!, product.name);
                                   }
                                 }}
                               >
                                 {product.image ? (
                                   <ProductImage 
                                     src={product.image} 
-                                    alt={translatedProduct.name}
+                                    alt={product.name}
                                     className={`w-full h-full transition-transform duration-300 ${isImageExpanded ? 'hover:scale-105' : ''}`}
                                     containerClassName={isImageExpanded ? 'w-full h-48' : 'w-24 h-24'}
                                     onClick={(e) => {
                                       if (isImageExpanded) {
-                                        handleImageClick(e, product.image!, translatedProduct.name);
+                                        handleImageClick(e, product.image!, product.name);
                                       }
                                     }}
                                   />
@@ -738,14 +738,14 @@ export default function Menu() {
                             <div className={`flex-1 ${isImageExpanded ? 'mt-4' : ''}`}>
                               <div className="flex justify-between items-start mb-3">
                                 <h3 className="text-xl font-serif font-semibold text-primary-900">
-                                  {translatedProduct.name}
+                                  {product.name}
                                 </h3>
                                 <span className="text-lg font-bold text-primary-800 ml-4">
                                   R$ {product.price.toFixed(2)}
                                 </span>
                               </div>
                               <p className="text-primary-700 text-sm leading-relaxed mb-3">
-                                {translatedProduct.description}
+                                {product.description}
                               </p>
                               <div className="flex items-center gap-4 text-xs text-primary-600">
                                 {product.preparationTime !== undefined && product.preparationTime !== null && product.preparationTime > 0 && (
@@ -758,8 +758,8 @@ export default function Menu() {
                                   <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
                                     <Tag size={12} />
                                     {(() => {
-                                      const category = categories.find(c => c.name === product.category);
-                                      return category ? getCategoryTranslation(category, i18n.language) : product.category;
+                                      const origCat = categories.find(c => c.name === product.category);
+                                      return origCat ? (displayCategories.find(dc => dc.id === origCat.id)?.name ?? product.category) : product.category;
                                     })()}
                                   </span>
                                 )}

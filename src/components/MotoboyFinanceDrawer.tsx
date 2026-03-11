@@ -196,7 +196,7 @@ export default function MotoboyFinanceDrawer({
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* 1) Detalhes do dia */}
           <section>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-black mb-3 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               Detalhes do dia — {formatDateDisplay(today)}
             </h3>
@@ -207,49 +207,49 @@ export default function MotoboyFinanceDrawer({
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-black mb-1">
                     Gasolina (R$) <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <Fuel className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Fuel className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
                       type="text"
                       inputMode="decimal"
                       placeholder="0,00"
                       value={fuelRaw}
                       onChange={(e) => setFuelRaw(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-black"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-black mb-1">
                     Outras despesas (R$)
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
                       type="text"
                       inputMode="decimal"
                       placeholder="0,00"
                       value={otherRaw}
                       onChange={(e) => setOtherRaw(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-black"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-black mb-1">
                     Observação
                   </label>
                   <div className="relative">
-                    <FileText className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    <FileText className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                     <textarea
                       placeholder="Ex: posto X, pedágio"
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       rows={2}
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none text-black"
                     />
                   </div>
                 </div>
@@ -266,7 +266,7 @@ export default function MotoboyFinanceDrawer({
                   <button
                     type="button"
                     onClick={handleClear}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-black hover:bg-gray-50"
                   >
                     <Trash2 className="w-4 h-4" />
                     Limpar
@@ -284,21 +284,21 @@ export default function MotoboyFinanceDrawer({
 
           {/* 2) Resumo do dia */}
           <section>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-black mb-3 flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
               Resumo do dia
             </h3>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Lucro bruto</span>
-                <span className="font-medium text-gray-900">{formatCurrency(summary.grossProfit)}</span>
+                <span className="text-black">Lucro bruto</span>
+                <span className="font-medium text-black">{formatCurrency(summary.grossProfit)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total de despesas</span>
-                <span className="font-medium text-gray-900">{formatCurrency(summary.totalExpense)}</span>
+                <span className="text-black">Total de despesas</span>
+                <span className="font-medium text-black">{formatCurrency(summary.totalExpense)}</span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                <span className="font-semibold text-gray-700">Lucro líquido</span>
+                <span className="font-semibold text-black">Lucro líquido</span>
                 <span
                   className={`text-lg font-bold ${netNegative ? 'text-red-600' : 'text-green-600'}`}
                 >
@@ -313,7 +313,7 @@ export default function MotoboyFinanceDrawer({
 
           {/* 3) Totais acumulados */}
           <section>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Totais</h3>
+            <h3 className="text-sm font-semibold text-black mb-3">Totais</h3>
             <div className="flex gap-2 mb-3">
               {(['7d', '30d', '365d'] as const).map((p) => (
                 <button
@@ -323,7 +323,7 @@ export default function MotoboyFinanceDrawer({
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                     totalsPeriod === p
                       ? 'bg-violet-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-black hover:bg-gray-200'
                   }`}
                 >
                   {p === '7d' ? '7 dias' : p === '30d' ? '30 dias' : '1 ano'}

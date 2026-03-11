@@ -107,7 +107,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-black">
               {isLogin ? 'Entrar na sua conta' : 'Criar conta'}
             </h2>
             <button
@@ -127,7 +127,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   <User className="w-4 h-4 inline mr-2" />
                   Nome completo *
                 </label>
@@ -135,7 +135,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
                   placeholder="Seu nome completo"
                   required={!isLogin}
                 />
@@ -144,7 +144,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
 
             {isLogin ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   <Mail className="w-4 h-4 inline mr-2" />
                   Email ou telefone
                 </label>
@@ -152,7 +152,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   type="text"
                   value={emailOrPhone}
                   onChange={(e) => setEmailOrPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
                   placeholder="seu@email.com ou (00) 00000-0000"
                   required
                   autoComplete="username"
@@ -161,7 +161,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             ) : (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     <Mail className="w-4 h-4 inline mr-2" />
                     Email *
                   </label>
@@ -169,14 +169,14 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
                     placeholder="seu@email.com"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     <Phone className="w-4 h-4 inline mr-2" />
                     Telefone *
                   </label>
@@ -184,7 +184,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -195,14 +195,14 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             {!isLogin && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     <MapPin className="w-4 h-4 inline mr-2" />
                     Endereço de entrega *
                   </label>
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
                     rows={3}
                     placeholder="Rua, número, complemento, bairro, cidade"
                     required
@@ -210,14 +210,14 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     <CreditCard className="w-4 h-4 inline mr-2" />
                     Forma de pagamento padrão
                   </label>
                   <select
                     value={defaultPaymentMethod}
                     onChange={(e) => setDefaultPaymentMethod(e.target.value as any)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
                   >
                     <option value="money">Dinheiro</option>
                     <option value="credit">Cartão de Crédito</option>
@@ -232,7 +232,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
               <button
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-black hover:bg-gray-50 font-medium"
               >
                 {isLogin ? 'Criar conta' : 'Já tenho conta'}
               </button>
@@ -250,7 +250,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             </div>
           </form>
 
-          <div className="mt-4 text-sm text-gray-500 text-center">
+          <div className="mt-4 text-sm text-black text-center">
             <p>
               {isLogin
                 ? 'Não tem conta? Crie uma para salvar suas informações e agilizar seus pedidos!'

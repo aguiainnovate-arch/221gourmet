@@ -345,7 +345,7 @@ export default function AIRestaurantChat() {
                 onKeyPress={(e) => e.key === 'Enter' && !isLoadingData && handleSendMessage()}
                 placeholder={isLoadingData ? "Carregando dados..." : "Digite sua mensagem..."}
                 disabled={isLoadingData}
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-black placeholder:text-gray-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               <button
                 onClick={handleSendMessage}

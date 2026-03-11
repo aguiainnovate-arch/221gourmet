@@ -1,6 +1,7 @@
 # Credenciais de demonstração (221 Gourmet / 221 Delivery)
 
-Usuários de exemplo para cada tipo de acesso no sistema.
+Usuários de exemplo para cada tipo de acesso no sistema.  
+**Criados via Firebase (Firestore)** com o script `npm run create:demo-accounts`.
 
 ---
 
@@ -24,18 +25,19 @@ Usuários de exemplo para cada tipo de acesso no sistema.
 | **Email**  | `restaurante@demo.com` |
 | **Senha**  | `Demo@123`            |
 
-**Onde usar:** 
+**Onde usar:**
 
-**Opção 1 - Página de login dedicada (RECOMENDADO):**
+**Opção 1 – Página de login dedicada (recomendado):**
 - Acesse: `http://localhost:5173/restaurant/auth`
 - Faça login com email e senha
-- Será redirecionado automaticamente para o painel de gerenciamento
+- Será redirecionado para o painel de gerenciamento
 
-**Opção 2 - Diretamente nas configurações:**
+**Opção 2 – Diretamente nas configurações:**
 - Acesse: `http://localhost:5173/<ID_DO_RESTAURANTE>/settings`
 - Um modal de login aparecerá
+- Exemplo (ID gerado pelo script): `http://localhost:5173/E81Qf47vgdve6RxcQWRX/settings`
 
-**Observação:** o restaurante demo é criado no Firestore ao rodar o script `npm run create:demo-users`. O **ID do restaurante** aparece no console ao executar o script; use-o na URL de settings (Opção 2).
+**Observação:** o restaurante demo é criado no Firestore ao rodar `npm run create:demo-accounts`. O **ID do restaurante** aparece no log ao final do script; use-o na URL de settings (Opção 2).
 
 ---
 
@@ -46,26 +48,44 @@ Usuários de exemplo para cada tipo de acesso no sistema.
 | **Email**   | `cliente@demo.com`   |
 | **Telefone**| `(11) 99999-9999`   |
 
-**Senha:** não existe. O cliente do delivery **não usa senha**; o acesso é apenas por email ou telefone.
+**Senha:** não existe. O cliente do delivery **não usa senha**; o acesso é por email ou telefone.
 
-**Onde usar:** rota `/delivery/auth` (Entrar / Criar conta). Informe o **email** ou o **telefone** acima para “entrar” na conta demo.
-
-**Observação:** o cliente demo é criado/atualizado no Firestore ao rodar `npm run create:demo-users`.
+**Onde usar:** rota `/delivery/auth` (Entrar / Criar conta). Informe o **email** ou o **telefone** acima para entrar na conta demo.
 
 ---
 
-## Como criar os usuários demo no Firestore
+## 4. Motoboy (usuário delivery – painel motoboy)
 
-Execute no terminal, na raiz do projeto:
+| Campo     | Valor              |
+|----------|--------------------|
+| **Email**   | `motoboy@demo.com`   |
+| **Telefone**| `(11) 98888-8888`   |
+
+**Senha:** não existe. O acesso é por email ou telefone (mesmo fluxo de cliente delivery).
+
+**Onde usar:** rota `/delivery/auth`. Informe **email** ou **telefone** acima. O painel do motoboy (chamadas, entregas, finanças) depende de rota/autenticação específica para motoboy no app.
+
+---
+
+## Como criar as contas no Firestore (Firebase CLI / script)
+
+Na raiz do projeto, com o `.env` configurado (variáveis `VITE_FIREBASE_*`):
 
 ```bash
-npm run create:demo-users
+npm run create:demo-accounts
 ```
 
-Isso irá:
+O script irá:
 
-1. **Admin:** nada (já está no código).
-2. **Restaurante:** criar um restaurante com email `restaurante@demo.com` e senha `Demo@123` (ou atualizar a senha se o restaurante já existir). É necessário ter pelo menos um **plano** cadastrado (ex.: rodar a inicialização de planos antes).
-3. **Cliente delivery:** criar ou atualizar um usuário com email `cliente@demo.com` e telefone `(11) 99999-9999`.
+1. **Plano:** criar um plano padrão (“Plano Básico”) se não existir nenhum.
+2. **Restaurante:** criar ou atualizar restaurante `restaurante@demo.com` com senha `Demo@123` e delivery habilitado.
+3. **Cliente:** criar ou atualizar usuário delivery `cliente@demo.com` / `(11) 99999-9999`.
+4. **Motoboy:** criar ou atualizar usuário delivery `motoboy@demo.com` / `(11) 98888-8888`.
 
-Após rodar o script, use as credenciais acima para testar cada tipo de usuário.
+Os IDs (restaurante, cliente, motoboy) são exibidos no log ao final. Em caso de erro, confira o stack trace no console e as variáveis de ambiente no `.env`.
+
+---
+
+## Script alternativo (legado)
+
+O comando `npm run create:demo-users` ainda cria apenas **restaurante** e **cliente** (sem plano automático nem motoboy). Prefira `npm run create:demo-accounts` para as três contas e plano.

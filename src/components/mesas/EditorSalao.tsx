@@ -45,7 +45,7 @@ export default function EditorSalao({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+      <div className="bg-white rounded-lg shadow p-8 text-center text-black">
         Carregando...
       </div>
     );
@@ -64,7 +64,7 @@ export default function EditorSalao({
             value={newAreaName}
             onChange={(e) => setNewAreaName(e.target.value)}
             placeholder="Nome da área (ex: Salão, Varanda)"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 text-black"
           />
           <button
             onClick={() => {
@@ -83,7 +83,7 @@ export default function EditorSalao({
           {areas.map((area) => (
             <div key={area.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex justify-between items-center mb-3">
-                <h4 className="font-semibold text-gray-900">{area.nome}</h4>
+                <h4 className="font-semibold text-black">{area.nome}</h4>
                 <button
                   onClick={() => onRemoveArea(area.id)}
                   className="p-1.5 rounded text-red-600 hover:bg-red-50"
@@ -95,8 +95,8 @@ export default function EditorSalao({
               <ul className="space-y-2">
                 {mesasByArea(area.id).map((m) => (
                   <li key={m.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                    <span className="font-medium">Mesa {m.numero}</span>
-                    <span className="text-xs text-gray-500">Cap. {m.capacidade} · Ordem {m.ordem}</span>
+                    <span className="font-medium text-black">Mesa {m.numero}</span>
+                    <span className="text-xs text-black">Cap. {m.capacidade} · Ordem {m.ordem}</span>
                     <div className="flex gap-2">
                       <button
                         onClick={() => onVerDetalhe?.(m)}
@@ -131,18 +131,18 @@ export default function EditorSalao({
                 ))}
               </ul>
               {mesasByArea(area.id).length === 0 && (
-                <p className="text-sm text-gray-500 py-2">Nenhuma mesa nesta área.</p>
+                <p className="text-sm text-black py-2">Nenhuma mesa nesta área.</p>
               )}
             </div>
           ))}
 
           <div className="border border-dashed border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-700 mb-2">Sem área</h4>
+            <h4 className="font-semibold text-black mb-2">Sem área</h4>
             <ul className="space-y-2">
               {mesasByArea(null).map((m) => (
                 <li key={m.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                  <span className="font-medium">Mesa {m.numero}</span>
-                  <span className="text-xs text-gray-500">Cap. {m.capacidade} · Ordem {m.ordem}</span>
+                  <span className="font-medium text-black">Mesa {m.numero}</span>
+                  <span className="text-xs text-black">Cap. {m.capacidade} · Ordem {m.ordem}</span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => onVerDetalhe?.(m)}
@@ -169,7 +169,7 @@ export default function EditorSalao({
               ))}
             </ul>
             {mesasByArea(null).length === 0 && areas.length === 0 && (
-              <p className="text-sm text-gray-500 py-2">Crie uma área ou adicione mesas sem área abaixo.</p>
+              <p className="text-sm text-black py-2">Crie uma área ou adicione mesas sem área abaixo.</p>
             )}
           </div>
         </div>

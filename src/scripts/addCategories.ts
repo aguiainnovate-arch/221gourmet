@@ -7,7 +7,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Meals',
-                'es-ES': 'Comidas',
                 'fr-FR': 'Repas'
             }
         }
@@ -17,7 +16,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Main Dishes',
-                'es-ES': 'Platos Principales',
                 'fr-FR': 'Plats Principaux'
             }
         }
@@ -27,7 +25,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Meat',
-                'es-ES': 'Carnes',
                 'fr-FR': 'Viandes'
             }
         }
@@ -37,7 +34,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Seafood',
-                'es-ES': 'Mariscos',
                 'fr-FR': 'Fruits de Mer'
             }
         }
@@ -47,7 +43,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Pasta',
-                'es-ES': 'Pastas',
                 'fr-FR': 'Pâtes'
             }
         }
@@ -57,7 +52,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Salads',
-                'es-ES': 'Ensaladas',
                 'fr-FR': 'Salades'
             }
         }
@@ -67,7 +61,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Desserts',
-                'es-ES': 'Postres',
                 'fr-FR': 'Desserts'
             }
         }
@@ -77,7 +70,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Beverages',
-                'es-ES': 'Bebidas',
                 'fr-FR': 'Boissons'
             }
         }
@@ -87,7 +79,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Appetizers',
-                'es-ES': 'Aperitivos',
                 'fr-FR': 'Apéritifs'
             }
         }
@@ -97,7 +88,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Vegetarian',
-                'es-ES': 'Vegetariano',
                 'fr-FR': 'Végétarien'
             }
         }
@@ -107,7 +97,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Vegan',
-                'es-ES': 'Vegano',
                 'fr-FR': 'Végan'
             }
         }
@@ -117,7 +106,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Specials',
-                'es-ES': 'Especiales',
                 'fr-FR': 'Spéciaux'
             }
         }
@@ -127,7 +115,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Snacks',
-                'es-ES': 'Snacks',
                 'fr-FR': 'Collations'
             }
         }
@@ -137,7 +124,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Soups',
-                'es-ES': 'Sopas',
                 'fr-FR': 'Soupes'
             }
         }
@@ -147,7 +133,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Pizzas',
-                'es-ES': 'Pizzas',
                 'fr-FR': 'Pizzas'
             }
         }
@@ -157,7 +142,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Burgers',
-                'es-ES': 'Hamburguesas',
                 'fr-FR': 'Burgers'
             }
         }
@@ -167,7 +151,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Sandwiches',
-                'es-ES': 'Sándwiches',
                 'fr-FR': 'Sandwichs'
             }
         }
@@ -177,7 +160,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Açaí',
-                'es-ES': 'Açaí',
                 'fr-FR': 'Açaí'
             }
         }
@@ -187,7 +169,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Breakfast',
-                'es-ES': 'Desayuno',
                 'fr-FR': 'Petit Déjeuner'
             }
         }
@@ -197,7 +178,6 @@ const categories = [
         translations: {
             name: {
                 'en-US': 'Lunch',
-                'es-ES': 'Almuerzo',
                 'fr-FR': 'Déjeuner'
             }
         }

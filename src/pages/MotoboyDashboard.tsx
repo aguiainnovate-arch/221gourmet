@@ -528,38 +528,38 @@ export default function MotoboyDashboard() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
+                <label className="block text-sm font-medium text-black mb-1">Nome completo</label>
                 <input
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black"
                   placeholder="Seu nome"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                <label className="block text-sm font-medium text-black mb-1">Telefone</label>
                 <input
                   type="tel"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black"
                   placeholder="(00) 00000-0000"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cidade / Área</label>
+                <label className="block text-sm font-medium text-black mb-1">Cidade / Área</label>
                 <input
                   type="text"
                   value={editCity}
                   onChange={(e) => setEditCity(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black"
                   placeholder="Cidade ou região"
                 />
               </div>
             </div>
             <div className="mt-6 flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+              <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-black hover:bg-gray-50">
                 Cancelar
               </button>
               <button type="button" onClick={handleSaveProfile} disabled={savingProfile} className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">

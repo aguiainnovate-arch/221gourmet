@@ -212,17 +212,15 @@ export const importProductsFromCSV = async (csvText: string): Promise<CSVImportR
 
         // Adicionar traduções se existirem
         const translations: any = {};
-        if (csvProduct.name_en || csvProduct.name_es || csvProduct.name_fr) {
+        if (csvProduct.name_en || csvProduct.name_fr) {
           translations.name = {};
           if (csvProduct.name_en) translations.name['en-US'] = csvProduct.name_en;
-          if (csvProduct.name_es) translations.name['es-ES'] = csvProduct.name_es;
           if (csvProduct.name_fr) translations.name['fr-FR'] = csvProduct.name_fr;
         }
 
-        if (csvProduct.description_en || csvProduct.description_es || csvProduct.description_fr) {
+        if (csvProduct.description_en || csvProduct.description_fr) {
           translations.description = {};
           if (csvProduct.description_en) translations.description['en-US'] = csvProduct.description_en;
-          if (csvProduct.description_es) translations.description['es-ES'] = csvProduct.description_es;
           if (csvProduct.description_fr) translations.description['fr-FR'] = csvProduct.description_fr;
         }
 

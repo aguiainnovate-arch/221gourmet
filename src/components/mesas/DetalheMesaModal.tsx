@@ -320,23 +320,23 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
       {adjustmentModal && (
         <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
-            <h4 className="font-semibold mb-3">Registrar ajuste</h4>
+            <h4 className="font-semibold mb-3 text-black">Registrar ajuste</h4>
             <input
               type="text"
               placeholder="Valor (ex: -10 ou 5)"
               value={adjustValor}
               onChange={(e) => setAdjustValor(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 mb-2"
+              className="w-full border rounded-lg px-3 py-2 mb-2 text-black"
             />
             <input
               type="text"
               placeholder="Motivo (obrigatório)"
               value={adjustMotivo}
               onChange={(e) => setAdjustMotivo(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 mb-4"
+              className="w-full border rounded-lg px-3 py-2 mb-4 text-black"
             />
             <div className="flex gap-2">
-              <button onClick={() => setAdjustmentModal(false)} className="flex-1 py-2 rounded-lg border text-gray-700">Cancelar</button>
+              <button onClick={() => setAdjustmentModal(false)} className="flex-1 py-2 rounded-lg border text-black">Cancelar</button>
               <button onClick={handleAddAjuste} className="flex-1 py-2 rounded-lg bg-amber-500 text-white">Salvar</button>
             </div>
           </div>

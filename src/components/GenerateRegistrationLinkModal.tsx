@@ -131,7 +131,7 @@ export default function GenerateRegistrationLinkModal({
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="border-b px-6 py-4 flex justify-between items-center sticky top-0 bg-white">
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-black">
             Gerar Link de Cadastro
           </h2>
           <button
@@ -189,13 +189,13 @@ export default function GenerateRegistrationLinkModal({
             <>
               {/* Seleção de Plano */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Plano do Restaurante *
                 </label>
                 <select
                   value={selectedPlanId}
                   onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   disabled={loading}
                 >
                   {plans.map((plan) => (
@@ -209,8 +209,8 @@ export default function GenerateRegistrationLinkModal({
               {/* Detalhes do Plano Selecionado */}
               {selectedPlan && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-900 mb-2">Detalhes do Plano</h3>
-                  <div className="text-sm text-gray-600 space-y-1">
+                  <h3 className="font-medium text-black mb-2">Detalhes do Plano</h3>
+                  <div className="text-sm text-black space-y-1">
                     <p><strong>Descrição:</strong> {selectedPlan.description}</p>
                     <p><strong>Máximo de Mesas:</strong> {selectedPlan.maxTables}</p>
                     <p><strong>Máximo de Produtos:</strong> {selectedPlan.maxProducts}</p>
@@ -231,7 +231,7 @@ export default function GenerateRegistrationLinkModal({
 
               {/* Validade do Link */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Validade do Link (dias)
                 </label>
                 <input
@@ -240,7 +240,7 @@ export default function GenerateRegistrationLinkModal({
                   max="365"
                   value={expiresIn}
                   onChange={(e) => setExpiresIn(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   disabled={loading}
                 />
                 <p className="text-xs text-gray-500 mt-1">
@@ -250,7 +250,7 @@ export default function GenerateRegistrationLinkModal({
 
               {/* Notas */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Notas (opcional)
                 </label>
                 <textarea
@@ -258,10 +258,10 @@ export default function GenerateRegistrationLinkModal({
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Ex: Link para o Restaurante XYZ - contato João"
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   disabled={loading}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-black mt-1">
                   Essas notas são apenas para seu controle interno
                 </p>
               </div>
@@ -272,7 +272,7 @@ export default function GenerateRegistrationLinkModal({
               {/* Card do Link */}
               <div className="bg-white border-2 border-blue-200 rounded-lg p-5 shadow-sm">
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     Link de Cadastro
                   </label>
                   <div className="flex gap-2">
@@ -280,7 +280,7 @@ export default function GenerateRegistrationLinkModal({
                       type="text"
                       value={generatedLink}
                       readOnly
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono text-black"
                     />
                     <button
                       onClick={handleCopyLink}

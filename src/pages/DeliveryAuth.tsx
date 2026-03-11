@@ -5,6 +5,7 @@ import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
 import { saveDeliveryUser, getDeliveryUserByEmail } from '../services/deliveryUserService';
+import LanguageSelector from '../components/LanguageSelector';
 
 type Step = 'email' | 'restaurant_password' | 'delivery_register';
 
@@ -170,7 +171,10 @@ export default function DeliveryAuth() {
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col justify-center px-6 py-6 lg:px-12 lg:py-8 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col justify-center px-6 py-6 lg:px-12 lg:py-8 overflow-hidden relative">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
+          <LanguageSelector variant="dark" />
+        </div>
         <div className="w-full max-w-md mx-auto shrink-0">
           <Link
             to="/delivery"
@@ -210,7 +214,7 @@ export default function DeliveryAuth() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                     placeholder="seu@email.com"
                     required
                     autoComplete="username"
@@ -247,7 +251,7 @@ export default function DeliveryAuth() {
                     type="email"
                     value={restaurantEmail}
                     readOnly
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-black text-sm"
                   />
                 </div>
               </div>
@@ -259,7 +263,7 @@ export default function DeliveryAuth() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                     placeholder="Sua senha"
                     required
                     autoComplete="current-password"
@@ -296,7 +300,7 @@ export default function DeliveryAuth() {
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                     placeholder="Seu nome completo"
                     required
                   />
@@ -310,7 +314,7 @@ export default function DeliveryAuth() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                     placeholder="seu@email.com"
                     required
                   />
@@ -324,7 +328,7 @@ export default function DeliveryAuth() {
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -337,7 +341,7 @@ export default function DeliveryAuth() {
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm resize-none"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black resize-none"
                     rows={2}
                     placeholder="Rua, número, complemento, bairro, cidade"
                     required
@@ -351,7 +355,7 @@ export default function DeliveryAuth() {
                   <select
                     value={defaultPaymentMethod}
                     onChange={(e) => setDefaultPaymentMethod(e.target.value as 'money' | 'credit' | 'debit' | 'pix')}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-sm appearance-none"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-black text-sm appearance-none"
                   >
                     <option value="money">Dinheiro</option>
                     <option value="credit">Cartão de Crédito</option>

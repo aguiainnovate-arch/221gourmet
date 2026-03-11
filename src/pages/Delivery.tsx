@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, ChevronRight, Search, Utensils, User, LogOut, Filter, Clock, Truck, Star, Receipt } from 'lucide-react';
+import { Store, MapPin, Phone, ChevronRight, Utensils, User, LogOut, Clock, Truck, Star, Receipt } from 'lucide-react';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
 import { fetchFeaturedFoodImages, getDefaultFoodImages } from '../services/foodImageService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
+import LanguageSelector from '../components/LanguageSelector';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 
 export default function Delivery() {
@@ -159,18 +160,37 @@ export default function Delivery() {
 
   return (
     <div className="min-h-screen bg-noctis-background font-sans" style={{ background: 'linear-gradient(180deg, #050A1A 0%, #0B1630 50%, #0A2A5E 100%)' }}>
-      {/* Header */}
-      <header className="bg-gradient-to-br from-[#050A1A] via-[#0B1630] to-[#0A2A5E] text-[#EAF2FF] py-6 sm:py-7 shadow-lg border-b border-[#1B2A4A]">
-        <div className="container mx-auto px-4">
-          <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center min-h-[64px] sm:min-h-[72px]">
+      {/* Header: logo centralizada, safe area, mobile-first premium */}
+      <header
+        className="relative bg-gradient-to-br from-[#050A1A] via-[#0B1630] to-[#0A2A5E] text-[#EAF2FF] shadow-lg border-b border-[#1B2A4A]"
+        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
+      >
+        <div className="container mx-auto px-4 sm:px-6 py-2">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 min-h-0">
+            {/* Logo à esquerda, maior */}
+            <div className="flex justify-start items-center min-h-0 pr-2">
               <img
-                src="/logoDelivery.jpeg"
-                alt="Noctis Delivery"
-                className="h-14 sm:h-20 w-auto max-w-[480px] sm:max-w-[640px] object-contain object-left"
+                src={`/${encodeURI('Sem fundo.png')}`}
+                alt="Noctis Food - delivery rápido noturno"
+                className="h-20 sm:h-[101px] w-auto max-w-[280px] sm:max-w-[392px] object-contain object-center select-none"
+                width={392}
+                height={101}
+                loading="eager"
+                decoding="async"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (!target.dataset.fallback) {
+                    target.dataset.fallback = '1';
+                    target.src = '/logoDelivery.jpeg';
+                    target.alt = 'Noctis Delivery';
+                  }
+                }}
               />
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Ações: idioma, Meus pedidos, usuário */}
+            <div className="flex items-center gap-2 shrink-0">
+              <LanguageSelector className="shrink-0" />
               <Link
                 to="/delivery/orders"
                 className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/20 transition-colors"
@@ -325,8 +345,8 @@ export default function Delivery() {
                 </div>
               ))}
             </div>
-            {/* Badge circular com logo no centro do carrossel */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 hidden sm:flex">
+            {/* Badge circular com logo no centro do carrossel - oculto em mobile (só a partir de md) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 hidden md:flex">
               <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-[#2F7BFF] shadow-xl flex items-center justify-center bg-[#0B1630]">
                 <img src="/logoDelivery.jpeg" alt="Noctis" className="w-full h-full object-cover" />
               </div>

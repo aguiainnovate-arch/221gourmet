@@ -6,9 +6,9 @@ import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
 import { createDeliveryOrder } from '../services/deliveryService';
-import { getProductTranslation, getCategoryTranslation } from '../utils/translationUtils';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { saveDeliveryUser } from '../services/deliveryUserService';
+import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
@@ -60,6 +60,16 @@ export default function DeliveryMenu() {
 
   const deliveryFee = 5.00; // Taxa de entrega fixa
 
+  const { products: displayProducts, categories: displayCategories, loading: translating } = useLiveTranslations(
+    products,
+    categories,
+    i18n.language
+  );
+
+  const filteredProducts = selectedCategory === 'todos'
+    ? displayProducts
+    : displayProducts.filter(p => p.category === selectedCategory);
+
   // Carregar informações do usuário quando ele estiver logado
   useEffect(() => {
     if (user) {
@@ -100,8 +110,6 @@ export default function DeliveryMenu() {
       const currentRestaurant = restaurantsData.find(r => r.id === restaurantId);
       setRestaurant(currentRestaurant || null);
       
-      // Filtrar apenas produtos disponíveis E disponíveis para delivery
-      // Se availableForDelivery não está definido, usar true como padrão
       const availableProducts = productsData.filter(p => 
         p.available && (p.availableForDelivery ?? true)
       );
@@ -114,10 +122,6 @@ export default function DeliveryMenu() {
       setLoading(false);
     }
   };
-
-  const filteredProducts = selectedCategory === 'todos'
-    ? products
-    : products.filter(p => p.category === selectedCategory);
 
   const addToCart = (product: Product) => {
     const existing = selectedItems.find(item => item.product.id === product.id);
@@ -224,12 +228,12 @@ export default function DeliveryMenu() {
 
   const handleSubmitOrder = async () => {
     if (!restaurant || !customerName || !customerPhone || !customerAddress) {
-      alert('Por favor, preencha todos os dados para entrega');
+      alert(t('delivery.fillDeliveryData'));
       return;
     }
 
     if (selectedItems.length === 0) {
-      alert('Adicione pelo menos um item ao carrinho');
+      alert(t('delivery.addOneItem'));
       return;
     }
 
@@ -274,11 +278,11 @@ export default function DeliveryMenu() {
         observations
       });
 
-      alert('Pedido realizado com sucesso! O restaurante receberá em breve.');
+      alert(t('delivery.orderSuccess'));
       navigate('/delivery/orders', { state: { phone: customerPhone } });
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
-      alert('Erro ao realizar pedido. Tente novamente.');
+      alert(t('delivery.orderError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -289,7 +293,7 @@ export default function DeliveryMenu() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-amber-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando cardápio...</p>
+          <p className="text-gray-600">{t('menu.loadingMenu')}</p>
         </div>
       </div>
     );
@@ -299,12 +303,12 @@ export default function DeliveryMenu() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Restaurante não encontrado</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('delivery.restaurantNotFound')}</h2>
           <button
             onClick={() => navigate('/delivery')}
             className="text-amber-600 hover:text-amber-700 font-semibold"
           >
-            Voltar para lista de restaurantes
+            {t('delivery.backToRestaurantList')}
           </button>
         </div>
       </div>
@@ -334,7 +338,7 @@ export default function DeliveryMenu() {
               className="flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-full"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
-              Voltar
+              {t('delivery.back')}
             </button>
             <LanguageSelector />
           </div>
@@ -373,14 +377,14 @@ export default function DeliveryMenu() {
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
               <div className="flex items-center gap-1.5 shrink-0">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs sm:text-sm font-medium text-gray-700">Aberto</span>
+                <span className="text-xs sm:text-sm font-medium text-gray-700">{t('delivery.open')}</span>
               </div>
               <div className="text-xs sm:text-sm text-gray-500 shrink-0">
                 Pedido mín. R$ 15,00
               </div>
             </div>
             <button className="text-red-500 text-xs sm:text-sm font-medium hover:text-red-600 shrink-0">
-              Ver mais
+              {t('delivery.seeMore')}
             </button>
           </div>
 
@@ -389,14 +393,14 @@ export default function DeliveryMenu() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <Bike className="w-4 h-4 text-gray-600 shrink-0" />
-                  <span className="text-xs sm:text-sm font-medium text-gray-700 truncate">Entrega</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 truncate">{t('delivery.deliveryFee')}</span>
                 </div>
                 <span className="text-xs text-gray-500 shrink-0">▼</span>
               </div>
             </div>
 
             <div className="flex-1 min-w-0 bg-gray-50 rounded-lg p-2.5 sm:p-3">
-              <div className="text-xs sm:text-sm font-medium text-gray-700">Hoje</div>
+              <div className="text-xs sm:text-sm font-medium text-gray-700">{t('delivery.today')}</div>
               <div className="text-xs text-gray-500">25-35 min • R$ 5,99</div>
             </div>
           </div>
@@ -410,7 +414,7 @@ export default function DeliveryMenu() {
             <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
             <input
               type="text"
-              placeholder="Buscar no cardápio"
+              placeholder={t('delivery.searchPlaceholder')}
               className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm"
             />
           </div>
@@ -429,7 +433,9 @@ export default function DeliveryMenu() {
             >
               {t('menu.allCategories')}
             </button>
-            {categories.map((category) => (
+            {categories.map((category) => {
+              const displayName = displayCategories.find(c => c.id === category.id)?.name ?? category.name;
+              return (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.name)}
@@ -438,9 +444,9 @@ export default function DeliveryMenu() {
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
                   }`}
               >
-                {getCategoryTranslation(category, i18n.language)}
+                {displayName}
               </button>
-            ))}
+            );})}
           </div>
         </div>
       </div>
@@ -452,8 +458,6 @@ export default function DeliveryMenu() {
             <div className="space-y-3 sm:space-y-4">
               {filteredProducts.map((product) => {
                 const itemInCart = selectedItems.find(item => item.product.id === product.id);
-                const translated = getProductTranslation(product, i18n.language);
-
                 return (
                   <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden">
                     <div
@@ -462,7 +466,7 @@ export default function DeliveryMenu() {
                       onClick={() => openProductModal(product)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(product); } }}
                       className="p-3 sm:p-4 cursor-pointer active:scale-[0.99] transition-transform touch-manipulation select-none"
-                      aria-label={`Ver detalhes de ${translated.name}`}
+                      aria-label={`Ver detalhes de ${product.name}`}
                     >
                       <div className="flex items-start gap-3 sm:gap-4">
                         {/* Imagem */}
@@ -476,7 +480,7 @@ export default function DeliveryMenu() {
                           ) : (
                             <div className="text-center text-gray-400 p-1.5 sm:p-2">
                               <div className="text-[10px] sm:text-xs font-medium">📷</div>
-                              <div className="text-[10px] sm:text-xs leading-tight">Sem imagem</div>
+                              <div className="text-[10px] sm:text-xs leading-tight">{t('delivery.noImage')}</div>
                             </div>
                           )}
                         </div>
@@ -485,16 +489,16 @@ export default function DeliveryMenu() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-0.5 sm:mb-1 break-words line-clamp-2 leading-snug">
-                              {translated.name}
+                              {product.name}
                             </h3>
                             {itemInCart && (
                               <span className="shrink-0 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                                {itemInCart.quantity} no carrinho
+                                {itemInCart.quantity} {t('delivery.inCart')}
                               </span>
                             )}
                           </div>
                           <p className="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2 line-clamp-2 leading-snug">
-                            {translated.description}
+                            {product.description}
                           </p>
                           <p className="text-lg sm:text-xl font-bold text-amber-600 tabular-nums">
                             R$ {product.price.toFixed(2)}
@@ -520,11 +524,11 @@ export default function DeliveryMenu() {
                 <span className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mr-3">
                   <ShoppingCart className="w-5 h-5 text-amber-600" />
                 </span>
-                Seu Pedido
+                {t('delivery.yourOrder')}
               </h2>
 
               {selectedItems.length === 0 ? (
-                <p className="text-stone-500 text-center py-8">Carrinho vazio</p>
+                <p className="text-stone-500 text-center py-8">{t('delivery.emptyCart')}</p>
               ) : (
                 <>
                   <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
@@ -543,18 +547,18 @@ export default function DeliveryMenu() {
 
                   <div className="border-t border-stone-200 pt-4 space-y-2">
                     <div className="flex justify-between text-sm text-stone-600">
-                      <span>Subtotal</span>
+                      <span>{t('delivery.subtotal')}</span>
                       <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-stone-600">
                       <span className="flex items-center">
                         <Bike className="w-4 h-4 mr-1.5 text-stone-500" />
-                        Taxa de entrega
+                        {t('delivery.deliveryFee')}
                       </span>
                       <span>R$ {deliveryFee.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center font-bold text-lg pt-3 mt-3 border-t-2 border-amber-100 bg-amber-50/80 rounded-lg px-3 py-2.5">
-                      <span className="text-stone-700">Total</span>
+                      <span className="text-stone-700">{t('delivery.total')}</span>
                       <span className="text-amber-700">R$ {calculateTotal().toFixed(2)}</span>
                     </div>
                   </div>
@@ -563,7 +567,7 @@ export default function DeliveryMenu() {
                     onClick={() => setShowCheckout(true)}
                     className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:from-amber-600 hover:to-amber-700 active:scale-[0.98] transition-all mt-4"
                   >
-                    Finalizar Pedido
+                    {t('delivery.finishOrder')}
                   </button>
                 </>
               )}
@@ -598,16 +602,14 @@ export default function DeliveryMenu() {
               onPointerCancel={handleSheetPointerUp}
               role="button"
               tabIndex={0}
-              aria-label="Arrastar para fechar"
+              aria-label={t('delivery.dragToClose')}
             >
               <div className="w-12 h-1.5 rounded-full bg-gray-300" />
             </div>
 
             <div className="overflow-y-auto flex-1 min-h-0 pb-8">
               {(() => {
-                const translated = getProductTranslation(productModalProduct, i18n.language);
                 const inCart = selectedItems.find(item => item.product.id === productModalProduct.id);
-
                 return (
                   <>
                     {/* Imagem grande do produto */}
@@ -621,17 +623,17 @@ export default function DeliveryMenu() {
                       ) : (
                         <div className="text-center text-gray-400 p-4">
                           <div className="text-4xl mb-2">📷</div>
-                          <div className="text-sm font-medium">Sem imagem</div>
+                          <div className="text-sm font-medium">{t('delivery.noImage')}</div>
                         </div>
                       )}
                     </div>
 
                     <div className="p-4 sm:p-6">
                       <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
-                        {translated.name}
+                        {productModalProduct.name}
                       </h2>
                       <p className="text-sm text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap">
-                        {translated.description}
+                        {productModalProduct.description}
                       </p>
                       <p className="text-2xl font-bold text-amber-600 mb-6 tabular-nums">
                         R$ {productModalProduct.price.toFixed(2)}
@@ -639,7 +641,7 @@ export default function DeliveryMenu() {
 
                       {/* Quantidade */}
                       <div className="flex items-center justify-between mb-4">
-                        <span className="text-sm font-medium text-gray-700">Quantidade</span>
+                        <span className="text-sm font-medium text-gray-700">{t('delivery.quantityLabel')}</span>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -662,11 +664,11 @@ export default function DeliveryMenu() {
                       {/* Observações */}
                       <div className="mb-6">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Observações (opcional)
+                          {t('delivery.observationsOptional')}
                         </label>
                         <input
                           type="text"
-                          placeholder="Ex: sem cebola, ponto da carne..."
+                          placeholder={t('menu.observationsPlaceholder')}
                           value={modalObservations}
                           onChange={(e) => setModalObservations(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
@@ -681,7 +683,7 @@ export default function DeliveryMenu() {
                         className="w-full bg-amber-600 text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-amber-700 active:scale-[0.98] shadow-lg"
                       >
                         <ShoppingCart className="w-6 h-6" />
-                        {inCart ? 'Atualizar no carrinho' : 'Adicionar ao carrinho'} · R$ {(productModalProduct.price * modalQuantity).toFixed(2)}
+                        {inCart ? t('delivery.updateInCart') : t('delivery.addToCart')} · R$ {(productModalProduct.price * modalQuantity).toFixed(2)}
                       </button>
                     </div>
                   </>
@@ -698,7 +700,7 @@ export default function DeliveryMenu() {
           <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto pb-8">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Finalizar Pedido</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{t('delivery.checkoutTitle')}</h2>
                 <button
                   onClick={() => setShowCheckout(false)}
                   className="text-gray-500 hover:text-gray-700"
@@ -709,7 +711,7 @@ export default function DeliveryMenu() {
 
               {user && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
-                  ✓ Suas informações foram preenchidas automaticamente. Você pode editá-las se necessário.
+                  ✓ {t('delivery.userInfoFilled')}
                 </div>
               )}
 
@@ -717,7 +719,7 @@ export default function DeliveryMenu() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <User className="w-4 h-4 inline mr-2" />
-                    Nome completo
+                    {t('delivery.fullName')}
                   </label>
                   <input
                     type="text"
@@ -731,7 +733,7 @@ export default function DeliveryMenu() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Phone className="w-4 h-4 inline mr-2" />
-                    Telefone
+                    {t('delivery.phone')}
                   </label>
                   <input
                     type="tel"
@@ -745,7 +747,7 @@ export default function DeliveryMenu() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <MapPin className="w-4 h-4 inline mr-2" />
-                    Endereço de entrega
+                    {t('delivery.address')}
                   </label>
                   <textarea
                     value={customerAddress}
@@ -759,46 +761,46 @@ export default function DeliveryMenu() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <CreditCard className="w-4 h-4 inline mr-2" />
-                    Forma de pagamento
+                    {t('delivery.paymentMethod')}
                   </label>
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 bg-white"
                   >
-                    <option value="money">Dinheiro</option>
-                    <option value="credit">Cartão de Crédito</option>
-                    <option value="debit">Cartão de Débito</option>
-                    <option value="pix">PIX</option>
+                    <option value="money">{t('delivery.money')}</option>
+                    <option value="credit">{t('delivery.credit')}</option>
+                    <option value="debit">{t('delivery.debit')}</option>
+                    <option value="pix">{t('delivery.pix')}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Observações (opcional)
+                    {t('delivery.observationsOptional')}
                   </label>
                   <textarea
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
                     rows={2}
-                    placeholder="Informações adicionais para o restaurante"
+                    placeholder={t('menu.observationsPlaceholder')}
                   />
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Resumo do pedido</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">{t('delivery.orderSummary')}</h3>
                   <div className="space-y-1 text-sm text-gray-700">
                     <div className="flex justify-between">
-                      <span>Subtotal</span>
+                      <span>{t('delivery.subtotal')}</span>
                       <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Taxa de entrega</span>
+                      <span>{t('delivery.deliveryFee')}</span>
                       <span>R$ {deliveryFee.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300 text-gray-900">
-                      <span>Total</span>
+                      <span>{t('delivery.total')}</span>
                       <span className="text-amber-600">R$ {calculateTotal().toFixed(2)}</span>
                     </div>
                   </div>
@@ -810,7 +812,7 @@ export default function DeliveryMenu() {
                   onClick={() => setShowCheckout(false)}
                   className="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
                 >
-                  Cancelar
+                  {t('delivery.cancel')}
                 </button>
                 <button
                   onClick={handleSubmitOrder}
@@ -820,7 +822,7 @@ export default function DeliveryMenu() {
                     : 'bg-amber-600 text-white hover:bg-amber-700'
                     }`}
                 >
-                  {isSubmitting ? 'Enviando...' : 'Confirmar Pedido'}
+                  {isSubmitting ? t('delivery.submitting') : t('menu.confirmOrderButton')}
                 </button>
               </div>
             </div>

@@ -7,6 +7,14 @@ import {
 } from 'firebase/storage';
 import { storage } from '../../firebase';
 
+// ============ Constantes para upload de imagens de produtos ============
+/** Tipos MIME permitidos para fotos de itens */
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'] as const;
+/** Extensões permitidas (para validação por nome de arquivo) */
+export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+/** Tamanho máximo por imagem: 5MB */
+export const MAX_PRODUCT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
 export interface UploadResult {
   url: string;
   path: string;
@@ -21,6 +29,76 @@ export interface ImageMetadata {
   size: number;
   contentType: string;
   uploadedAt: Date;
+}
+
+/**
+ * Extrai o path do Storage a partir da URL de download do Firebase Storage.
+ * Usado para deletar a imagem antiga ao substituir ou remover.
+ */
+export function extractStoragePathFromUrl(imageUrl: string): string | null {
+  if (!imageUrl || typeof imageUrl !== 'string') return null;
+  try {
+    const url = new URL(imageUrl);
+    const match = url.pathname.match(/\/o\/(.+?)(?:\?|$)/);
+    if (!match) return null;
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Caminho escalável: restaurants/{restaurantId}/items/{itemId}/{fileName}
+ */
+export function buildProductImagePath(restaurantId: string, itemId: string, fileName: string): string {
+  return `restaurants/${restaurantId}/items/${itemId}/${fileName}`;
+}
+
+/**
+ * Nome de arquivo seguro (evita path traversal e caracteres inválidos).
+ */
+export function sanitizeFileName(name: string): string {
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '_');
+  const ext = (safe.match(/\.[a-z0-9]+$/i) || [])[0] || '';
+  const base = safe.replace(/\.[a-z0-9]+$/i, '') || 'image';
+  return `${base.slice(0, 80)}${ext}`.toLowerCase() || 'image.jpg';
+}
+
+/**
+ * Upload de imagem de produto para Firebase Storage.
+ * Path: restaurants/{restaurantId}/items/{productId ou temp_ts}/{safeFileName}
+ */
+export async function uploadProductImage(
+  file: File,
+  restaurantId: string,
+  productId?: string
+): Promise<UploadResult> {
+  try {
+    const type = (file.type || '').toLowerCase();
+    if (!ALLOWED_IMAGE_TYPES.includes(type as any)) {
+      throw new Error('Formato inválido. Use JPG, PNG ou WebP.');
+    }
+    if (file.size > MAX_PRODUCT_IMAGE_SIZE_BYTES) {
+      throw new Error('Arquivo muito grande. Máximo 5MB.');
+    }
+
+    const itemId = productId || `temp_${Date.now()}`;
+    const baseName = sanitizeFileName(file.name);
+    const ext = (baseName.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0];
+    const nameWithoutExt = baseName.replace(/\.[a-z0-9]+$/i, '') || 'image';
+    const uniqueName = `${nameWithoutExt}_${Date.now()}${ext}`;
+    const fullPath = buildProductImagePath(restaurantId, itemId, uniqueName);
+
+    const storageRef = ref(storage, fullPath);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+
+    return { url: downloadURL, path: fullPath, success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro ao enviar imagem.';
+    console.error('uploadProductImage:', err);
+    return { url: '', path: '', success: false, error: message };
+  }
 }
 
 /**

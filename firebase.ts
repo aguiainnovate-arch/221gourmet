@@ -2,17 +2,21 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
+// Configuração lida de variáveis de ambiente (.env)
+// Em ambiente Node (scripts com tsx) usa process.env; no browser usa import.meta.env
+const getEnv = (key: string): string =>
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.[key]) ||
+  (typeof process !== 'undefined' && process.env?.[key]) ||
+  '';
+
 const firebaseConfig = {
-  apiKey: "AIzaSyClcEtJjoJ2yL6Dfhx8FqUIoILvzwjI1dw",
-  authDomain: "gourmet-dc6d1.firebaseapp.com",
-  projectId: "gourmet-dc6d1",
-  storageBucket: "gourmet-dc6d1.firebasestorage.app",
-  messagingSenderId: "247319407957",
-  appId: "1:247319407957:web:6faa02ed072200c2aa13dc"
+  apiKey: getEnv('VITE_FIREBASE_API_KEY'),
+  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId: getEnv('VITE_FIREBASE_PROJECT_ID'),
+  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: getEnv('VITE_FIREBASE_APP_ID'),
 };
 
 // Initialize Firebase
@@ -24,5 +28,4 @@ export const db = getFirestore(app);
 // Initialize Firebase Storage
 export const storage = getStorage(app);
 
-// Export the app instance as well (in case it's needed elsewhere)
 export default app;

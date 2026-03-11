@@ -51,7 +51,7 @@ export default function VisaoSalao({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+      <div className="bg-white rounded-lg shadow p-8 text-center text-black">
         Carregando mesas...
       </div>
     );
@@ -59,7 +59,7 @@ export default function VisaoSalao({
 
   if (mesas.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+      <div className="bg-white rounded-lg shadow p-8 text-center text-black">
         Nenhuma mesa configurada. Configure no Editor de Salão.
       </div>
     );
@@ -68,11 +68,11 @@ export default function VisaoSalao({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-sm font-medium text-gray-600">Área:</span>
+        <span className="text-sm font-medium text-black">Área:</span>
         <select
           value={filterArea}
           onChange={(e) => setFilterArea(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-black"
         >
           <option value="todos">Todas</option>
           {areas.map((a) => (
@@ -82,11 +82,11 @@ export default function VisaoSalao({
           ))}
           <option value="">Sem área</option>
         </select>
-        <span className="text-sm font-medium text-gray-600 ml-2">Status:</span>
+        <span className="text-sm font-medium text-black ml-2">Status:</span>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-black"
         >
           <option value="todos">Todos</option>
           {Object.entries(STATUS_LABEL).map(([k, v]) => (
@@ -104,16 +104,16 @@ export default function VisaoSalao({
             className="bg-white rounded-lg shadow border border-gray-100 p-4 flex flex-col"
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-semibold text-gray-900">Mesa {mesa.numero}</span>
+              <span className="font-semibold text-black">Mesa {mesa.numero}</span>
               <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLOR[mesa.status] ?? 'bg-gray-100'}`}>
                 {STATUS_LABEL[mesa.status] ?? mesa.status}
               </span>
             </div>
             {mesa.areaName && (
-              <p className="text-xs text-gray-500 mb-1">{mesa.areaName}</p>
+              <p className="text-xs text-black mb-1">{mesa.areaName}</p>
             )}
             {mesa.responsavel && (
-              <p className="text-xs text-gray-600 flex items-center gap-1 mb-2">
+              <p className="text-xs text-black flex items-center gap-1 mb-2">
                 <User className="w-3 h-3" />
                 {mesa.responsavel}
               </p>
@@ -142,7 +142,7 @@ export default function VisaoSalao({
                       const r = window.prompt('Nome do responsável:', mesa.responsavel ?? '');
                       if (r !== null && r.trim()) onAtribuirResponsavel(mesa, r.trim());
                     }}
-                    className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-100 text-gray-700 text-sm hover:bg-gray-200"
+                    className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-100 text-black text-sm hover:bg-gray-200"
                   >
                     <User className="w-3.5 h-3.5" />
                     Responsável
@@ -152,7 +152,7 @@ export default function VisaoSalao({
               {mesa.status === 'fechada' && (
                 <button
                   onClick={() => onVerDetalhe(mesa)}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-100 text-gray-700 text-sm hover:bg-gray-200"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-100 text-black text-sm hover:bg-gray-200"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   Ver detalhe
@@ -166,22 +166,22 @@ export default function VisaoSalao({
       {openModalMesa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold mb-2">Abrir mesa {openModalMesa.numero}</h3>
+            <h3 className="text-lg font-semibold mb-2 text-black">Abrir mesa {openModalMesa.numero}</h3>
             <div className="space-y-2 mb-4">
-              <label className="block text-sm font-medium text-gray-700">Responsável (opcional)</label>
+              <label className="block text-sm font-medium text-black">Responsável (opcional)</label>
               <input
                 type="text"
                 value={responsavelInput}
                 onChange={(e) => setResponsavelInput(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-black"
                 placeholder="Nome do garçom/caixa"
               />
-              <label className="block text-sm font-medium text-gray-700">Observação (opcional)</label>
+              <label className="block text-sm font-medium text-black">Observação (opcional)</label>
               <input
                 type="text"
                 value={observacaoInput}
                 onChange={(e) => setObservacaoInput(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-black"
                 placeholder="Ex: aniversário"
               />
             </div>
@@ -192,7 +192,7 @@ export default function VisaoSalao({
                   setResponsavelInput('');
                   setObservacaoInput('');
                 }}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 rounded-lg border border-gray-300 text-black hover:bg-gray-50"
               >
                 Cancelar
               </button>

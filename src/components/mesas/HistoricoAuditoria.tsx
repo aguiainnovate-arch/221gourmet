@@ -33,7 +33,7 @@ export default function HistoricoAuditoria({
         <select
           value={filters.mesaId ?? ''}
           onChange={(e) => onFilterChange({ ...filters, mesaId: e.target.value || undefined })}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-black"
         >
           <option value="">Todas as mesas</option>
           {mesas.map((m) => (
@@ -46,11 +46,11 @@ export default function HistoricoAuditoria({
           type="date"
           value={filters.since ?? ''}
           onChange={(e) => onFilterChange({ ...filters, since: e.target.value || undefined })}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-black"
         />
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 text-black hover:bg-gray-200 text-sm"
         >
           <RefreshCw className="w-4 h-4" />
           Atualizar
@@ -58,28 +58,28 @@ export default function HistoricoAuditoria({
       </div>
       <div className="overflow-x-auto">
         {events.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-black">
             Nenhum evento no período.
           </div>
         ) : (
           <table className="w-full min-w-[600px]">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left p-3 font-medium text-sm">Data/Hora</th>
-                <th className="text-left p-3 font-medium text-sm">Mesa</th>
-                <th className="text-left p-3 font-medium text-sm">Evento</th>
-                <th className="text-left p-3 font-medium text-sm">Detalhe / Motivo</th>
+                <th className="text-left p-3 font-medium text-sm text-black">Data/Hora</th>
+                <th className="text-left p-3 font-medium text-sm text-black">Mesa</th>
+                <th className="text-left p-3 font-medium text-sm text-black">Evento</th>
+                <th className="text-left p-3 font-medium text-sm text-black">Detalhe / Motivo</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {events.map((ev) => (
                 <tr key={ev.id} className="hover:bg-gray-50">
-                  <td className="p-3 text-sm text-gray-600">
+                  <td className="p-3 text-sm text-black">
                     {new Date(ev.timestamp).toLocaleString('pt-BR')}
                   </td>
-                  <td className="p-3 font-medium text-sm">{ev.mesaNumero ?? ev.mesaId}</td>
-                  <td className="p-3 text-sm">{EVENT_LABEL[ev.evento] ?? ev.evento}</td>
-                  <td className="p-3 text-sm text-gray-600">{ev.detalhe ?? ev.motivo ?? '—'}</td>
+                  <td className="p-3 font-medium text-sm text-black">{ev.mesaNumero ?? ev.mesaId}</td>
+                  <td className="p-3 text-sm text-black">{EVENT_LABEL[ev.evento] ?? ev.evento}</td>
+                  <td className="p-3 text-sm text-black">{ev.detalhe ?? ev.motivo ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

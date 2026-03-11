@@ -1,6 +1,5 @@
 interface Translation {
   'en-US': string;
-  'es-ES': string;
   'fr-FR': string;
 }
 
@@ -32,7 +31,7 @@ export const getProductTranslation = (
     };
   }
   
-  const supportedLanguages = ['en-US', 'es-ES', 'fr-FR'];
+  const supportedLanguages = ['en-US', 'fr-FR'];
   
   // Se não tem traduções ou idioma não suportado, retorna valores originais
   if (!product.translations || !supportedLanguages.includes(language)) {
@@ -63,7 +62,7 @@ export const getCategoryTranslation = (
     return category.name;
   }
   
-  const supportedLanguages = ['en-US', 'es-ES', 'fr-FR'];
+  const supportedLanguages = ['en-US', 'fr-FR'];
   
   // Se não tem traduções ou idioma não suportado, retorna valor original
   if (!category.translations || !supportedLanguages.includes(language)) {

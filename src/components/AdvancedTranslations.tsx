@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Globe } from 'lucide-react';
 import brasilFlag from '../assets/brasilflag.svg';
-import espanhaFlag from '../assets/espanhaflag.svg';
 import francaFlag from '../assets/francaflag.svg';
 import usaFlag from '../assets/usaflag.svg';
 
 interface Translation {
   'en-US': string;
-  'es-ES': string;
   'fr-FR': string;
 }
 
@@ -32,11 +30,11 @@ export default function AdvancedTranslations({
 
   const handleTranslationChange = (
     field: 'name' | 'description',
-    language: 'en-US' | 'es-ES' | 'fr-FR',
+    language: 'en-US' | 'fr-FR',
     value: string
   ) => {
     const currentTranslations = translations || {};
-    const currentFieldTranslations = currentTranslations[field] || { 'en-US': '', 'es-ES': '', 'fr-FR': '' };
+    const currentFieldTranslations = currentTranslations[field] || { 'en-US': '', 'fr-FR': '' };
     
     const updatedTranslations = {
       ...currentTranslations,
@@ -71,7 +69,7 @@ export default function AdvancedTranslations({
       {isExpanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-gray-200">
           <p className="text-sm text-gray-600 mt-4">
-            Configure as traduções para outros idiomas (Inglês, Espanhol e Francês). O português será sempre o texto dos campos principais acima.
+            Configure as traduções para outros idiomas (Inglês e Francês). O português será sempre o texto dos campos principais acima.
           </p>
           
           {/* Cards por Idioma */}
@@ -108,44 +106,6 @@ export default function AdvancedTranslations({
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                       rows={3}
                       placeholder="Description in English..."
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Card Espanhol */}
-            <div className="border border-gray-200 rounded-lg bg-white p-4">
-                             <div className="flex items-center gap-2 mb-4">
-                 <img src={espanhaFlag} alt="Spain Flag" className="w-6 h-6" />
-                 <h3 className="font-medium text-gray-800">Español</h3>
-               </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    value={translations?.name?.['es-ES'] || ''}
-                    onChange={(e) => handleTranslationChange('name', 'es-ES', e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Nombre en Español..."
-                  />
-                </div>
-
-                {type === 'product' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Descripción
-                    </label>
-                    <textarea
-                      value={translations?.description?.['es-ES'] || ''}
-                      onChange={(e) => handleTranslationChange('description', 'es-ES', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                      rows={3}
-                      placeholder="Descripción en Español..."
                     />
                   </div>
                 )}

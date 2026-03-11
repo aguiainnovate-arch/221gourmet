@@ -58,7 +58,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Acesso às Configurações</h2>
+            <h2 className="text-2xl font-bold text-black">Acesso às Configurações</h2>
             <button
               onClick={handleClose}
               className="text-gray-500 hover:text-gray-700"
@@ -67,7 +67,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
             </button>
           </div>
 
-          <p className="text-sm text-gray-600 mb-6">
+          <p className="text-sm text-black mb-6">
             Para acessar as configurações do restaurante, faça login com o email e senha cadastrados.
           </p>
 
@@ -79,7 +79,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-black mb-2">
                 <Mail className="w-4 h-4 inline mr-2" />
                 Email do restaurante
               </label>
@@ -87,14 +87,14 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                 placeholder="restaurante@email.com"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-black mb-2">
                 <Lock className="w-4 h-4 inline mr-2" />
                 Senha
               </label>
@@ -102,7 +102,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                 placeholder="Sua senha"
               />
             </div>
@@ -111,7 +111,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-black hover:bg-gray-50 font-medium"
               >
                 Cancelar
               </button>

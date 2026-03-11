@@ -31,7 +31,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useOrders } from '../contexts/OrderContext';
 import { useRestaurantData } from '../hooks/useRestaurantData';
 import { testAllCollections } from '../services/firestoreTest';
-import { uploadImage, deleteImage, uploadAudio, deleteAudio } from '../services/storageService';
+import { uploadImage, deleteImage, uploadAudio, deleteAudio, uploadProductImage, extractStoragePathFromUrl } from '../services/storageService';
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
 import { getStatistics, type GeneralStats } from '../services/statisticsService';
 import { hasRestaurantPermission } from '../services/permissionService';
@@ -160,14 +160,17 @@ export default function Settings() {
     image: ''
   });
 
+  /** Loading do upload de foto do produto (evita múltiplos envios e dá feedback visual) */
+  const [isUploadingProductImage, setIsUploadingProductImage] = useState(false);
+
   // Estados para traduções
   const [productTranslations, setProductTranslations] = useState<{
-    name?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
-    description?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
+    name?: { 'en-US': string; 'fr-FR': string };
+    description?: { 'en-US': string; 'fr-FR': string };
   }>({});
 
   const [categoryTranslations, setCategoryTranslations] = useState<{
-    name?: { 'en-US': string; 'es-ES': string; 'fr-FR': string };
+    name?: { 'en-US': string; 'fr-FR': string };
   }>({});
 
   const [qrCodeModal, setQrCodeModal] = useState<{ show: boolean; url: string; numero: string }>({
@@ -188,22 +191,8 @@ export default function Settings() {
     errors: string[];
   } | null>(null);
 
-  // Função utilitária para extrair o path da URL do Firebase Storage
-  // Esta função é usada para deletar imagens antigas quando são substituídas
-  const extractImagePathFromUrl = (imageUrl: string): string | null => {
-    try {
-      const url = new URL(imageUrl);
-      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-
-      if (pathMatch) {
-        return decodeURIComponent(pathMatch[1]);
-      }
-      return null;
-    } catch (error) {
-      console.warn('Erro ao extrair path da URL:', error);
-      return null;
-    }
-  };
+  // Extração do path da URL do Firebase Storage (deletar imagens antigas) — centralizada no storageService
+  const extractImagePathFromUrl = extractStoragePathFromUrl;
 
   // Verificar se o Firebase está inicializado
   useEffect(() => {
@@ -382,12 +371,10 @@ export default function Settings() {
           ...prev,
           name: {
             'en-US': result.translations!['en-US'].name,
-            'es-ES': result.translations!['es-ES'].name,
             'fr-FR': result.translations!['fr-FR'].name
           },
           description: {
             'en-US': result.translations!['en-US'].description,
-            'es-ES': result.translations!['es-ES'].description,
             'fr-FR': result.translations!['fr-FR'].description
           }
         }));
@@ -450,7 +437,6 @@ export default function Settings() {
                   {
                     name: {
                       'en-US': product.category,
-                      'es-ES': product.category,
                       'fr-FR': product.category
                     }
                   }
@@ -474,12 +460,10 @@ export default function Settings() {
             let productTranslations = {
               name: {
                 'en-US': product.name,
-                'es-ES': product.name,
                 'fr-FR': product.name
               },
               description: {
                 'en-US': product.description || '',
-                'es-ES': product.description || '',
                 'fr-FR': product.description || ''
               }
             };
@@ -493,12 +477,10 @@ export default function Settings() {
                   productTranslations = {
                     name: {
                       'en-US': translationResult.translations['en-US'].name,
-                      'es-ES': translationResult.translations['es-ES'].name,
                       'fr-FR': translationResult.translations['fr-FR'].name
                     },
                     description: {
                       'en-US': translationResult.translations['en-US'].description,
-                      'es-ES': translationResult.translations['es-ES'].description,
                       'fr-FR': translationResult.translations['fr-FR'].description
                     }
                   };
@@ -589,12 +571,6 @@ export default function Settings() {
           ...prev,
           name: {
             'en-US': result.translations!['en-US'].name,
-            'es-ES': result.translations!['es-ES'].name,
-            'fr-FR': result.translations!['fr-FR'].name
-          },
-          description: {
-            'en-US': result.translations!['en-US'].name,
-            'es-ES': result.translations!['es-ES'].name,
             'fr-FR': result.translations!['fr-FR'].name
           }
         }));
@@ -1248,57 +1224,41 @@ export default function Settings() {
 
 
 
-  // Função para fazer upload da imagem do produto
+  // Função para fazer upload da imagem do produto (Firebase Storage: restaurants/{id}/items/{productId}/...)
   const handleProductImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !restaurantId) return;
+    if (isUploadingProductImage) return;
 
     try {
-      // Validar tipo de arquivo
-      if (!file.type.startsWith('image/')) {
-        alert('Por favor, selecione apenas arquivos de imagem');
-        return;
-      }
-
-      // Validar tamanho (máximo 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Arquivo muito grande. Máximo 5MB permitido.');
-        return;
-      }
-
-      // Armazenar URL da imagem antiga para deletar depois
+      setIsUploadingProductImage(true);
       const oldProductImageUrl = productForm.image;
 
-      // Fazer upload para o Firebase Storage
-      const result = await uploadImage(file, 'products', 'product-image');
+      const result = await uploadProductImage(file, restaurantId, editingProduct?.id);
 
       if (result.success) {
-        // Atualizar o formulário com a nova URL
-        setProductForm(prev => ({
-          ...prev,
-          image: result.url
-        }));
-        alert(`Imagem enviada com sucesso! URL: ${result.url.substring(0, 50)}...`);
+        setProductForm(prev => ({ ...prev, image: result.url! }));
 
-        // Deletar a imagem antiga se existir
+        // Remover imagem antiga do Storage para não deixar órfã (só se for do nosso bucket)
         if (oldProductImageUrl) {
-          try {
-            const imagePath = extractImagePathFromUrl(oldProductImageUrl);
-            if (imagePath) {
+          const imagePath = extractImagePathFromUrl(oldProductImageUrl);
+          if (imagePath) {
+            try {
               await deleteImage(imagePath);
-              console.log('Imagem antiga do produto deletada com sucesso');
+            } catch (deleteError) {
+              console.warn('Erro ao deletar imagem antiga do produto:', deleteError);
             }
-          } catch (deleteError) {
-            console.warn('Erro ao deletar imagem antiga do produto:', deleteError);
-            // Não mostrar erro para o usuário, pois o upload foi bem-sucedido
           }
         }
       } else {
-        alert(`Erro ao enviar imagem: ${result.error}`);
+        alert(result.error || 'Erro ao enviar imagem.');
       }
     } catch (error) {
       console.error('Erro no upload da imagem:', error);
       alert('Erro ao enviar imagem. Tente novamente.');
+    } finally {
+      setIsUploadingProductImage(false);
+      event.target.value = '';
     }
   };
 
@@ -1840,7 +1800,7 @@ export default function Settings() {
           `}
         >
           <div className="p-4 flex items-center justify-between md:justify-start border-b md:border-b-0">
-            <h2 className="text-lg font-semibold">Configurações</h2>
+            <h2 className="text-lg font-semibold text-black">Configurações</h2>
             <button
               type="button"
               onClick={closeSidebar}
@@ -1865,23 +1825,23 @@ export default function Settings() {
           {activeTab === 'mesas' && (
             <div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold">Gerenciar Mesas</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-black">Gerenciar Mesas</h2>
                 <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => { setMesasSubTab('salao'); setSelectedMesaDetail(null); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'salao' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'salao' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
                   >
                     Visão do Salão
                   </button>
                   <button
                     onClick={() => { setMesasSubTab('editor'); loadAreas(); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'editor' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'editor' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
                   >
                     Editor de Salão
                   </button>
                   <button
                     onClick={() => { setMesasSubTab('historico'); loadAuditEvents(); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'historico' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'historico' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
                   >
                     Histórico e Auditoria
                   </button>
@@ -1994,26 +1954,26 @@ export default function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {/* Busca */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
+                    <label className="block text-sm font-medium text-black mb-2">Buscar</label>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
                       <input
                         type="text"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Nome ou descrição..."
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                       />
                     </div>
                   </div>
 
                   {/* Filtro por categoria */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Categoria</label>
+                    <label className="block text-sm font-medium text-black mb-2">Categoria</label>
                     <select
                       value={filterCategory}
                       onChange={(e) => setFilterCategory(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                     >
                       <option value="all">Todas as categorias</option>
                       {categories.map((category) => (
@@ -2024,11 +1984,11 @@ export default function Settings() {
 
                   {/* Filtro por preço */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Preço</label>
+                    <label className="block text-sm font-medium text-black mb-2">Preço</label>
                     <select
                       value={filterPrice}
                       onChange={(e) => setFilterPrice(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                     >
                       <option value="all">Todos os preços</option>
                       <option value="low">Até R$ 20,00</option>
@@ -2039,11 +1999,11 @@ export default function Settings() {
 
                   {/* Filtro por tempo */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Tempo de Preparo</label>
+                    <label className="block text-sm font-medium text-black mb-2">Tempo de Preparo</label>
                     <select
                       value={filterTime}
                       onChange={(e) => setFilterTime(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                     >
                       <option value="all">Todos os tempos</option>
                       <option value="fast">Até 15 min</option>
@@ -2058,18 +2018,18 @@ export default function Settings() {
               <div className="bg-white rounded-lg shadow">
                 <div className="p-6 border-b">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Produtos do Cardápio</h3>
-                    <span className="text-sm text-gray-500">
+                    <h3 className="text-lg font-semibold text-black">Produtos do Cardápio</h3>
+                    <span className="text-sm text-black">
                       {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>
                 {loading ? (
-                  <div className="p-6 text-center text-gray-500">
+                  <div className="p-6 text-center text-black">
                     Carregando produtos...
                   </div>
                 ) : filteredProducts.length === 0 ? (
-                  <div className="p-6 text-center text-gray-500">
+                  <div className="p-6 text-center text-black">
                     Nenhum produto encontrado
                   </div>
                 ) : (
@@ -2077,12 +2037,12 @@ export default function Settings() {
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="text-left p-4 font-medium">Produto</th>
-                          <th className="text-left p-4 font-medium">Categoria</th>
-                          <th className="text-left p-4 font-medium">Preço</th>
-                          <th className="text-left p-4 font-medium">Tempo</th>
-                          <th className="text-left p-4 font-medium">Status</th>
-                          <th className="text-left p-4 font-medium">Ações</th>
+                          <th className="text-left p-4 font-medium text-black">Produto</th>
+                          <th className="text-left p-4 font-medium text-black">Categoria</th>
+                          <th className="text-left p-4 font-medium text-black">Preço</th>
+                          <th className="text-left p-4 font-medium text-black">Tempo</th>
+                          <th className="text-left p-4 font-medium text-black">Status</th>
+                          <th className="text-left p-4 font-medium text-black">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -2106,8 +2066,8 @@ export default function Settings() {
                                   )}
                                 </div>
                                 <div>
-                                  <div className="font-medium text-gray-900">{product.name}</div>
-                                  <div className="text-sm text-gray-500">{product.description}</div>
+                                  <div className="font-medium text-black">{product.name}</div>
+                                  <div className="text-sm text-black">{product.description}</div>
                                 </div>
                               </div>
                             </td>
@@ -2119,7 +2079,7 @@ export default function Settings() {
                             <td className="p-4 font-medium text-green-600">
                               R$ {product.price.toFixed(2)}
                             </td>
-                            <td className="p-4 text-sm text-gray-600">
+                            <td className="p-4 text-sm text-black">
                               {product.preparationTime ? `${product.preparationTime} min` : '-'}
                             </td>
                             <td className="p-4">
@@ -2161,7 +2121,7 @@ export default function Settings() {
               <div className="bg-white rounded-lg shadow mt-6">
                 <div className="p-6 border-b">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Gerenciar Categorias</h3>
+                    <h3 className="text-lg font-semibold text-black">Gerenciar Categorias</h3>
                     <button
                       onClick={() => openCategoryModal()}
                       className="bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-blue-600"
@@ -2240,12 +2200,12 @@ export default function Settings() {
               </div>
 
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold mb-6">Configurações do Restaurante</h3>
+                <h3 className="text-lg font-semibold mb-6 text-black">Configurações do Restaurante</h3>
 
                 <div className="space-y-6">
                   {/* Nome do Restaurante */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Nome do Restaurante
                     </label>
                     <input
@@ -2253,9 +2213,9 @@ export default function Settings() {
                       value={personalizationForm.restaurantName}
                       onChange={(e) => setPersonalizationForm(prev => ({ ...prev, restaurantName: e.target.value }))}
                       placeholder="Ex: Noctis"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                     />
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-black mt-1">
                       Este nome aparecerá no cabeçalho do cardápio
                     </p>
                   </div>
@@ -2348,7 +2308,7 @@ export default function Settings() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Cor Primária */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-black mb-2">
                           Cor Primária
                         </label>
                         <div className="flex items-center space-x-3">
@@ -2363,17 +2323,17 @@ export default function Settings() {
                             value={personalizationForm.primaryColor}
                             onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
                             placeholder="#92400e"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                           />
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-black mt-1">
                           Cor principal para headers, botões e destaques
                         </p>
                       </div>
 
                       {/* Cor Secundária */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-black mb-2">
                           Cor Secundária
                         </label>
                         <div className="flex items-center space-x-3">
@@ -2388,10 +2348,10 @@ export default function Settings() {
                             value={personalizationForm.secondaryColor}
                             onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                             placeholder="#fffbeb"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                           />
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-black mt-1">
                           Cor de fundo e elementos secundários
                         </p>
                       </div>
@@ -2962,7 +2922,7 @@ export default function Settings() {
                     <select
                       value={deliveryStatusFilter}
                       onChange={(e) => setDeliveryStatusFilter(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-black"
                     >
                       <option value="all">Todos os status</option>
                       <option value="pending">Aguardando</option>
@@ -2977,11 +2937,11 @@ export default function Settings() {
                       placeholder="Buscar por cliente, telefone ou ID"
                       value={deliverySearch}
                       onChange={(e) => setDeliverySearch(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px]"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px] text-black"
                     />
                     <button
                       onClick={() => loadDeliveryOrders()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-black hover:bg-gray-200 text-sm"
                       title="Atualizar lista"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -3337,7 +3297,7 @@ export default function Settings() {
                     onChange={(e) => setDeliveryDescription(e.target.value)}
                     placeholder="Ex: Somos especializados em comida italiana autêntica. Trabalhamos com massas frescas feitas diariamente. Temos opções vegetarianas e veganas. Horário de funcionamento: 11h às 23h de terça a domingo."
                     rows={6}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
                   />
                   <p className="mt-2 text-xs text-gray-400">
                     {deliveryDescription.length} caracteres • Quanto mais detalhado, melhor para a IA
@@ -3462,7 +3422,7 @@ export default function Settings() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Número da Mesa
                 </label>
                 <input
@@ -3470,7 +3430,7 @@ export default function Settings() {
                   value={novaMesa}
                   onChange={(e) => setNovaMesa(e.target.value)}
                   placeholder="Ex: 15"
-                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                   onKeyPress={(e) => e.key === 'Enter' && adicionarMesa()}
                   autoFocus
                 />
@@ -3516,26 +3476,26 @@ export default function Settings() {
             </div>
 
             <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
+              <p className="text-sm text-black mb-2">
                 Tem certeza que deseja recusar este pedido?
               </p>
               <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="font-medium text-gray-900">Pedido #{orderToCancel.id.substring(0, 8)}</p>
-                <p className="text-sm text-gray-600">Cliente: {orderToCancel.customerName}</p>
-                <p className="text-sm text-gray-600">Total: R$ {(orderToCancel.total + orderToCancel.deliveryFee).toFixed(2)}</p>
+                <p className="font-medium text-black">Pedido #{orderToCancel.id.substring(0, 8)}</p>
+                <p className="text-sm text-black">Cliente: {orderToCancel.customerName}</p>
+                <p className="text-sm text-black">Total: R$ {(orderToCancel.total + orderToCancel.deliveryFee).toFixed(2)}</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Motivo da recusa (opcional)
                 </label>
                 <textarea
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="Ex: Produto indisponível, horário de funcionamento..."
-                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 text-black"
                   rows={3}
                 />
               </div>
@@ -3566,11 +3526,11 @@ export default function Settings() {
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-lg font-semibold">
+                <h3 className="text-lg font-semibold text-black">
                   {editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}
                 </h3>
                 {editingProduct && (
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-black mt-1">
                     Editando: {editingProduct.name}
                   </p>
                 )}
@@ -3585,7 +3545,7 @@ export default function Settings() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     Nome do Produto *
                   </label>
                   <input
@@ -3593,17 +3553,17 @@ export default function Settings() {
                     value={productForm.name}
                     onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Ex: Hambúrguer Clássico"
-                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     Categoria *
                   </label>
                   <select
                     value={productForm.category}
                     onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                   >
                     <option value="">Selecione uma categoria</option>
                     {categories.map((category) => (
@@ -3616,7 +3576,7 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Descrição *
                 </label>
                 <textarea
@@ -3624,28 +3584,34 @@ export default function Settings() {
                   onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Descreva o produto..."
                   rows={3}
-                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                 />
               </div>
 
               {/* Campo de Imagem */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Imagem do Produto
                 </label>
                 <div className="w-full">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
                     onChange={handleProductImageUpload}
+                    disabled={isUploadingProductImage}
                     className="hidden"
                     id="product-image-upload"
                   />
                   <label
-                    htmlFor="product-image-upload"
-                    className="cursor-pointer"
+                    htmlFor={isUploadingProductImage ? undefined : 'product-image-upload'}
+                    className={`cursor-pointer block ${isUploadingProductImage ? 'cursor-wait pointer-events-none' : ''}`}
                   >
-                    <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors">
+                    <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors relative overflow-hidden">
+                      {isUploadingProductImage && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 rounded-lg">
+                          <RefreshCw className="w-8 h-8 text-white animate-spin" />
+                        </div>
+                      )}
                       {productForm.image ? (
                         <div className="relative w-full h-full">
                           <ProductImage
@@ -3668,23 +3634,23 @@ export default function Settings() {
                           </button>
                         </div>
                       ) : (
-                        <div className="text-center text-gray-500">
+                        <div className="text-center text-black">
                           <div className="text-2xl mb-1">📷</div>
                           <p className="text-xs">Clique para adicionar</p>
-                          <p className="text-xs">imagem</p>
+                          <p className="text-xs">JPG, PNG ou WebP (máx. 5MB)</p>
                         </div>
                       )}
                     </div>
                   </label>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Clique no espaço acima para fazer upload de uma imagem (máx. 5MB)
+                  <p className="text-xs text-black mt-2">
+                    {isUploadingProductImage ? 'Enviando imagem...' : 'Clique no espaço acima para fazer upload (máx. 5MB)'}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     Preço (R$) *
                   </label>
                   <input
@@ -3694,11 +3660,11 @@ export default function Settings() {
                     value={productForm.price}
                     onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     Tempo de Preparo (min)
                   </label>
                   <input
@@ -3707,11 +3673,11 @@ export default function Settings() {
                     value={productForm.preparationTime}
                     onChange={(e) => setProductForm(prev => ({ ...prev, preparationTime: e.target.value }))}
                     placeholder="0"
-                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-black mb-2">
                     Status
                   </label>
                   <div className="flex items-center mt-2">
@@ -3721,7 +3687,7 @@ export default function Settings() {
                       onChange={(e) => setProductForm(prev => ({ ...prev, available: e.target.checked }))}
                       className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                     />
-                    <label className="ml-2 text-sm text-gray-700">
+                    <label className="ml-2 text-sm text-black">
                       Disponível
                     </label>
                   </div>
@@ -3732,8 +3698,8 @@ export default function Settings() {
               <div className="mb-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900">Tradução Automática</h3>
-                    <p className="text-sm text-gray-500">Traduza automaticamente este produto usando IA</p>
+                    <h3 className="text-lg font-medium text-black">Tradução Automática</h3>
+                    <p className="text-sm text-black">Traduza automaticamente este produto usando IA</p>
                   </div>
                   <div className="relative">
                     <button
@@ -3799,7 +3765,7 @@ export default function Settings() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">
+              <h3 className="text-lg font-semibold text-black">
                 {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
               </h3>
               <button
@@ -3811,7 +3777,7 @@ export default function Settings() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Nome da Categoria
                 </label>
                 <input
@@ -3819,7 +3785,7 @@ export default function Settings() {
                   value={categoryForm}
                   onChange={(e) => setCategoryForm(e.target.value)}
                   placeholder="Ex: Lanches"
-                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                   onKeyPress={(e) => e.key === 'Enter' && saveCategory()}
                   autoFocus
                 />

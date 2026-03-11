@@ -31,7 +31,6 @@ export interface TranslationResult {
   success: boolean;
   translations?: {
     'en-US': { name: string; description: string };
-    'es-ES': { name: string; description: string };
     'fr-FR': { name: string; description: string };
   };
   error?: string;
@@ -206,10 +205,6 @@ Formato de resposta (JSON):
     "name": "nome traduzido para inglês",
     "description": "descrição traduzida para inglês"
   },
-  "es-ES": {
-    "name": "nombre traducido al español",
-    "description": "descripción traducida al español"
-  },
   "fr-FR": {
     "name": "nom traduit en français",
     "description": "description traduite en français"
@@ -221,7 +216,7 @@ Formato de resposta (JSON):
 Nome: ${name}
 Descrição: ${description}
 
-Traduza para inglês (en-US), espanhol (es-ES) e francês (fr-FR).`;
+Traduza para inglês (en-US) e francês (fr-FR).`;
 
     try {
       const response = await this.sendMessage(userPrompt, systemPrompt);
@@ -235,7 +230,7 @@ Traduza para inglês (en-US), espanhol (es-ES) e francês (fr-FR).`;
         const translations = JSON.parse(response.content.trim());
         
         // Validar estrutura da resposta
-        const requiredLanguages = ['en-US', 'es-ES', 'fr-FR'];
+        const requiredLanguages = ['en-US', 'fr-FR'];
         const isValid = requiredLanguages.every(lang => 
           translations[lang] && 
           translations[lang].name && 
