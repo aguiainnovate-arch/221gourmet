@@ -182,22 +182,37 @@ export default function AIRestaurantChat() {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button — ancorado na viewport via fixed */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 z-40 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-full p-4 shadow-2xl hover:shadow-orange-500/50 transition-all duration-300 hover:scale-110 ${
+        className={`fixed z-40 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-full p-4 shadow-2xl transition-all duration-300 ${
           isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
+        style={{
+          bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
+          right: '1.25rem',
+        }}
       >
         <div className="relative">
-          <MessageCircle className="w-7 h-7" />
+          <MessageCircle className="w-6 h-6" />
           <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
         </div>
       </button>
 
-      {/* Chat Modal */}
+      {/* Chat Modal — responsivo: ocupa viewport em mobile */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[400px] h-[600px] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div
+          className="fixed z-50 flex flex-col bg-white shadow-2xl overflow-hidden"
+          style={{
+            bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
+            right: '1.25rem',
+            left: '1.25rem',
+            maxWidth: '400px',
+            marginLeft: 'auto',
+            height: 'min(600px, calc(100vh - 6rem))',
+            borderRadius: '1rem',
+          }}
+        >
           {/* Header */}
           <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 text-white p-5 flex items-center justify-between">
             <div className="flex items-center space-x-3">
