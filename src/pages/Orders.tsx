@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getDeliveryOrdersByPhone, subscribeDeliveryOrdersByPhone } from '../services/deliveryService';
 import type { DeliveryOrder, DeliveryOrderItem } from '../types/delivery';
+import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 
 const formatDate = (d: Date) =>
     new Intl.DateTimeFormat('pt-BR', {
@@ -262,6 +263,7 @@ const OrderCard = memo(({
 export default function Orders() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useDeliveryAuth();
     const [orders, setOrders] = useState<DeliveryOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [customerPhone, setCustomerPhone] = useState('');
@@ -271,18 +273,26 @@ export default function Orders() {
     const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
     const [autoRefresh, setAutoRefresh] = useState(true);
 
+    // Telefone: state (após pedido) > usuário logado > localStorage
     useEffect(() => {
         const phoneFromState = (location.state as { phone?: string } | null)?.phone?.trim();
         const savedPhone = localStorage.getItem('customerPhone');
-        const phoneToUse = phoneFromState || savedPhone;
+        const userPhone = user?.phone?.trim();
+        const phoneToUse = phoneFromState || userPhone || savedPhone;
         if (phoneToUse) {
             setCustomerPhone(phoneToUse);
             setSearchPhone(phoneToUse);
             if (phoneFromState) localStorage.setItem('customerPhone', phoneFromState);
-        } else {
+        } else if (user === null) {
             setLoading(false);
         }
-    }, []);
+    }, [location.state, user]);
+
+    // Encerrar loading quando não há telefone para buscar (não logado ou perfil sem telefone)
+    useEffect(() => {
+        if (user === null && !customerPhone) setLoading(false);
+        if (user && !user.phone?.trim() && !customerPhone) setLoading(false);
+    }, [user, customerPhone]);
 
     // Atualização em tempo real: escuta mudanças no Firestore (status, etc.)
     useEffect(() => {

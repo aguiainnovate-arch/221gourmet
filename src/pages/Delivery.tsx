@@ -185,10 +185,13 @@ export default function Delivery() {
         style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
       >
         <div className="w-full px-4 sm:px-6 py-2.5">
-          <div className="flex items-center justify-end gap-2 min-h-0">
-            <LanguageSelector className="shrink-0" />
+          <div className="flex items-center justify-between gap-2 min-h-0">
+            <div className="flex items-center shrink-0">
+              <LanguageSelector className="shrink-0" />
+            </div>
+            <div className="flex items-center gap-2 shrink-0 min-w-0">
             <Link
-              to="/delivery/orders"
+              to={user ? '/delivery/orders' : '/delivery/auth?redirect=/delivery/orders'}
               className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2.5 py-2 rounded-xl border border-white/20 transition-colors shrink-0"
               title={t('delivery.myOrders')}
             >
@@ -216,14 +219,15 @@ export default function Delivery() {
               >
                 <User className="w-4 h-4 shrink-0" />
                 <span className="whitespace-nowrap">{t('delivery.signIn')}</span>
-              </Link>
-            )}
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* ── LOGO ── abaixo da header, acima da searchbar */}
-      <div className="shrink-0 flex justify-center items-center pt-5 pb-2 px-4">
+      <div className="shrink-0 flex justify-center items-center pt-0 pb-0 px-2">
         <img
           src={`/${encodeURI('Sem fundo.png')}`}
           alt="Noctis Food - delivery rápido noturno"
@@ -295,9 +299,9 @@ export default function Delivery() {
           </div>
       </div>
 
-      {/* ── CATEGORIAS + CONTADOR ── fixos, não rolam */}
-      <div className="shrink-0 px-4 pt-3 pb-2">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      {/* ── CATEGORIAS + CONTADOR ── fixos, ocupam toda a largura */}
+      <div className="shrink-0 w-full pt-3 pb-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full px-4">
           <h2 className="text-base font-bold text-[#EAF2FF] shrink-0">
             {searchTerm ? t('delivery.searchResults') : t('delivery.nearbyRestaurants')}
           </h2>
@@ -324,21 +328,21 @@ export default function Delivery() {
         </div>
       </div>
 
-      {/* ── ÁREA SCROLLÁVEL ── único elemento que rola verticalmente */}
+      {/* ── ÁREA SCROLLÁVEL ── ocupa toda a largura */}
       <div
-        className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-24"
+        className="flex-1 overflow-y-auto scrollbar-hide w-full pb-24"
         style={{
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorX: 'none',
           touchAction: 'pan-y',
         }}
       >
-        {/* Carrossel de destaques */}
-        <div className="relative mb-6 mt-2">
+        {/* Carrossel de destaques — full width, padding só nas laterais do scroll */}
+        <div className="relative mb-6 mt-2 w-full">
           <div
             ref={carouselRef}
             onScroll={handleCarouselScroll}
-            className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 scrollbar-hide"
+            className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 scrollbar-hide w-full pl-4 pr-4"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-x' }}
             role="region"
             aria-label={t('delivery.highlightsOfTheDay')}
@@ -374,6 +378,7 @@ export default function Delivery() {
         </div>
 
         {/* Lista de restaurantes */}
+        <div className="w-full px-4">
         {filteredRestaurants.length === 0 ? (
           <div className="bg-[#0B1630] rounded-2xl border border-[#1B2A4A] shadow-sm p-10 text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#050A1A] flex items-center justify-center mx-auto mb-5">
@@ -450,6 +455,7 @@ export default function Delivery() {
             ))}
           </div>
         )}
+        </div>
       </div>
 
       {/* ── CHAT ── ancorado na viewport, sempre visível */}

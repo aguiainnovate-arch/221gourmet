@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search, ChevronDown } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
@@ -297,17 +298,25 @@ export default function DeliveryMenu() {
           {/* Overlay */}
           <div className="absolute inset-0 bg-black/40"></div>
 
-          {/* Navigation */}
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-            <button
-              onClick={() => navigate('/delivery')}
-              className="flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-full"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              {t('delivery.back')}
-            </button>
-            <LanguageSelector />
-          </div>
+          {/* Navigation: compacta no app nativo (Capacitor) para não ficar sob a barra de status */}
+          {(() => {
+            const isNative = Capacitor.isNativePlatform();
+            const headerClass = isNative
+              ? 'absolute top-2 left-2 right-2 flex items-center justify-between z-10 pt-[env(safe-area-inset-top)]'
+              : 'absolute top-4 left-4 right-4 flex items-center justify-between z-10';
+            const backBtnClass = isNative
+              ? 'flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-2 py-1.5 rounded-full text-sm'
+              : 'flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-full';
+            return (
+              <div className={headerClass}>
+                <button onClick={() => navigate('/delivery')} className={backBtnClass}>
+                  <ArrowLeft className={isNative ? 'w-4 h-4 mr-1.5' : 'w-5 h-5 mr-2'} />
+                  {t('delivery.back')}
+                </button>
+                <LanguageSelector compact={isNative} />
+              </div>
+            );
+          })()}
 
           {/* Restaurant Info */}
           <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-10">

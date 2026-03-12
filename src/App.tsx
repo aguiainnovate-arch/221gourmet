@@ -8,6 +8,7 @@ import Register from './pages/Register';
 import Delivery from './pages/Delivery';
 import DeliveryAuth from './pages/DeliveryAuth';
 import DeliveryMenu from './pages/DeliveryMenu';
+import Orders from './pages/Orders';
 import RestaurantAuth from './pages/RestaurantAuth';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
@@ -63,6 +64,11 @@ function App() {
                     <RestaurantAuthProvider>
                       <DeliveryAuth />
                     </RestaurantAuthProvider>
+                  </DeliveryAuthProvider>
+                } />
+                <Route path="/delivery/orders" element={
+                  <DeliveryAuthProvider>
+                    <Orders />
                   </DeliveryAuthProvider>
                 } />
                 <Route path="/delivery/:restaurantId" element={

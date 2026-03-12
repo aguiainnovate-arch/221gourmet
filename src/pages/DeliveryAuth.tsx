@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Phone, MapPin, CreditCard, Utensils, ArrowLeft, Lock } from 'lucide-react';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
@@ -11,6 +11,10 @@ type Step = 'email' | 'restaurant_password' | 'delivery_register';
 
 export default function DeliveryAuth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/delivery';
+  const isFromOrders = redirectTo === '/delivery/orders';
+
   const { login: deliveryLogin, updateUser } = useDeliveryAuth();
   const { login: restaurantLogin } = useRestaurantAuth();
 
@@ -64,7 +68,7 @@ export default function DeliveryAuth() {
       const deliveryUser = await getDeliveryUserByEmail(emailTrim);
       if (deliveryUser) {
         await deliveryLogin(deliveryUser.id);
-        navigate('/delivery', { replace: true });
+        navigate(redirectTo, { replace: true });
         return;
       }
 
@@ -123,7 +127,7 @@ export default function DeliveryAuth() {
       });
       await deliveryLogin(userData.id);
       updateUser(userData);
-      navigate('/delivery', { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       console.error('Erro ao criar conta:', err);
       setError('Erro ao criar conta. Tente novamente.');
@@ -186,12 +190,12 @@ export default function DeliveryAuth() {
 
           <div className="mb-4">
             <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
-              {step === 'email' && 'Entrar na sua conta'}
+              {step === 'email' && (isFromOrders ? 'Faça login para ver seus pedidos' : 'Entrar na sua conta')}
               {step === 'restaurant_password' && 'Acesso do restaurante'}
               {step === 'delivery_register' && 'Criar conta'}
             </h1>
             <p className="mt-1 text-gray-600 text-sm">
-              {step === 'email' && 'Informe seu email. Se for restaurante, você digitará a senha em seguida.'}
+              {step === 'email' && (isFromOrders ? 'Entre com seu email ou crie uma conta para acessar seus pedidos.' : 'Informe seu email. Se for restaurante, você digitará a senha em seguida.')}
               {step === 'restaurant_password' && 'Digite sua senha para acessar as configurações do restaurante.'}
               {step === 'delivery_register' && 'Preencha seus dados para começar a pedir.'}
             </p>
