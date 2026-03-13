@@ -1,9 +1,11 @@
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
+import {
+  doc,
+  setDoc,
+  getDoc,
+  getDocFromServer,
   onSnapshot,
-  Timestamp 
+  Timestamp,
+  type DocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -28,36 +30,56 @@ const DEFAULT_SETTINGS: Omit<RestaurantSettings, 'id' | 'updatedAt'> = {
   audioUrl: '',
 };
 
-// Buscar configurações do restaurante
+const isOfflineError = (err: unknown): boolean =>
+  err instanceof Error && /offline|unavailable/i.test(err.message);
+
+function docToSettings(docSnap: DocumentSnapshot): RestaurantSettings | null {
+  if (!docSnap.exists()) return null;
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    restaurantName: data.restaurantName,
+    primaryColor: data.primaryColor,
+    secondaryColor: data.secondaryColor,
+    bannerUrl: data.bannerUrl || '',
+    audioUrl: data.audioUrl || '',
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
+  };
+}
+
+// Buscar configurações do restaurante (tenta rede, depois cache, depois padrão)
 export const getRestaurantSettings = async (): Promise<RestaurantSettings> => {
+  const settingsRef = doc(db, 'settings', SETTINGS_DOC_ID);
+  const defaultResult: RestaurantSettings = {
+    id: SETTINGS_DOC_ID,
+    ...DEFAULT_SETTINGS,
+    updatedAt: new Date(),
+  };
+
+  // 1) Tentar do servidor (evita falso "client is offline" no primeiro carregamento)
   try {
-    const settingsRef = doc(db, 'settings', SETTINGS_DOC_ID);
-    const docSnap = await getDoc(settingsRef);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        restaurantName: data.restaurantName,
-        primaryColor: data.primaryColor,
-        secondaryColor: data.secondaryColor,
-        bannerUrl: data.bannerUrl || '',
-        audioUrl: data.audioUrl || '',
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
-      };
-    } else {
-      // Se não existir, criar com configurações padrão
-      return await createDefaultSettings();
+    const docSnap = await getDocFromServer(settingsRef);
+    const parsed = docToSettings(docSnap);
+    if (parsed) return parsed;
+    return await createDefaultSettings();
+  } catch (serverErr) {
+    if (!isOfflineError(serverErr)) {
+      console.error('Erro ao buscar configurações (servidor):', serverErr);
     }
-  } catch (error) {
-    console.error('Erro ao buscar configurações:', error);
-    // Retorna configurações padrão em caso de erro
-    return {
-      id: SETTINGS_DOC_ID,
-      ...DEFAULT_SETTINGS,
-      updatedAt: new Date()
-    };
   }
+
+  // 2) Tentar do cache (útil quando realmente offline)
+  try {
+    const docSnap = await getDoc(settingsRef);
+    const parsed = docToSettings(docSnap);
+    if (parsed) return parsed;
+  } catch (cacheErr) {
+    if (!isOfflineError(cacheErr)) {
+      console.error('Erro ao buscar configurações (cache):', cacheErr);
+    }
+  }
+
+  return defaultResult;
 };
 
 // Criar configurações padrão
@@ -125,12 +147,13 @@ export const subscribeToSettings = (
       });
     }
   }, (error) => {
-    console.error('Erro ao escutar configurações:', error);
-    // Em caso de erro, usar configurações padrão
+    if (!isOfflineError(error)) {
+      console.error('Erro ao escutar configurações:', error);
+    }
     callback({
       id: SETTINGS_DOC_ID,
       ...DEFAULT_SETTINGS,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
   });
 };

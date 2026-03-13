@@ -185,12 +185,13 @@ export default function AIRestaurantChat() {
       {/* Floating Action Button — ancorado na viewport via fixed */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed z-40 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-full p-4 shadow-2xl transition-all duration-300 ${
+        className={`fixed z-40 text-white rounded-full p-4 shadow-2xl transition-all duration-300 hover:opacity-90 ${
           isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={{
           bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
           right: '1.25rem',
+          backgroundColor: '#E91120',
         }}
       >
         <div className="relative">
@@ -214,13 +215,13 @@ export default function AIRestaurantChat() {
           }}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 text-white p-5 flex items-center justify-between">
+          <div className="text-white p-5 flex items-center justify-between" style={{ backgroundColor: '#E91120' }}>
             <div className="flex items-center space-x-3">
               <div className="relative">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-orange-600 ${
+                <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#D6081B] ${
                   aiConfigured ? 'bg-green-400' : 'bg-yellow-400'
                 }`}></div>
               </div>
@@ -365,7 +366,8 @@ export default function AIRestaurantChat() {
               <button
                 onClick={handleSendMessage}
                 disabled={!inputText.trim() || isLoadingData}
-                className="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-2.5 rounded-full hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100"
+                className="text-white p-2.5 rounded-full hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                style={{ backgroundColor: '#E91120' }}
               >
                 <Send className="w-5 h-5" />
               </button>

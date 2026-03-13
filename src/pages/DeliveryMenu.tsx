@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { getNativeSafeAreaTop, isNativePlatform } from '../utils/capacitorUtils';
 import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search, ChevronDown } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
@@ -67,9 +67,23 @@ export default function DeliveryMenu() {
     i18n.language
   );
 
-  const filteredProducts = selectedCategory === 'todos'
-    ? displayProducts
-    : displayProducts.filter(p => p.category === selectedCategory);
+  // Seções por categoria: ordem das categorias que têm produtos + produtos agrupados (inclui categorias só dos produtos)
+  const categoryNamesFromApi = displayCategories
+    .filter((cat) => displayProducts.some((p) => p.category === cat.name))
+    .map((cat) => cat.name);
+  const allCategoryNamesInProducts = [...new Set(displayProducts.map((p) => p.category))];
+  const categoryNamesWithProducts = [
+    ...categoryNamesFromApi,
+    ...allCategoryNamesInProducts.filter((name) => !categoryNamesFromApi.includes(name)),
+  ];
+  const productsByCategory = categoryNamesWithProducts.reduce<Record<string, Product[]>>((acc, name) => {
+    acc[name] = displayProducts.filter((p) => p.category === name);
+    return acc;
+  }, {});
+
+  // Refs das seções para scroll spy e scroll-into-view ao clicar na aba
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Carregar informações do usuário quando ele estiver logado
   useEffect(() => {
@@ -84,6 +98,29 @@ export default function DeliveryMenu() {
   useEffect(() => {
     loadRestaurantData();
   }, [restaurantId]);
+
+  // Scroll spy: ao rolar no container, atualizar a aba ativa conforme a seção que está no topo (abaixo da barra fixa)
+  const stickyBarHeight = 120;
+  useEffect(() => {
+    if (categoryNamesWithProducts.length === 0) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const refs = sectionRefs.current;
+    const onScroll = () => {
+      const threshold = stickyBarHeight + 10;
+      let activeCategory: string = 'todos';
+      for (const name of categoryNamesWithProducts) {
+        const el = refs[name];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= threshold) activeCategory = name;
+      }
+      setSelectedCategory(activeCategory);
+    };
+    onScroll();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [categoryNamesWithProducts.join(',')]);
 
   // Disparar animação de entrada do modal (slide de baixo) após o primeiro paint
   useEffect(() => {
@@ -283,7 +320,16 @@ export default function DeliveryMenu() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div
+      className="flex flex-col bg-gray-50 h-screen max-h-[100dvh] overflow-hidden"
+      style={{ minHeight: 0 }}
+    >
+      {/* Único container de scroll: ao rolar, o header sobe; a barra (busca + categorias) sobe até o topo e fica sticky; só os cards rolam por baixo */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pb-24"
+        style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}
+      >
       {/* Header - banner + card de entrega (rolam normalmente) */}
       <div className="relative overflow-x-hidden">
         {/* Restaurant Banner Background */}
@@ -298,18 +344,27 @@ export default function DeliveryMenu() {
           {/* Overlay */}
           <div className="absolute inset-0 bg-black/40"></div>
 
-          {/* Navigation: compacta no app nativo (Capacitor) para não ficar sob a barra de status */}
+          {/* Navigation: no app nativo (Capacitor/Android) fica abaixo da status bar e com área de toque maior */}
           {(() => {
-            const isNative = Capacitor.isNativePlatform();
+            const isNative = isNativePlatform();
+            const safeAreaTop = getNativeSafeAreaTop();
             const headerClass = isNative
-              ? 'absolute top-2 left-2 right-2 flex items-center justify-between z-10 pt-[env(safe-area-inset-top)]'
+              ? 'absolute top-0 left-2 right-2 flex items-center justify-between z-10'
               : 'absolute top-4 left-4 right-4 flex items-center justify-between z-10';
+            const headerStyle = isNative && safeAreaTop
+              ? { paddingTop: safeAreaTop }
+              : undefined;
             const backBtnClass = isNative
-              ? 'flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-2 py-1.5 rounded-full text-sm'
+              ? 'flex items-center justify-center min-h-[44px] min-w-[44px] text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-3 py-2.5 rounded-full text-sm touch-manipulation'
               : 'flex items-center text-white hover:text-gray-200 transition-colors duration-200 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-full';
             return (
-              <div className={headerClass}>
-                <button onClick={() => navigate('/delivery')} className={backBtnClass}>
+              <div className={headerClass} style={headerStyle}>
+                <button
+                  type="button"
+                  onClick={() => navigate('/delivery')}
+                  className={backBtnClass}
+                  aria-label={t('delivery.back')}
+                >
                   <ArrowLeft className={isNative ? 'w-4 h-4 mr-1.5' : 'w-5 h-5 mr-2'} />
                   {t('delivery.back')}
                 </button>
@@ -400,7 +455,7 @@ export default function DeliveryMenu() {
             style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
           >
             <button
-              onClick={() => setSelectedCategory('todos')}
+              onClick={() => { setSelectedCategory('todos'); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === 'todos'
                 ? 'bg-amber-600 text-white shadow-md'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
@@ -408,83 +463,105 @@ export default function DeliveryMenu() {
             >
               {t('menu.allCategories')}
             </button>
-            {categories.map((category) => {
-              const displayName = displayCategories.find(c => c.id === category.id)?.name ?? category.name;
+            {categoryNamesWithProducts.map((categoryName) => {
+              const displayName = displayCategories.find(c => c.name === categoryName)?.name ?? categoryName;
               return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.name)}
-                className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === category.name
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-                  }`}
-              >
-                {displayName}
-              </button>
-            );})}
+                <button
+                  key={categoryName}
+                  onClick={() => {
+                    setSelectedCategory(categoryName);
+                    sectionRefs.current[categoryName]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === categoryName
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                    }`}
+                >
+                  {displayName}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-full overflow-x-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Menu - apenas lista de produtos */}
+          {/* Menu - itens por categoria, com nome da categoria no início de cada seção */}
           <div className="lg:col-span-2 min-w-0">
-            <div className="space-y-3 sm:space-y-4">
-              {filteredProducts.map((product) => {
-                const itemInCart = selectedItems.find(item => item.product.id === product.id);
+            <div className="space-y-8 sm:space-y-10">
+              {categoryNamesWithProducts.map((categoryName) => {
+                const sectionProducts = productsByCategory[categoryName] ?? [];
+                const displayName = displayCategories.find(c => c.name === categoryName)?.name ?? categoryName;
                 return (
-                  <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openProductModal(product)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(product); } }}
-                      className="p-3 sm:p-4 cursor-pointer active:scale-[0.99] transition-transform touch-manipulation select-none"
-                      aria-label={`Ver detalhes de ${product.name}`}
-                    >
-                      <div className="flex items-start gap-3 sm:gap-4">
-                        {/* Imagem */}
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg flex-shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden">
-                          {product.image ? (
-                            <ProductImage
-                              src={product.image}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="text-center text-gray-400 p-1.5 sm:p-2">
-                              <div className="text-[10px] sm:text-xs font-medium">📷</div>
-                              <div className="text-[10px] sm:text-xs leading-tight">{t('delivery.noImage')}</div>
+                  <div
+                    key={categoryName}
+                    ref={(el) => { sectionRefs.current[categoryName] = el; }}
+                    data-section-category={categoryName}
+                    className="scroll-mt-32"
+                  >
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 pb-2 border-b-2 border-amber-200">
+                      {displayName}
+                    </h2>
+                    <div className="space-y-3 sm:space-y-4">
+                      {sectionProducts.map((product) => {
+                        const itemInCart = selectedItems.find(item => item.product.id === product.id);
+                        return (
+                          <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden">
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openProductModal(product)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(product); } }}
+                              className="p-3 sm:p-4 cursor-pointer active:scale-[0.99] transition-transform touch-manipulation select-none"
+                              aria-label={`Ver detalhes de ${product.name}`}
+                            >
+                              <div className="flex items-start gap-3 sm:gap-4">
+                                {/* Imagem */}
+                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg flex-shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden">
+                                  {product.image ? (
+                                    <ProductImage
+                                      src={product.image}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="text-center text-gray-400 p-1.5 sm:p-2">
+                                      <div className="text-[10px] sm:text-xs font-medium">📷</div>
+                                      <div className="text-[10px] sm:text-xs leading-tight">{t('delivery.noImage')}</div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Nome, descrição e preço */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-0.5 sm:mb-1 break-words line-clamp-2 leading-snug">
+                                      {product.name}
+                                    </h3>
+                                    {itemInCart && (
+                                      <span className="shrink-0 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                        {itemInCart.quantity} {t('delivery.inCart')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2 line-clamp-2 leading-snug">
+                                    {product.description}
+                                  </p>
+                                  <p className="text-lg sm:text-xl font-bold text-amber-600 tabular-nums">
+                                    R$ {product.price.toFixed(2)}
+                                  </p>
+                                </div>
+
+                                {/* Indicador de toque: seta ou chevron */}
+                                <div className="shrink-0 flex items-center text-gray-400">
+                                  <ChevronDown className="w-5 h-5 rotate-[-90deg]" aria-hidden />
+                                </div>
+                              </div>
                             </div>
-                          )}
-                        </div>
-
-                        {/* Nome, descrição e preço */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-0.5 sm:mb-1 break-words line-clamp-2 leading-snug">
-                              {product.name}
-                            </h3>
-                            {itemInCart && (
-                              <span className="shrink-0 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                                {itemInCart.quantity} {t('delivery.inCart')}
-                              </span>
-                            )}
                           </div>
-                          <p className="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2 line-clamp-2 leading-snug">
-                            {product.description}
-                          </p>
-                          <p className="text-lg sm:text-xl font-bold text-amber-600 tabular-nums">
-                            R$ {product.price.toFixed(2)}
-                          </p>
-                        </div>
-
-                        {/* Indicador de toque: seta ou chevron */}
-                        <div className="shrink-0 flex items-center text-gray-400">
-                          <ChevronDown className="w-5 h-5 rotate-[-90deg]" aria-hidden />
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -549,6 +626,7 @@ export default function DeliveryMenu() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Modal de detalhes do produto - slide de baixo, arrastar para fechar */}
@@ -625,7 +703,7 @@ export default function DeliveryMenu() {
                           >
                             <Minus className="w-5 h-5" />
                           </button>
-                          <span className="font-bold text-lg min-w-[2rem] text-center">{modalQuantity}</span>
+                          <span className="font-bold text-lg min-w-[2rem] text-center text-black">{modalQuantity}</span>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setModalQuantity((q) => q + 1); }}
@@ -647,7 +725,7 @@ export default function DeliveryMenu() {
                           value={modalObservations}
                           onChange={(e) => setModalObservations(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm text-black"
                         />
                       </div>
 

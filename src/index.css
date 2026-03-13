@@ -15,12 +15,14 @@
 }
 
 /* ============================================================
-   CANVAS NATIVO — evita overflow horizontal e cria moldura fixa
+   CANVAS NATIVO — evita overflow horizontal; permite scroll vertical
+   quando o conteúdo da página for maior que a viewport (ex.: cardápio da loja).
    ============================================================ */
 html {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   /* Impede bounce/elastic scroll horizontal no iOS */
   overscroll-behavior-x: none;
 }
@@ -28,9 +30,10 @@ html {
 body {
   background-color: var(--noctis-background);
   color: var(--noctis-text-primary);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   max-width: 100vw;
   /* Remove tap highlight azul nativo — aparência de app */
   -webkit-tap-highlight-color: transparent;
@@ -44,8 +47,8 @@ body {
 
 #root {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow: visible;
   max-width: 100vw;
 }
 
@@ -231,340 +234,4 @@ body::-webkit-scrollbar,
   animation: float 3s ease-in-out infinite;
 }
 
-/* Searchbar Delivery — neon/glass (bordas animadas + glow) */
-.delivery-searchbar {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 64px;
-  width: 100%;
-  max-width: min(320px, 100%);
-  margin: 0 auto;
-}
-
-.delivery-searchbar .white,
-.delivery-searchbar .border,
-.delivery-searchbar .darkBorderBg,
-.delivery-searchbar .glow {
-  max-height: 64px;
-  max-width: min(320px, 100%);
-  height: 100%;
-  width: 100%;
-  position: absolute;
-  overflow: hidden;
-  z-index: -1;
-  border-radius: 12px;
-  filter: blur(3px);
-}
-
-.delivery-searchbar .input {
-  background-color: #010201;
-  border: none;
-  width: 100%;
-  max-width: 100%;
-  height: 52px;
-  border-radius: 10px;
-  color: white;
-  padding-left: 52px;
-  padding-right: 50px;
-  font-size: 16px;
-  -webkit-user-select: text;
-  user-select: text;
-  box-sizing: border-box;
-}
-
-.delivery-searchbar .input::placeholder {
-  color: #c0b9c0;
-}
-
-.delivery-searchbar .input:focus {
-  outline: none;
-}
-
-.delivery-searchbar #main:focus-within .input-mask {
-  display: none;
-}
-
-.delivery-searchbar .input-mask {
-  pointer-events: none;
-  width: 100px;
-  height: 20px;
-  position: absolute;
-  background: linear-gradient(90deg, transparent, black);
-  top: 50%;
-  transform: translateY(-50%);
-  left: 52px;
-}
-
-.delivery-searchbar .pink-mask {
-  pointer-events: none;
-  width: 24px;
-  height: 16px;
-  position: absolute;
-  background: #cf30aa;
-  top: 50%;
-  transform: translateY(-50%);
-  left: 8px;
-  filter: blur(16px);
-  opacity: 0.8;
-  transition: all 2s;
-}
-
-.delivery-searchbar:hover .pink-mask {
-  opacity: 0;
-}
-
-.delivery-searchbar .white {
-  max-height: 58px;
-  max-width: min(312px, 100%);
-  border-radius: 10px;
-  filter: blur(2px);
-}
-
-.delivery-searchbar .white::before {
-  content: "";
-  z-index: -2;
-  text-align: center;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(83deg);
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  filter: brightness(1.4);
-  background-image: conic-gradient(
-    rgba(0, 0, 0, 0) 0%,
-    #a099d8,
-    rgba(0, 0, 0, 0) 8%,
-    rgba(0, 0, 0, 0) 50%,
-    #dfa2da,
-    rgba(0, 0, 0, 0) 58%
-  );
-  transition: all 2s;
-}
-
-.delivery-searchbar .border {
-  max-height: 54px;
-  max-width: min(308px, 100%);
-  border-radius: 11px;
-  filter: blur(0.5px);
-}
-
-.delivery-searchbar .border::before {
-  content: "";
-  z-index: -2;
-  text-align: center;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(70deg);
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  filter: brightness(1.3);
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  background-image: conic-gradient(
-    #1c191c,
-    #402fb5 5%,
-    #1c191c 14%,
-    #1c191c 50%,
-    #cf30aa 60%,
-    #1c191c 64%
-  );
-  transition: all 2s;
-}
-
-.delivery-searchbar .darkBorderBg {
-  max-height: 60px;
-  max-width: min(316px, 100%);
-}
-
-.delivery-searchbar .darkBorderBg::before {
-  content: "";
-  z-index: -2;
-  text-align: center;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(82deg);
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  background-image: conic-gradient(
-    rgba(0, 0, 0, 0),
-    #18116a,
-    rgba(0, 0, 0, 0) 10%,
-    rgba(0, 0, 0, 0) 50%,
-    #6e1b60,
-    rgba(0, 0, 0, 0) 60%
-  );
-  transition: all 2s;
-}
-
-.delivery-searchbar:hover .darkBorderBg::before {
-  transform: translate(-50%, -50%) rotate(262deg);
-}
-
-.delivery-searchbar:hover .glow::before {
-  transform: translate(-50%, -50%) rotate(240deg);
-}
-
-.delivery-searchbar:hover .white::before {
-  transform: translate(-50%, -50%) rotate(263deg);
-}
-
-.delivery-searchbar:hover .border::before {
-  transform: translate(-50%, -50%) rotate(250deg);
-}
-
-.delivery-searchbar:hover .darkBorderBg::before {
-  transform: translate(-50%, -50%) rotate(-98deg);
-}
-
-.delivery-searchbar:hover .glow::before {
-  transform: translate(-50%, -50%) rotate(-120deg);
-}
-
-.delivery-searchbar:hover .white::before {
-  transform: translate(-50%, -50%) rotate(-97deg);
-}
-
-.delivery-searchbar:hover .border::before {
-  transform: translate(-50%, -50%) rotate(-110deg);
-}
-
-.delivery-searchbar:focus-within .darkBorderBg::before {
-  transform: translate(-50%, -50%) rotate(442deg);
-  transition: all 4s;
-}
-
-.delivery-searchbar:focus-within .glow::before {
-  transform: translate(-50%, -50%) rotate(420deg);
-  transition: all 4s;
-}
-
-.delivery-searchbar:focus-within .white::before {
-  transform: translate(-50%, -50%) rotate(443deg);
-  transition: all 4s;
-}
-
-.delivery-searchbar:focus-within .border::before {
-  transform: translate(-50%, -50%) rotate(430deg);
-  transition: all 4s;
-}
-
-.delivery-searchbar .glow {
-  overflow: hidden;
-  filter: blur(20px);
-  opacity: 0.35;
-  max-height: 72px;
-  max-width: 100%;
-}
-
-.delivery-searchbar .glow::before {
-  content: "";
-  z-index: -2;
-  text-align: center;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(60deg);
-  position: absolute;
-  width: 999px;
-  height: 999px;
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  background-image: conic-gradient(
-    #000,
-    #402fb5 5%,
-    #000 38%,
-    #000 50%,
-    #cf30aa 60%,
-    #000 87%
-  );
-  transition: all 2s;
-}
-
-@keyframes searchbar-rotate {
-  100% {
-    transform: translate(-50%, -50%) rotate(450deg);
-  }
-}
-
-.delivery-searchbar #filter-icon {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  right: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-  height: 36px;
-  width: 36px;
-  min-width: 36px;
-  isolation: isolate;
-  overflow: hidden;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #161329, black, #1d1b4b);
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.delivery-searchbar .filterBorder {
-  height: 38px;
-  width: 38px;
-  position: absolute;
-  overflow: hidden;
-  top: 50%;
-  transform: translateY(-50%);
-  right: 5px;
-  border-radius: 8px;
-}
-
-.delivery-searchbar .filterBorder::before {
-  content: "";
-  text-align: center;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(90deg);
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  filter: brightness(1.35);
-  background-image: conic-gradient(
-    rgba(0, 0, 0, 0),
-    #3d3a4f,
-    rgba(0, 0, 0, 0) 50%,
-    rgba(0, 0, 0, 0) 50%,
-    #3d3a4f,
-    rgba(0, 0, 0, 0) 100%
-  );
-  animation: searchbar-rotate 4s linear infinite;
-}
-
-.delivery-searchbar #main {
-  position: relative;
-  width: 100%;
-  max-width: 320px;
-  display: flex;
-  align-items: center;
-  min-height: 52px;
-}
-
-.delivery-searchbar #search-icon {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* Searchbar Delivery — barra simples (estilos no componente) */

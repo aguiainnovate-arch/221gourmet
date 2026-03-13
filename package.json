@@ -12,6 +12,8 @@
     "migrate:delivery-settings": "tsx src/scripts/migrateDeliverySettings.ts",
     "create:demo-users": "tsx src/scripts/createDemoUsers.ts",
     "create:demo-accounts": "tsx src/scripts/createDemoAccounts.ts",
+    "seed:demo-restaurants": "tsx src/scripts/seedDemoRestaurants.ts",
+    "seed:all": "npm run create:demo-accounts && npm run seed:demo-restaurants",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npm run cap:sync && CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npx cap open android",
     "cap:ios": "npm run cap:sync && npx cap cap open ios",

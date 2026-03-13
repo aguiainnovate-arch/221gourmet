@@ -1729,8 +1729,11 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-white border-b p-3 sm:p-4 sticky top-0 z-30">
+      {/* Header — safe-area para não ficar sob a barra de status (Capacitor/mobile) */}
+      <div
+        className="bg-white border-b p-3 sm:p-4 sticky top-0 z-30"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))' }}
+      >
         <div className="flex justify-between items-center gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button

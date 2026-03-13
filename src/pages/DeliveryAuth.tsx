@@ -145,9 +145,12 @@ export default function DeliveryAuth() {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-gray-50 flex flex-col lg:flex-row">
+    <div className="h-screen overflow-hidden flex flex-col lg:flex-row" style={{ backgroundColor: '#FFF8F2' }}>
       {/* Coluna esquerda: branding */}
-      <div className="hidden lg:flex lg:w-1/2 lg:h-full bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 p-8 flex-col justify-between shrink-0">
+      <div
+        className="hidden lg:flex lg:w-1/2 lg:h-full p-8 flex-col justify-between shrink-0"
+        style={{ background: 'linear-gradient(135deg, #E91120 0%, #D6081B 50%, #B40511 100%)' }}
+      >
         <Link
           to="/delivery"
           className="inline-flex items-center gap-2 text-white/90 hover:text-white font-medium transition-colors text-sm"
@@ -160,7 +163,7 @@ export default function DeliveryAuth() {
             <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
               <Utensils className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">Noctis</span>
+            <span className="text-2xl font-bold text-white">Bora Comer</span>
           </div>
           <p className="text-white/90 text-sm max-w-sm leading-relaxed">
             {step === 'restaurant_password'
@@ -177,24 +180,25 @@ export default function DeliveryAuth() {
 
       <div className="flex-1 min-h-0 flex flex-col justify-center px-6 py-6 lg:px-12 lg:py-8 overflow-hidden relative">
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
-          <LanguageSelector variant="dark" />
+          <LanguageSelector variant="light" />
         </div>
         <div className="w-full max-w-md mx-auto shrink-0">
           <Link
             to="/delivery"
-            className="lg:hidden inline-flex items-center gap-2 text-amber-600 hover:text-amber-700 font-medium mb-4 text-sm"
+            className="lg:hidden inline-flex items-center gap-2 font-medium mb-4 text-sm hover:opacity-80"
+            style={{ color: '#E91120' }}
           >
             <ArrowLeft className="w-4 h-4" />
             Voltar
           </Link>
 
           <div className="mb-4">
-            <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
+            <h1 className="text-xl lg:text-2xl font-bold" style={{ color: '#2A1E1A' }}>
               {step === 'email' && (isFromOrders ? 'Faça login para ver seus pedidos' : 'Entrar na sua conta')}
               {step === 'restaurant_password' && 'Acesso do restaurante'}
               {step === 'delivery_register' && 'Criar conta'}
             </h1>
-            <p className="mt-1 text-gray-600 text-sm">
+            <p className="mt-1 text-sm" style={{ color: '#6B5A54' }}>
               {step === 'email' && (isFromOrders ? 'Entre com seu email ou crie uma conta para acessar seus pedidos.' : 'Informe seu email. Se for restaurante, você digitará a senha em seguida.')}
               {step === 'restaurant_password' && 'Digite sua senha para acessar as configurações do restaurante.'}
               {step === 'delivery_register' && 'Preencha seus dados para começar a pedir.'}
@@ -202,7 +206,7 @@ export default function DeliveryAuth() {
           </div>
 
           {error && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
+            <div className="mb-3 p-3 rounded-lg text-xs border" style={{ backgroundColor: 'rgba(233,17,32,0.08)', borderColor: '#E91120', color: '#B40511' }}>
               {error}
             </div>
           )}
@@ -211,14 +215,15 @@ export default function DeliveryAuth() {
           {step === 'email' && (
             <form onSubmit={handleIdentify} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                     placeholder="seu@email.com"
                     required
                     autoComplete="username"
@@ -229,14 +234,16 @@ export default function DeliveryAuth() {
                 <button
                   type="button"
                   onClick={() => { setStep('delivery_register'); setError(''); setEmail(email || ''); setName(''); setPhone(''); setAddress(''); }}
-                  className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold text-sm transition-colors"
+                  className="flex-1 px-4 py-2.5 border-2 rounded-lg font-semibold text-sm transition-colors hover:bg-[#FAF0DB]"
+                  style={{ borderColor: '#E9D7C4', color: '#2A1E1A' }}
                 >
                   Criar conta
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md hover:opacity-90"
+                  style={{ backgroundColor: isSubmitting ? undefined : '#E91120' }}
                 >
                   {isSubmitting ? 'Verificando...' : 'Entrar'}
                 </button>
@@ -248,26 +255,28 @@ export default function DeliveryAuth() {
           {step === 'restaurant_password' && (
             <form onSubmit={handleRestaurantLogin} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="email"
                     value={restaurantEmail}
                     readOnly
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-black text-sm"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Senha</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Senha</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                     placeholder="Sua senha"
                     required
                     autoComplete="current-password"
@@ -278,14 +287,16 @@ export default function DeliveryAuth() {
                 <button
                   type="button"
                   onClick={goBackToEmail}
-                  className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold text-sm transition-colors"
+                  className="flex-1 px-4 py-2.5 border-2 rounded-lg font-semibold text-sm transition-colors hover:bg-[#FAF0DB]"
+                  style={{ borderColor: '#E9D7C4', color: '#2A1E1A' }}
                 >
                   Voltar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md hover:opacity-90"
+                  style={{ backgroundColor: isSubmitting ? undefined : '#E91120' }}
                 >
                   {isSubmitting ? 'Entrando...' : 'Entrar'}
                 </button>
@@ -297,55 +308,59 @@ export default function DeliveryAuth() {
           {step === 'delivery_register' && (
             <form onSubmit={handleDeliveryRegister} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nome completo *</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Nome completo *</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                     placeholder="Seu nome completo"
                     required
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Email *</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Email *</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                     placeholder="seu@email.com"
                     required
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone *</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Telefone *</label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                     placeholder="(00) 00000-0000"
                     required
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Endereço de entrega *</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Endereço de entrega *</label>
                 <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                  <MapPin className="absolute left-3 top-3 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black resize-none"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                     rows={2}
                     placeholder="Rua, número, complemento, bairro, cidade"
                     required
@@ -353,13 +368,14 @@ export default function DeliveryAuth() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Forma de pagamento padrão</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Forma de pagamento padrão</label>
                 <div className="relative">
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <select
                     value={defaultPaymentMethod}
                     onChange={(e) => setDefaultPaymentMethod(e.target.value as 'money' | 'credit' | 'debit' | 'pix')}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-black text-sm appearance-none"
+                    className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                   >
                     <option value="money">Dinheiro</option>
                     <option value="credit">Cartão de Crédito</option>
@@ -372,14 +388,16 @@ export default function DeliveryAuth() {
                 <button
                   type="button"
                   onClick={goBackToEmail}
-                  className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold text-sm transition-colors"
+                  className="flex-1 px-4 py-2.5 border-2 rounded-lg font-semibold text-sm transition-colors hover:bg-[#FAF0DB]"
+                  style={{ borderColor: '#E9D7C4', color: '#2A1E1A' }}
                 >
                   Já tenho conta
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-md hover:opacity-90"
+                  style={{ backgroundColor: isSubmitting ? undefined : '#E91120' }}
                 >
                   {isSubmitting ? 'Criando...' : 'Criar conta'}
                 </button>
@@ -388,7 +406,7 @@ export default function DeliveryAuth() {
           )}
 
           {step === 'email' && (
-            <p className="mt-4 text-xs text-gray-500 text-center">
+            <p className="mt-4 text-xs text-center" style={{ color: '#6B5A54' }}>
               Não tem conta? Crie uma para salvar endereço e forma de pagamento.
             </p>
           )}

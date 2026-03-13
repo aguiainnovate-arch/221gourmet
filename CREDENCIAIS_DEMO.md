@@ -1,7 +1,19 @@
 # Credenciais de demonstração (221 Gourmet / 221 Delivery)
 
-Usuários de exemplo para cada tipo de acesso no sistema.  
-**Criados via Firebase (Firestore)** com o script `npm run create:demo-accounts`.
+Arquivo de referência para **logins e senhas** de usuários de exemplo.  
+Contas são criadas no **Firebase (Firestore)** via scripts executáveis no terminal.
+
+---
+
+## Índice
+
+| # | Tipo            | Email / Identificação      | Script que cria              |
+|---|-----------------|----------------------------|------------------------------|
+| 1 | Admin           | `admin@gmail.com`          | (código)                     |
+| 2 | Restaurante demo| `restaurante@demo.com`     | `npm run create:demo-accounts` |
+| 3 | Cliente delivery| `cliente@demo.com` / telefone | `npm run create:demo-accounts` |
+| 4 | Motoboy         | `motoboy@demo.com` / telefone | `npm run create:demo-accounts` |
+| 5 | 5 Restaurantes fictícios | `restaurante1@demo.com` … `restaurante5@demo.com` | `npm run seed:demo-restaurants` |
 
 ---
 
@@ -18,7 +30,7 @@ Usuários de exemplo para cada tipo de acesso no sistema.
 
 ---
 
-## 2. Restaurante (configurações do restaurante)
+## 2. Restaurante (conta única demo)
 
 | Campo   | Valor              |
 |--------|--------------------|
@@ -27,17 +39,10 @@ Usuários de exemplo para cada tipo de acesso no sistema.
 
 **Onde usar:**
 
-**Opção 1 – Página de login dedicada (recomendado):**
-- Acesse: `http://localhost:5173/restaurant/auth`
-- Faça login com email e senha
-- Será redirecionado para o painel de gerenciamento
+- **Opção 1 (recomendado):** `http://localhost:5173/restaurant/auth` → login com email e senha.
+- **Opção 2:** `http://localhost:5173/<ID_DO_RESTAURANTE>/settings` → modal de login (use o ID exibido ao final do script).
 
-**Opção 2 – Diretamente nas configurações:**
-- Acesse: `http://localhost:5173/<ID_DO_RESTAURANTE>/settings`
-- Um modal de login aparecerá
-- Exemplo (ID gerado pelo script): `http://localhost:5173/E81Qf47vgdve6RxcQWRX/settings`
-
-**Observação:** o restaurante demo é criado no Firestore ao rodar `npm run create:demo-accounts`. O **ID do restaurante** aparece no log ao final do script; use-o na URL de settings (Opção 2).
+**Observação:** criado/atualizado pelo script `npm run create:demo-accounts`. O **ID do restaurante** aparece no log ao final; use-o na URL de settings se precisar.
 
 ---
 
@@ -48,44 +53,70 @@ Usuários de exemplo para cada tipo de acesso no sistema.
 | **Email**   | `cliente@demo.com`   |
 | **Telefone**| `(11) 99999-9999`   |
 
-**Senha:** não existe. O cliente do delivery **não usa senha**; o acesso é por email ou telefone.
+**Senha:** não existe. Acesso por **email** ou **telefone**.
 
-**Onde usar:** rota `/delivery/auth` (Entrar / Criar conta). Informe o **email** ou o **telefone** acima para entrar na conta demo.
+**Onde usar:** rota `/delivery/auth`. Informe o email ou o telefone acima.
 
 ---
 
-## 4. Motoboy (usuário delivery – painel motoboy)
+## 4. Motoboy (usuário delivery)
 
 | Campo     | Valor              |
 |----------|--------------------|
 | **Email**   | `motoboy@demo.com`   |
 | **Telefone**| `(11) 98888-8888`   |
 
-**Senha:** não existe. O acesso é por email ou telefone (mesmo fluxo de cliente delivery).
+**Senha:** não existe. Acesso por **email** ou **telefone** (mesmo fluxo de cliente delivery).
 
-**Onde usar:** rota `/delivery/auth`. Informe **email** ou **telefone** acima. O painel do motoboy (chamadas, entregas, finanças) depende de rota/autenticação específica para motoboy no app.
+**Onde usar:** rota `/delivery/auth`. O painel do motoboy depende de rota/autenticação específica no app.
 
 ---
 
-## Como criar as contas no Firestore (Firebase CLI / script)
+## 5. Cinco restaurantes fictícios (seed)
 
-Na raiz do projeto, com o `.env` configurado (variáveis `VITE_FIREBASE_*`):
+Cinco restaurantes de exemplo, cada um com **conta (email/senha)**, **3 categorias de menu** e **pelo menos 3 itens por categoria** (nome, descrição, preço).
+
+| Restaurante             | Email                  | Senha    |
+|-------------------------|------------------------|----------|
+| Cantina Bella Italia   
+ | `restaurante1@demo.com`| `Demo@101` |
+| Sabor do Nordeste   
+    | `restaurante2@demo.com`| `Demo@102` |
+| Sushi Zen        
+       | `restaurante3@demo.com`| `Demo@103` |
+| Churrascaria Gaúcha  
+   | `restaurante4@demo.com`| `Demo@104` |
+| Padaria & Café Manhã  
+  | `restaurante5@demo.com`| `Demo@105` |
+
+**Onde usar:** mesmo fluxo do restaurante (seção 2): `/restaurant/auth` ou `/<ID_DO_RESTAURANTE>/settings`. Os **IDs** e dados completos (telefone, endereço, etc.) são gerados ao rodar o script e ficam salvos em **`credentials.json`** na raiz do projeto.
+
+**Como criar:** na raiz do projeto, com `.env` configurado (`VITE_FIREBASE_*`):
 
 ```bash
-npm run create:demo-accounts
+npm run seed:demo-restaurants
 ```
 
 O script irá:
 
-1. **Plano:** criar um plano padrão (“Plano Básico”) se não existir nenhum.
-2. **Restaurante:** criar ou atualizar restaurante `restaurante@demo.com` com senha `Demo@123` e delivery habilitado.
-3. **Cliente:** criar ou atualizar usuário delivery `cliente@demo.com` / `(11) 99999-9999`.
-4. **Motoboy:** criar ou atualizar usuário delivery `motoboy@demo.com` / `(11) 98888-8888`.
+1. Garantir um plano (ex.: Plano Básico) se não existir.
+2. Criar os 5 restaurantes no Firestore (email, senha hasheada, delivery habilitado).
+3. Para cada restaurante: criar 3 categorias e pelo menos 3 itens por categoria no cardápio.
+4. Escrever **`credentials.json`** com `restaurantId`, nome, domínio, email, senha, telefone e endereço de cada um.
 
-Os IDs (restaurante, cliente, motoboy) são exibidos no log ao final. Em caso de erro, confira o stack trace no console e as variáveis de ambiente no `.env`.
+Consulte **`credentials.json`** após a execução para IDs e detalhes completos.
 
 ---
 
-## Script alternativo (legado)
+## Scripts disponíveis (terminal)
 
-O comando `npm run create:demo-users` ainda cria apenas **restaurante** e **cliente** (sem plano automático nem motoboy). Prefira `npm run create:demo-accounts` para as três contas e plano.
+Na raiz do projeto, com `.env` configurado:
+
+| Comando | Descrição |
+|--------|-----------|
+| `npm run seed:all` | **Criar tudo:** executa `create:demo-accounts` e em seguida `seed:demo-restaurants` (plano, 4 contas demo + 5 restaurantes com cardápio). |
+| `npm run create:demo-accounts` | Cria/atualiza **plano**, **restaurante demo** (`restaurante@demo.com`), **cliente** e **motoboy** no Firestore. |
+| `npm run seed:demo-restaurants` | Cria **5 restaurantes fictícios** com cardápios completos e gera **`credentials.json`**. |
+| `npm run create:demo-users` | *(Legado)* Apenas restaurante e cliente. Prefira `create:demo-accounts`. |
+
+Em caso de erro, confira o stack trace no console e as variáveis `VITE_FIREBASE_*` no `.env`.
