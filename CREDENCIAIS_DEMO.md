@@ -14,6 +14,7 @@ Contas são criadas no **Firebase (Firestore)** via scripts executáveis no term
 | 3 | Cliente delivery| `cliente@demo.com` / telefone | `npm run create:demo-accounts` |
 | 4 | Motoboy         | `motoboy@demo.com` / telefone | `npm run create:demo-accounts` |
 | 5 | 5 Restaurantes fictícios | `restaurante1@demo.com` … `restaurante5@demo.com` | `npm run seed:demo-restaurants` |
+| 6 | Clientes por idioma (telefone) | 3 usuários: BR, US, FR (telefone E.164) | `npm run create:demo-users-by-phone` |
 
 ---
 
@@ -97,6 +98,32 @@ Cinco restaurantes de exemplo, cada um com **conta (email/senha)**, **3 categori
 npm run seed:demo-restaurants
 ```
 
+---
+
+## 6. Clientes demo por idioma (login por telefone)
+
+Três usuários de delivery, um por idioma do app, com telefone no formato internacional do país. Use em `/delivery/auth` com **telefone** ou **email**.
+
+| Idioma | País    | Telefone (E.164)   | Email               | Nome                 |
+|--------|---------|--------------------|---------------------|----------------------|
+| pt-BR  | Brasil  | `+55 11 97777-7777`| `cliente-br@demo.com`  | Cliente Demo Brasil  |
+| en-US  | USA     | `+1 555 777 7777`  | `cliente-us@demo.com` | Demo Client USA      |
+| fr-FR  | França  | `+33 6 77 77 77 77`| `cliente-fr@demo.com` | Client Démo France   |
+
+**Senha:** não existe. Acesso por **email** ou **telefone** (igual aos clientes da seção 3 e 4).
+
+**Como criar (Firestore via script):** na raiz do projeto, com `.env` configurado:
+
+```bash
+npm run create:demo-users-by-phone
+```
+
+Ou com Firebase/Node diretamente:
+
+```bash
+npx tsx src/scripts/createDemoUsersByPhone.ts
+```
+
 O script irá:
 
 1. Garantir um plano (ex.: Plano Básico) se não existir.
@@ -118,5 +145,6 @@ Na raiz do projeto, com `.env` configurado:
 | `npm run create:demo-accounts` | Cria/atualiza **plano**, **restaurante demo** (`restaurante@demo.com`), **cliente** e **motoboy** no Firestore. |
 | `npm run seed:demo-restaurants` | Cria **5 restaurantes fictícios** com cardápios completos e gera **`credentials.json`**. |
 | `npm run create:demo-users` | *(Legado)* Apenas restaurante e cliente. Prefira `create:demo-accounts`. |
+| `npm run create:demo-users-by-phone` | Cria **3 usuários delivery** (pt-BR, en-US, fr-FR) com telefone internacional para login. |
 
 Em caso de erro, confira o stack trace no console e as variáveis `VITE_FIREBASE_*` no `.env`.

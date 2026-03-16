@@ -4,7 +4,14 @@ import { User, Mail, Phone, MapPin, CreditCard, Utensils, ArrowLeft, Lock } from
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
-import { saveDeliveryUser, getDeliveryUserByEmail } from '../services/deliveryUserService';
+import { saveDeliveryUser, getDeliveryUserByEmail, getDeliveryUserByPhone } from '../services/deliveryUserService';
+import {
+  validateEmailOrPhone,
+  applyPhoneMaskInput,
+  getInputKind,
+  formatPhoneDisplay,
+  normalizePhone
+} from '../utils/authInputUtils';
 import LanguageSelector from '../components/LanguageSelector';
 
 type Step = 'email' | 'restaurant_password' | 'delivery_register';
@@ -22,7 +29,10 @@ export default function DeliveryAuth() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Passo 1: email
+  // Passo 1: email ou telefone
+  const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [emailOrPhoneTouched, setEmailOrPhoneTouched] = useState(false);
+  // Formulário de cadastro (Criar conta)
   const [email, setEmail] = useState('');
 
   // Restaurante (após identificar email de restaurante)
@@ -36,42 +46,60 @@ export default function DeliveryAuth() {
   const [address, setAddress] = useState('');
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>('pix');
 
-  const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const validation = validateEmailOrPhone(emailOrPhone);
+  const showEmailOrPhoneError = emailOrPhoneTouched && !validation.valid && emailOrPhone.trim() !== '';
 
-  /** Passo 1: usuário informou email e clicou em Entrar */
+  /** Aplica máscara e formatação ao digitar no campo email/telefone */
+  const handleEmailOrPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const kind = getInputKind(raw);
+    if (kind === 'phone') {
+      setEmailOrPhone(applyPhoneMaskInput(raw));
+    } else {
+      setEmailOrPhone(raw);
+    }
+    setError('');
+  };
+
+  /** Passo 1: usuário informou email ou telefone e clicou em Entrar */
   const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const emailTrim = email.trim();
-    if (!emailTrim) {
-      setError('Informe seu email.');
-      return;
-    }
-    if (!isEmail(emailTrim)) {
-      setError('Informe um email válido.');
+    setEmailOrPhoneTouched(true);
+    const result = validateEmailOrPhone(emailOrPhone);
+    if (!result.valid) {
+      setError(result.error);
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const restaurants = await getRestaurants();
-      const restaurant = restaurants.find((r) => r.email?.toLowerCase() === emailTrim.toLowerCase());
-
-      if (restaurant) {
-        setRestaurantId(restaurant.id);
-        setRestaurantEmail(emailTrim);
-        setPassword('');
-        setStep('restaurant_password');
-        return;
+      if (result.kind === 'email') {
+        const restaurants = await getRestaurants();
+        const restaurant = restaurants.find(
+          (r) => r.email?.toLowerCase() === result.normalized.toLowerCase()
+        );
+        if (restaurant) {
+          setRestaurantId(restaurant.id);
+          setRestaurantEmail(result.normalized);
+          setPassword('');
+          setStep('restaurant_password');
+          return;
+        }
+        const deliveryUser = await getDeliveryUserByEmail(result.normalized);
+        if (deliveryUser) {
+          await deliveryLogin(deliveryUser.id);
+          navigate(redirectTo, { replace: true });
+          return;
+        }
+      } else {
+        const deliveryUser = await getDeliveryUserByPhone(result.normalized);
+        if (deliveryUser) {
+          await deliveryLogin(deliveryUser.id);
+          navigate(redirectTo, { replace: true });
+          return;
+        }
       }
-
-      const deliveryUser = await getDeliveryUserByEmail(emailTrim);
-      if (deliveryUser) {
-        await deliveryLogin(deliveryUser.id);
-        navigate(redirectTo, { replace: true });
-        return;
-      }
-
       setError('Usuário não encontrado. Crie uma conta para continuar.');
     } catch (err) {
       console.error('Erro ao identificar usuário:', err);
@@ -170,7 +198,7 @@ export default function DeliveryAuth() {
               ? 'Este email é de um restaurante. Digite sua senha para acessar as configurações.'
               : step === 'delivery_register'
                 ? 'Preencha seus dados para criar sua conta e pedir com mais facilidade.'
-                : 'Entre com seu email. Se for restaurante, você poderá acessar as configurações.'}
+                : 'Entre com seu email ou telefone. Se for restaurante, use o email para acessar as configurações.'}
           </p>
         </div>
         <p className="text-white/70 text-xs">
@@ -199,7 +227,7 @@ export default function DeliveryAuth() {
               {step === 'delivery_register' && 'Criar conta'}
             </h1>
             <p className="mt-1 text-sm" style={{ color: '#6B5A54' }}>
-              {step === 'email' && (isFromOrders ? 'Entre com seu email ou crie uma conta para acessar seus pedidos.' : 'Informe seu email. Se for restaurante, você digitará a senha em seguida.')}
+              {step === 'email' && (isFromOrders ? 'Entre com seu email ou telefone, ou crie uma conta para acessar seus pedidos.' : 'Informe seu email ou telefone. Se for restaurante, use o email e digite a senha em seguida.')}
               {step === 'restaurant_password' && 'Digite sua senha para acessar as configurações do restaurante.'}
               {step === 'delivery_register' && 'Preencha seus dados para começar a pedir.'}
             </p>
@@ -211,29 +239,52 @@ export default function DeliveryAuth() {
             </div>
           )}
 
-          {/* Passo 1: apenas email */}
+          {/* Passo 1: email ou telefone */}
           {step === 'email' && (
             <form onSubmit={handleIdentify} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Email</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>
+                  Email ou telefone
+                </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
+                  {getInputKind(emailOrPhone) === 'phone' ? (
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
+                  ) : (
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
+                  )}
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    inputMode={getInputKind(emailOrPhone) === 'phone' ? 'tel' : 'email'}
+                    value={getInputKind(emailOrPhone) === 'phone'
+                      ? formatPhoneDisplay(normalizePhone(emailOrPhone))
+                      : emailOrPhone}
+                    onChange={handleEmailOrPhoneChange}
+                    onBlur={() => setEmailOrPhoneTouched(true)}
                     className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
-                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
-                    placeholder="seu@email.com"
-                    required
+                    style={{
+                      borderColor: showEmailOrPhoneError ? '#E91120' : '#E9D7C4',
+                      backgroundColor: '#FAF0DB',
+                      color: '#2A1E1A'
+                    }}
+                    placeholder="seu@email.com ou +55 11 99999 9999"
                     autoComplete="username"
                   />
                 </div>
+                {showEmailOrPhoneError && (
+                  <p className="mt-1 text-xs" style={{ color: '#E91120' }}>{validation.error}</p>
+                )}
               </div>
               <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setStep('delivery_register'); setError(''); setEmail(email || ''); setName(''); setPhone(''); setAddress(''); }}
+                  onClick={() => {
+                    setStep('delivery_register');
+                    setError('');
+                    setEmail(validation.valid && validation.kind === 'email' ? validation.normalized : '');
+                    setName('');
+                    setPhone(validation.valid && validation.kind === 'phone' ? validation.normalized : '');
+                    setAddress('');
+                  }}
                   className="flex-1 px-4 py-2.5 border-2 rounded-lg font-semibold text-sm transition-colors hover:bg-[#FAF0DB]"
                   style={{ borderColor: '#E9D7C4', color: '#2A1E1A' }}
                 >
@@ -343,11 +394,12 @@ export default function DeliveryAuth() {
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <input
                     type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    inputMode="tel"
+                    value={phone ? formatPhoneDisplay(normalizePhone(phone)) : ''}
+                    onChange={(e) => setPhone(applyPhoneMaskInput(e.target.value))}
                     className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
                     style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
-                    placeholder="(00) 00000-0000"
+                    placeholder="+55 11 99999 9999"
                     required
                   />
                 </div>

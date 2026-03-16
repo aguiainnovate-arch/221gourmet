@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { X, User, Mail, Phone, MapPin, CreditCard } from 'lucide-react';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { saveDeliveryUser, getDeliveryUserByEmail, getDeliveryUserByPhone } from '../services/deliveryUserService';
+import {
+  validateEmailOrPhone,
+  applyPhoneMaskInput,
+  getInputKind,
+  formatPhoneDisplay,
+  normalizePhone
+} from '../utils/authInputUtils';
 
 interface DeliveryAuthModalProps {
   isOpen: boolean;
@@ -19,33 +26,44 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [emailOrPhoneTouched, setEmailOrPhoneTouched] = useState(false);
   const [address, setAddress] = useState(user?.address || '');
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>(
     user?.defaultPaymentMethod || 'money'
   );
 
-  const isLikelyEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const emailOrPhoneValidation = validateEmailOrPhone(emailOrPhone);
+  const showEmailOrPhoneFieldError =
+    isLogin && emailOrPhoneTouched && !emailOrPhoneValidation.valid && emailOrPhone.trim() !== '';
+
+  const handleEmailOrPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (getInputKind(raw) === 'phone') {
+      setEmailOrPhone(applyPhoneMaskInput(raw));
+    } else {
+      setEmailOrPhone(raw);
+    }
+    setError('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (isLogin) {
-      const value = emailOrPhone.trim();
-      if (!value) {
-        setError('Informe seu email ou telefone');
+      setEmailOrPhoneTouched(true);
+      const result = validateEmailOrPhone(emailOrPhone);
+      if (!result.valid) {
+        setError(result.error);
         return;
       }
 
       try {
         setIsSubmitting(true);
-        let foundUser = null;
-
-        if (isLikelyEmail(value)) {
-          foundUser = await getDeliveryUserByEmail(value);
-        } else {
-          foundUser = await getDeliveryUserByPhone(value);
-        }
+        const foundUser =
+          result.kind === 'email'
+            ? await getDeliveryUserByEmail(result.normalized)
+            : await getDeliveryUserByPhone(result.normalized);
 
         if (foundUser) {
           await login(foundUser.id);
@@ -53,8 +71,8 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
         } else {
           setError('Usuário não encontrado. Crie uma conta primeiro.');
         }
-      } catch (error) {
-        console.error('Erro ao fazer login:', error);
+      } catch (err) {
+        console.error('Erro ao fazer login:', err);
         setError('Erro ao fazer login. Tente novamente.');
       } finally {
         setIsSubmitting(false);
@@ -145,18 +163,32 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             {isLogin ? (
               <div>
                 <label className="block text-sm font-medium text-black mb-2">
-                  <Mail className="w-4 h-4 inline mr-2" />
+                  {getInputKind(emailOrPhone) === 'phone' ? (
+                    <Phone className="w-4 h-4 inline mr-2" />
+                  ) : (
+                    <Mail className="w-4 h-4 inline mr-2" />
+                  )}
                   Email ou telefone
                 </label>
                 <input
                   type="text"
-                  value={emailOrPhone}
-                  onChange={(e) => setEmailOrPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
-                  placeholder="seu@email.com ou (00) 00000-0000"
-                  required
+                  inputMode={getInputKind(emailOrPhone) === 'phone' ? 'tel' : 'email'}
+                  value={
+                    getInputKind(emailOrPhone) === 'phone'
+                      ? formatPhoneDisplay(normalizePhone(emailOrPhone))
+                      : emailOrPhone
+                  }
+                  onChange={handleEmailOrPhoneChange}
+                  onBlur={() => setEmailOrPhoneTouched(true)}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black ${
+                    showEmailOrPhoneFieldError ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="seu@email.com ou +55 11 99999 9999"
                   autoComplete="username"
                 />
+                {showEmailOrPhoneFieldError && (
+                  <p className="mt-1 text-xs text-red-600">{emailOrPhoneValidation.error}</p>
+                )}
               </div>
             ) : (
               <>
@@ -182,10 +214,11 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   </label>
                   <input
                     type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    inputMode="tel"
+                    value={phone ? formatPhoneDisplay(normalizePhone(phone)) : ''}
+                    onChange={(e) => setPhone(applyPhoneMaskInput(e.target.value))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
-                    placeholder="(00) 00000-0000"
+                    placeholder="+55 11 99999 9999"
                     required
                   />
                 </div>

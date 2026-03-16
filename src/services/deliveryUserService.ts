@@ -1,13 +1,15 @@
 import { collection, addDoc, getDocs, getDoc, updateDoc, doc, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryUser, CreateDeliveryUserData } from '../types/deliveryUser';
+import { normalizePhone } from '../utils/authInputUtils';
 
 // Criar ou atualizar usuário de delivery
 export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promise<DeliveryUser> => {
   try {
+    const normalizedPhone = normalizePhone(userData.phone);
     // Verificar se já existe usuário com este email ou telefone
     const emailQuery = query(collection(db, 'deliveryUsers'), where('email', '==', userData.email));
-    const phoneQuery = query(collection(db, 'deliveryUsers'), where('phone', '==', userData.phone));
+    const phoneQuery = query(collection(db, 'deliveryUsers'), where('phone', '==', normalizedPhone));
     
     const [emailSnapshot, phoneSnapshot] = await Promise.all([
       getDocs(emailQuery),
@@ -23,6 +25,7 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
       const userRef = doc(db, 'deliveryUsers', existingUser.id);
       await updateDoc(userRef, {
         ...userData,
+        phone: normalizedPhone,
         updatedAt: Timestamp.now()
       });
 
@@ -33,9 +36,10 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
         updatedAt: new Date()
       };
     } else {
-      // Criar novo usuário
+      // Criar novo usuário (telefone em E.164)
       const docRef = await addDoc(collection(db, 'deliveryUsers'), {
         ...userData,
+        phone: normalizedPhone,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       });
@@ -82,10 +86,12 @@ export const getDeliveryUserByEmail = async (email: string): Promise<DeliveryUse
   }
 };
 
-// Buscar usuário por telefone
+// Buscar usuário por telefone (normalizado para E.164)
 export const getDeliveryUserByPhone = async (phone: string): Promise<DeliveryUser | null> => {
   try {
-    const q = query(collection(db, 'deliveryUsers'), where('phone', '==', phone));
+    const normalized = normalizePhone(phone);
+    if (!normalized || normalized === '+') return null;
+    const q = query(collection(db, 'deliveryUsers'), where('phone', '==', normalized));
     const snapshot = await getDocs(q);
     
     if (snapshot.empty) {
