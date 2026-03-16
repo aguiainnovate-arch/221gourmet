@@ -1,5 +1,7 @@
 # Credenciais de demonstração (221 Gourmet / 221 Delivery)
 
+<!-- Referência centralizada para testes e homologação -->
+
 Arquivo de referência para **logins e senhas** de usuários de exemplo.  
 Contas são criadas no **Firebase (Firestore)** via scripts executáveis no terminal.
 
