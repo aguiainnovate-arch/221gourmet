@@ -178,6 +178,7 @@ export default function Settings() {
     url: '',
     numero: ''
   });
+  const [urlCopied, setUrlCopied] = useState(false);
 
   // Estados para importação CSV
   const [showCSVModal, setShowCSVModal] = useState(false);
@@ -3886,9 +3887,38 @@ export default function Settings() {
                 alt={`QR Code Mesa ${qrCodeModal.numero}`}
                 className="mx-auto mb-4"
               />
-              <p className="text-sm text-gray-600 mb-4">
-                URL: {generateTableUrl(restaurantId ?? '', qrCodeModal.numero)}
-              </p>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <p className="text-sm text-gray-600 truncate max-w-xs">
+                  {generateTableUrl(restaurantId ?? '', qrCodeModal.numero)}
+                </p>
+                <button
+                  onClick={() => {
+                    const url = generateTableUrl(restaurantId ?? '', qrCodeModal.numero);
+                    void navigator.clipboard.writeText(url).then(() => {
+                      setUrlCopied(true);
+                      setTimeout(() => setUrlCopied(false), 2000);
+                    });
+                  }}
+                  title="Copiar URL"
+                  className="flex-shrink-0 flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-medium px-2 py-1 rounded transition"
+                >
+                  {urlCopied ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-green-600">Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <span>Copiar</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="flex space-x-2 justify-center">
                 <button
                   onClick={() => baixarQRCode(qrCodeModal.numero)}

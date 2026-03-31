@@ -73,6 +73,18 @@ service cloud.firestore {
     match /motoboyDailyFinances/{document} {
       allow read, write: if true;
     }
+
+    match /restaurantLeads/{document} {
+      allow read, write: if true;
+    }
+
+    match /detailedOrders/{document} {
+      allow read, write: if true;
+    }
+
+    match /motoboyProfiles/{document} {
+      allow read, write: if true;
+    }
     
     // Regra padrão - negar acesso a outras coleções
     match /{document=**} {

@@ -45,6 +45,16 @@ body {
   overscroll-behavior-x: none;
 }
 
+/* Landing Bora Comer (/parceiros): tema claro para não ficar atrás do fundo escuro do app */
+body.landing-bora-comer {
+  background-color: #F5EFE7;
+  color: #2A1E1A;
+}
+body.landing-bora-comer * {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
 #root {
   width: 100%;
   min-height: 100%;
@@ -235,3 +245,37 @@ body::-webkit-scrollbar,
 }
 
 /* Searchbar Delivery — barra simples (estilos no componente) */
+
+/* ============================================================
+   Landing Bora Comer — Parallax e Scroll Reveal
+   ============================================================ */
+/* Scroll reveal: elemento começa invisível e deslocado; ao entrar na viewport
+   (.scroll-reveal.revealed) ganha opacidade e volta à posição. */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Variação com delay para stagger em listas (ex.: benefícios) */
+.scroll-reveal-delay-1 { transition-delay: 0.08s; }
+.scroll-reveal-delay-2 { transition-delay: 0.16s; }
+.scroll-reveal-delay-3 { transition-delay: 0.24s; }
+/* Parallax: camada que se move com scroll; will-change para GPU */
+.parallax-layer {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .scroll-reveal.revealed { opacity: 1; transform: none; }
+}

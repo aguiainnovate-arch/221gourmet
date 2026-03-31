@@ -10,6 +10,7 @@ import DeliveryAuth from './pages/DeliveryAuth';
 import DeliveryMenu from './pages/DeliveryMenu';
 import Orders from './pages/Orders';
 import RestaurantAuth from './pages/RestaurantAuth';
+import BoraComerLanding from './pages/BoraComerLanding';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import { OrderProvider } from './contexts/OrderContext';
@@ -45,6 +46,7 @@ function App() {
 
                 {/* Rota de cadastro de restaurante (pública) */}
                 <Route path="/register/:token" element={<Register />} />
+                <Route path="/parceiros" element={<BoraComerLanding />} />
 
                 {/* Rota de login de restaurante */}
                 <Route path="/restaurant/auth" element={

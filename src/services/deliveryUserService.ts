@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, getDoc, updateDoc, doc, query, where, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, getDoc, updateDoc, doc, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryUser, CreateDeliveryUserData } from '../types/deliveryUser';
 import { normalizePhone } from '../utils/authInputUtils';
@@ -145,3 +145,26 @@ export const getDeliveryUserById = async (userId: string): Promise<DeliveryUser 
   }
 };
 
+// Listar todos os usuários de delivery ordenados por nome
+export const getAllDeliveryUsers = async (): Promise<DeliveryUser[]> => {
+  try {
+    const q = query(collection(db, 'deliveryUsers'), orderBy('name', 'asc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        email: data.email,
+        phone: data.phone,
+        name: data.name,
+        address: data.address,
+        defaultPaymentMethod: data.defaultPaymentMethod,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      };
+    });
+  } catch (error) {
+    console.error('Erro ao listar usuários de delivery:', error);
+    return [];
+  }
+};
