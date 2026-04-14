@@ -31,7 +31,18 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useOrders } from '../contexts/OrderContext';
 import { useRestaurantData } from '../hooks/useRestaurantData';
 import { testAllCollections } from '../services/firestoreTest';
-import { uploadImage, deleteImage, uploadAudio, deleteAudio, uploadProductImage, extractStoragePathFromUrl } from '../services/storageService';
+import {
+  uploadImage,
+  deleteImage,
+  uploadAudio,
+  deleteAudio,
+  uploadProductImage,
+  extractStoragePathFromUrl,
+  uploadMenuPdfForExtraction
+} from '../services/storageService';
+import { extractMenuPdfTextFromStorage } from '../services/menuPdfExtractService';
+import { importMenuFromClaudeText as runClaudeMenuImport } from '../services/menuClaudeImportService';
+import type { ImportMenuFromClaudeResponse } from '../services/menuClaudeImportService';
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
 import { getStatistics, type GeneralStats } from '../services/statisticsService';
 import { hasRestaurantPermission } from '../services/permissionService';
@@ -191,6 +202,19 @@ export default function Settings() {
     createdCategories: number;
     errors: string[];
   } | null>(null);
+
+  // Extração de texto de PDF do cardápio (upload binário → Storage → Cloud Function)
+  const [showPdfExtractModal, setShowPdfExtractModal] = useState(false);
+  const [pdfExtractLoading, setPdfExtractLoading] = useState(false);
+  const [pdfExtractError, setPdfExtractError] = useState<string | null>(null);
+  const [pdfExtractedText, setPdfExtractedText] = useState('');
+  const [pdfExtractMeta, setPdfExtractMeta] = useState<{
+    pageCount: number;
+    charCount: number;
+    truncated: boolean;
+  } | null>(null);
+  const [pdfClaudeLoading, setPdfClaudeLoading] = useState(false);
+  const [pdfClaudeResult, setPdfClaudeResult] = useState<ImportMenuFromClaudeResponse | null>(null);
 
   // Extração do path da URL do Firebase Storage (deletar imagens antigas) — centralizada no storageService
   const extractImagePathFromUrl = extractStoragePathFromUrl;
@@ -1223,7 +1247,70 @@ export default function Settings() {
     setShowCSVModal(false);
   };
 
+  const resetPdfExtractModal = () => {
+    setShowPdfExtractModal(false);
+    setPdfExtractLoading(false);
+    setPdfExtractError(null);
+    setPdfExtractedText('');
+    setPdfExtractMeta(null);
+    setPdfClaudeLoading(false);
+    setPdfClaudeResult(null);
+  };
 
+  const handlePdfMenuFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !restaurantId) return;
+
+    setPdfExtractError(null);
+    setPdfExtractedText('');
+    setPdfExtractMeta(null);
+    setPdfExtractLoading(true);
+
+    try {
+      const up = await uploadMenuPdfForExtraction(file, restaurantId);
+      if (!up.success || !up.path) {
+        throw new Error(up.error || 'Falha no upload do PDF.');
+      }
+      const extracted = await extractMenuPdfTextFromStorage(up.path);
+      setPdfExtractedText(extracted.text);
+      setPdfExtractMeta({
+        pageCount: extracted.pageCount,
+        charCount: extracted.charCount,
+        truncated: extracted.truncated
+      });
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : 'Não foi possível extrair o texto deste PDF.';
+      setPdfExtractError(msg);
+    } finally {
+      setPdfExtractLoading(false);
+    }
+  };
+
+  const handlePdfClaudeImport = async () => {
+    if (!restaurantId || !pdfExtractedText.trim()) return;
+    setPdfClaudeLoading(true);
+    setPdfClaudeResult(null);
+    setPdfExtractError(null);
+    try {
+      const result = await runClaudeMenuImport(restaurantId, pdfExtractedText);
+      setPdfClaudeResult(result);
+      if (result.productsCreated > 0 || result.categoriesCreated > 0) {
+        loadProducts();
+      }
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : 'Falha ao importar com IA.';
+      setPdfExtractError(msg);
+    } finally {
+      setPdfClaudeLoading(false);
+    }
+  };
 
   // Função para fazer upload da imagem do produto (Firebase Storage: restaurants/{id}/items/{productId}/...)
   const handleProductImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1922,6 +2009,21 @@ export default function Settings() {
                   >
                     <Upload className="w-4 h-4" />
                     <span>Importar CSV</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPdfExtractModal(true);
+                      setPdfExtractError(null);
+                      setPdfExtractedText('');
+                      setPdfExtractMeta(null);
+                      setPdfClaudeResult(null);
+                    }}
+                    className="bg-slate-600 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-slate-700"
+                    title="Envia o PDF para o servidor e extrai o texto (PDF com texto selecionável)"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Extrair PDF</span>
                   </button>
                   <div className="relative group">
                     <button
@@ -3934,6 +4036,140 @@ export default function Settings() {
                   Fechar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: extração de texto de PDF do cardápio */}
+      {showPdfExtractModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Extrair texto do cardápio (PDF)</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  O arquivo é enviado ao Storage e processado no servidor. PDFs escaneados (só imagem) precisam de OCR em outra etapa.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetPdfExtractModal}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Arquivo PDF</label>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  disabled={pdfExtractLoading || !restaurantId}
+                  onChange={(e) => void handlePdfMenuFile(e)}
+                  className="w-full text-sm text-gray-800"
+                />
+              </div>
+              {pdfExtractLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Enviando e extraindo texto…
+                </div>
+              )}
+              {pdfExtractError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                  {pdfExtractError}
+                </div>
+              )}
+              {pdfExtractMeta && (
+                <p className="text-xs text-gray-600">
+                  Páginas: {pdfExtractMeta.pageCount} · Caracteres: {pdfExtractMeta.charCount}
+                  {pdfExtractMeta.truncated ? ' · Texto truncado na resposta (limite de segurança).' : ''}
+                </p>
+              )}
+              {pdfExtractedText ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Texto extraído</label>
+                  <textarea
+                    readOnly
+                    value={pdfExtractedText}
+                    rows={14}
+                    className="w-full font-mono text-xs border border-gray-300 rounded-md p-2 bg-gray-50 text-gray-900"
+                  />
+                  <button
+                    type="button"
+                    className="mt-2 text-sm text-blue-600 hover:underline"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(pdfExtractedText);
+                    }}
+                  >
+                    Copiar texto
+                  </button>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={pdfClaudeLoading || pdfExtractLoading || !restaurantId}
+                      onClick={() => void handlePdfClaudeImport()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:from-violet-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {pdfClaudeLoading ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      {pdfClaudeLoading ? 'Importando com IA…' : 'Importar cardápio com IA (Claude)'}
+                    </button>
+                    <p className="text-xs text-gray-500 max-w-md">
+                      O Claude lê o texto, sugere categorias (Bebidas, Pratos, etc.), cria categorias que faltam e cadastra os produtos neste restaurante.
+                    </p>
+                  </div>
+                  {pdfClaudeResult && (
+                    <div
+                      className={`mt-3 rounded-lg border p-3 text-sm ${
+                        pdfClaudeResult.success && pdfClaudeResult.errors.length === 0
+                          ? 'border-green-200 bg-green-50 text-green-900'
+                          : 'border-amber-200 bg-amber-50 text-amber-900'
+                      }`}
+                    >
+                      <p className="font-medium">
+                        Categorias novas: {pdfClaudeResult.categoriesCreated} · Produtos criados:{' '}
+                        {pdfClaudeResult.productsCreated}
+                        {pdfClaudeResult.productsSkipped > 0
+                          ? ` · Ignorados: ${pdfClaudeResult.productsSkipped}`
+                          : ''}
+                      </p>
+                      {pdfClaudeResult.warnings.length > 0 && (
+                        <ul className="mt-2 list-inside list-disc text-xs">
+                          {pdfClaudeResult.warnings.slice(0, 12).map((w, i) => (
+                            <li key={i}>{w}</li>
+                          ))}
+                          {pdfClaudeResult.warnings.length > 12 && (
+                            <li>… e mais {pdfClaudeResult.warnings.length - 12} avisos</li>
+                          )}
+                        </ul>
+                      )}
+                      {pdfClaudeResult.errors.length > 0 && (
+                        <ul className="mt-2 list-inside list-disc text-xs text-red-800">
+                          {pdfClaudeResult.errors.map((er, i) => (
+                            <li key={i}>{er}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <div className="p-4 border-t flex justify-end">
+              <button
+                type="button"
+                onClick={resetPdfExtractModal}
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

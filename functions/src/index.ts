@@ -1,6 +1,9 @@
 import { defineSecret } from 'firebase-functions/params';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
+export { extractMenuPdfText } from './extractMenuPdfText';
+export { importMenuFromClaudeText } from './importMenuFromClaudeText';
+
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
 const MODEL = 'claude-3-haiku-20240307';

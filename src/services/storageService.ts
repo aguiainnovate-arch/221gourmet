@@ -15,6 +15,9 @@ export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
 /** Tamanho máximo por imagem: 5MB */
 export const MAX_PRODUCT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
+/** PDF de cardápio para extração de texto (importação) */
+export const MAX_MENU_PDF_BYTES = 15 * 1024 * 1024;
+
 export interface UploadResult {
   url: string;
   path: string;
@@ -97,6 +100,41 @@ export async function uploadProductImage(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao enviar imagem.';
     console.error('uploadProductImage:', err);
+    return { url: '', path: '', success: false, error: message };
+  }
+}
+
+/**
+ * Upload de PDF do cardápio para extração de texto no servidor.
+ * Path: restaurants/{restaurantId}/menu-imports/import_{timestamp}_{nome}.pdf
+ */
+export async function uploadMenuPdfForExtraction(
+  file: File,
+  restaurantId: string
+): Promise<UploadResult> {
+  try {
+    const type = (file.type || '').toLowerCase();
+    const nameLower = (file.name || '').toLowerCase();
+    if (type !== 'application/pdf' && !nameLower.endsWith('.pdf')) {
+      throw new Error('Envie um arquivo PDF.');
+    }
+    if (file.size > MAX_MENU_PDF_BYTES) {
+      throw new Error('PDF muito grande. Máximo 15MB.');
+    }
+
+    const base = sanitizeFileName(file.name.replace(/\.pdf$/i, '') || 'cardapio');
+    const safeBase = base.replace(/\.[a-z0-9]+$/i, '') || 'cardapio';
+    const uniqueName = `import_${Date.now()}_${safeBase}.pdf`;
+    const fullPath = `restaurants/${restaurantId}/menu-imports/${uniqueName}`;
+
+    const storageRef = ref(storage, fullPath);
+    await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+    const downloadURL = await getDownloadURL(storageRef);
+
+    return { url: downloadURL, path: fullPath, success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro ao enviar PDF.';
+    console.error('uploadMenuPdfForExtraction:', err);
     return { url: '', path: '', success: false, error: message };
   }
 }

@@ -1,8 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.moderateLead = void 0;
+exports.moderateLead = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
 const params_1 = require("firebase-functions/params");
 const https_1 = require("firebase-functions/v2/https");
+var extractMenuPdfText_1 = require("./extractMenuPdfText");
+Object.defineProperty(exports, "extractMenuPdfText", { enumerable: true, get: function () { return extractMenuPdfText_1.extractMenuPdfText; } });
+var importMenuFromClaudeText_1 = require("./importMenuFromClaudeText");
+Object.defineProperty(exports, "importMenuFromClaudeText", { enumerable: true, get: function () { return importMenuFromClaudeText_1.importMenuFromClaudeText; } });
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const MODEL = 'claude-3-haiku-20240307';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
