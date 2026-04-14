@@ -57,6 +57,7 @@ export default defineConfig({
     /**
      * OpenAI não envia CORS para o browser em chamadas diretas com API key.
      * O front chama /__proxy-openai/v1/... (mesma origem) e o Vite repassa para api.openai.com.
+     * Anthropic não precisa mais de proxy — a chave fica no servidor (Firebase Functions).
      */
     proxy: {
       '/__proxy-openai': {
@@ -64,12 +65,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/__proxy-openai/, ''),
-      },
-      '/__proxy-anthropic': {
-        target: 'https://api.anthropic.com',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(/^\/__proxy-anthropic/, ''),
       },
     },
   },

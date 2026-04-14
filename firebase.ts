@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 // Configuração lida de variáveis de ambiente (.env)
 // Em ambiente Node (scripts com tsx) usa process.env; no browser usa import.meta.env
@@ -27,5 +28,17 @@ export const db = getFirestore(app);
 
 // Initialize Firebase Storage
 export const storage = getStorage(app);
+
+// Initialize Firebase Functions
+export const functions = getFunctions(app, 'us-central1');
+
+// Em dev, conecta ao emulador local se VITE_USE_FUNCTIONS_EMULATOR=true
+if (
+  typeof import.meta !== 'undefined' &&
+  (import.meta as any).env?.DEV &&
+  (import.meta as any).env?.VITE_USE_FUNCTIONS_EMULATOR === 'true'
+) {
+  connectFunctionsEmulator(functions, 'localhost', 5001);
+}
 
 export default app;
