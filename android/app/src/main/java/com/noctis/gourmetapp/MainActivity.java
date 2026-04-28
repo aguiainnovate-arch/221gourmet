@@ -1,4 +1,4 @@
-package com.gourmet.app;
+package com.noctis.gourmetapp;
 
 import com.getcapacitor.BridgeActivity;
 

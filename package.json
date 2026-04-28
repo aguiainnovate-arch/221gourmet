@@ -29,6 +29,8 @@
     "@capacitor/core": "^8.0.2",
     "@capacitor/ios": "^8.0.2",
     "@capacitor/splash-screen": "^8.0.0",
+    "@stripe/react-stripe-js": "^3.10.0",
+    "@stripe/stripe-js": "^5.10.0",
     "auto-prefixer": "^0.4.2",
     "bcryptjs": "^3.0.3",
     "colorthief": "^2.6.0",

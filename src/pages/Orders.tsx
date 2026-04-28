@@ -11,7 +11,10 @@ import {
     ChevronUp,
     ChevronRight,
     Filter,
-    ShoppingBag
+    ShoppingBag,
+    Copy,
+    Check,
+    QrCode
 } from 'lucide-react';
 import { getDeliveryOrdersByPhone, subscribeDeliveryOrdersByPhone } from '../services/deliveryService';
 import type { DeliveryOrder, DeliveryOrderItem } from '../types/delivery';
@@ -37,11 +40,19 @@ const formatDateShort = (d: Date) =>
 const formatCurrency = (v: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
+const normalizePixQrImage = (value?: string): string | null => {
+    if (!value?.trim()) return null;
+    const raw = value.trim();
+    if (raw.startsWith('data:image')) return raw;
+    return `data:image/png;base64,${raw}`;
+};
+
 const paymentLabel: Record<string, string> = {
     money: 'Dinheiro',
     credit: 'Cartão de crédito',
     debit: 'Cartão de débito',
     pix: 'PIX',
+    stripe: 'Cartão online (Stripe)',
 };
 
 // Status: badge + progresso compacto (Etapa X/5)
@@ -128,6 +139,19 @@ const OrderCard = memo(({
     const summary = getOrderSummary(order);
     const reference = getOrderReference(order);
     const progressPct = config.step > 0 ? (config.step / 5) * 100 : 0;
+    const [copiedPix, setCopiedPix] = useState(false);
+    const pixQrImage = normalizePixQrImage(order.pixQrCodeImage);
+
+    const handleCopyPix = async () => {
+        if (!order.pixCopyPaste?.trim()) return;
+        try {
+            await navigator.clipboard.writeText(order.pixCopyPaste);
+            setCopiedPix(true);
+            window.setTimeout(() => setCopiedPix(false), 1800);
+        } catch (err) {
+            console.error('Erro ao copiar PIX:', err);
+        }
+    };
 
     return (
         <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
@@ -253,6 +277,42 @@ const OrderCard = memo(({
                         <p className="text-xs text-gray-500">
                             Pagamento: {paymentLabel[order.paymentMethod] || order.paymentMethod}
                         </p>
+                        {order.paymentMethod === 'pix' && (
+                            <div className="mt-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50/60">
+                                <div className="flex items-center gap-1.5 mb-2 text-emerald-900">
+                                    <QrCode className="w-4 h-4" />
+                                    <span className="text-sm font-semibold">Pagamento PIX</span>
+                                </div>
+                                {pixQrImage ? (
+                                    <img
+                                        src={pixQrImage}
+                                        alt="QR Code PIX"
+                                        className="w-36 h-36 rounded-md bg-white border border-emerald-100 object-contain"
+                                    />
+                                ) : (
+                                    <p className="text-xs text-emerald-800 mb-2">
+                                        QR Code indisponível no momento.
+                                    </p>
+                                )}
+                                {order.pixCopyPaste?.trim() && (
+                                    <>
+                                        <p className="text-xs text-emerald-900 mt-2 mb-1 font-medium">
+                                            Código copia e cola
+                                        </p>
+                                        <p className="text-xs text-gray-700 bg-white border border-emerald-100 rounded-md p-2 break-all">
+                                            {order.pixCopyPaste}
+                                        </p>
+                                        <button
+                                            onClick={handleCopyPix}
+                                            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                                        >
+                                            {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                            {copiedPix ? 'Copiado' : 'Copiar código PIX'}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

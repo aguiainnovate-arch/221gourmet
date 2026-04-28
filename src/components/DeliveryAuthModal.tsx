@@ -28,9 +28,9 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [emailOrPhoneTouched, setEmailOrPhoneTouched] = useState(false);
   const [address, setAddress] = useState(user?.address || '');
-  const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>(
-    user?.defaultPaymentMethod || 'money'
-  );
+  const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<
+    'money' | 'credit' | 'debit' | 'pix' | 'stripe'
+  >(user?.defaultPaymentMethod || 'money');
 
   const emailOrPhoneValidation = validateEmailOrPhone(emailOrPhone);
   const showEmailOrPhoneFieldError =
@@ -256,6 +256,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                     <option value="credit">Cartão de Crédito</option>
                     <option value="debit">Cartão de Débito</option>
                     <option value="pix">PIX</option>
+                    <option value="stripe">Cartão online (Stripe)</option>
                   </select>
                 </div>
               </>

@@ -1,11 +1,22 @@
 /**
  * Serviço de imagens de comida.
- * Usa a API do Unsplash quando VITE_UNSPLASH_ACCESS_KEY está definida.
- * Sem chave, retorna URLs estáticas de fallback (Unsplash CDN).
+ *
+ * Estratégia para o carrossel de destaques:
+ * 1. Tenta carregar fotos REAIS de produtos cadastrados nos restaurantes
+ *    ativos e habilitados para delivery (fetchFeaturedProductImages).
+ *    Cada item carrega `productId` e `restaurantId` para permitir abrir
+ *    o produto direto ao clicar no card do carrossel.
+ * 2. Se não houver fotos suficientes, recorre à API do Unsplash quando
+ *    VITE_UNSPLASH_ACCESS_KEY está definida.
+ * 3. Sem chave/API, usa URLs estáticas de fallback (Unsplash CDN).
  *
  * Para obter uma chave gratuita: https://unsplash.com/developers
  * Crie uma aplicação e use "Access Key" em .env como VITE_UNSPLASH_ACCESS_KEY=
  */
+
+import { getRestaurants } from './restaurantService';
+import { getRestaurantPermissions } from './permissionService';
+import { getProducts } from './productService';
 
 const UNSPLASH_ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
 
@@ -13,6 +24,14 @@ export interface FoodImage {
   url: string;
   alt: string;
   thumb?: string;
+  /** Quando definido, o card do carrossel abre o produto no restaurante */
+  productId?: string;
+  /** Restaurante dono do produto (necessário para navegação) */
+  restaurantId?: string;
+  /** Nome legível do produto (mostrado como overlay) */
+  productName?: string;
+  /** Preço do produto (mostrado como overlay) */
+  price?: number;
 }
 
 /** Imagens de fallback (Unsplash CDN, sem API) quando não há chave – várias para carrossel em loop */
@@ -100,4 +119,85 @@ export async function fetchFeaturedFoodImages(): Promise<FoodImage[]> {
  */
 export function getDefaultFoodImages(): FoodImage[] {
   return FALLBACK_FOOD_IMAGES;
+}
+
+/**
+ * Carrega fotos REAIS dos produtos cadastrados nos restaurantes que estão
+ * ativos e habilitados para delivery. Apenas produtos disponíveis e com
+ * imagem entram no carrossel. Os itens carregam `productId` + `restaurantId`
+ * para que o clique no card já abra direto o produto correspondente.
+ *
+ * Quando não houver pelo menos 2 produtos elegíveis, faz fallback para a API
+ * Unsplash (ou para as imagens estáticas de fallback) — preservando o
+ * comportamento anterior em ambientes sem cardápio cadastrado.
+ */
+export async function fetchFeaturedProductImages(): Promise<FoodImage[]> {
+  try {
+    const restaurants = await getRestaurants();
+    const activeRestaurants = restaurants.filter((r) => r.active);
+
+    const allowed = await Promise.all(
+      activeRestaurants.map(async (r) => {
+        try {
+          const perms = await getRestaurantPermissions(r.id);
+          const enabled = r.deliverySettings?.enabled ?? true;
+          return perms.delivery && enabled ? r : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const allowedRestaurants = allowed.filter(
+      (r): r is NonNullable<typeof r> => r !== null
+    );
+
+    const productLists = await Promise.all(
+      allowedRestaurants.map(async (r) => {
+        try {
+          const prods = await getProducts(r.id);
+          return prods
+            .filter(
+              (p) =>
+                p.available &&
+                (p.availableForDelivery ?? true) &&
+                typeof p.image === 'string' &&
+                p.image.trim().length > 0
+            )
+            .map<FoodImage>((p) => ({
+              url: p.image as string,
+              alt: p.name,
+              productId: p.id,
+              restaurantId: r.id,
+              productName: p.name,
+              price: p.price,
+            }));
+        } catch {
+          return [] as FoodImage[];
+        }
+      })
+    );
+
+    // Intercala produtos de diferentes restaurantes para dar variedade visual
+    const grouped = productLists.filter((arr) => arr.length > 0);
+    const max = grouped.reduce((m, arr) => Math.max(m, arr.length), 0);
+    const interleaved: FoodImage[] = [];
+    for (let i = 0; i < max; i++) {
+      for (const arr of grouped) {
+        if (arr[i]) interleaved.push(arr[i]);
+      }
+    }
+
+    if (interleaved.length >= 2) {
+      // Limita a 24 itens para o carrossel não ficar gigante
+      return interleaved.slice(0, 24);
+    }
+
+    // Sem produtos suficientes — recorre ao Unsplash / fallback estático
+    const remote = await fetchFeaturedFoodImages();
+    // Garante que itens reais (se existirem) apareçam primeiro
+    return [...interleaved, ...remote].slice(0, 24);
+  } catch (e) {
+    console.warn('Erro ao carregar produtos para carrossel:', e);
+    return fetchFeaturedFoodImages();
+  }
 }

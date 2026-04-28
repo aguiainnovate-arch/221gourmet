@@ -44,7 +44,9 @@ export default function DeliveryAuth() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>('pix');
+  const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<
+    'money' | 'credit' | 'debit' | 'pix' | 'stripe'
+  >('pix');
 
   const validation = validateEmailOrPhone(emailOrPhone);
   const showEmailOrPhoneError = emailOrPhoneTouched && !validation.valid && emailOrPhone.trim() !== '';
@@ -425,7 +427,11 @@ export default function DeliveryAuth() {
                   <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
                   <select
                     value={defaultPaymentMethod}
-                    onChange={(e) => setDefaultPaymentMethod(e.target.value as 'money' | 'credit' | 'debit' | 'pix')}
+                    onChange={(e) =>
+                      setDefaultPaymentMethod(
+                        e.target.value as 'money' | 'credit' | 'debit' | 'pix' | 'stripe'
+                      )
+                    }
                     className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
                     style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
                   >
@@ -433,6 +439,7 @@ export default function DeliveryAuth() {
                     <option value="credit">Cartão de Crédito</option>
                     <option value="debit">Cartão de Débito</option>
                     <option value="pix">PIX</option>
+                    <option value="stripe">Cartão online (Stripe)</option>
                   </select>
                 </div>
               </div>

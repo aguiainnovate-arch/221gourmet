@@ -1,0 +1,7 @@
+feat(settings): importação de cardápio por PDF + Claude e cópia de URL do QR
+
+Inclui upload de PDF para Storage (menu-imports), Cloud Functions para extrair
+texto (pdf-parse) e importar itens com Claude no Firestore, regras de Storage
+para PDFs, serviços cliente httpsCallable e fluxo completo na tela de
+configurações. Modal de QR Code ganha botão para copiar a URL da mesa para a
+área de transferência.

@@ -1,8 +1,9 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 import { getNativeSafeAreaTop, isNativePlatform } from '../utils/capacitorUtils';
-import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, MapPin, Bike, Search, ChevronDown, ShoppingCart } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
@@ -13,29 +14,31 @@ import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
-import type { DeliveryOrderItem } from '../types/delivery';
+import type { CreateDeliveryOrderData } from '../types/delivery';
 import LanguageSelector from '../components/LanguageSelector';
 import ProductImage from '../components/ProductImage';
-
-interface SelectedItem {
-  product: Product;
-  quantity: number;
-  observations: string;
-}
+import FloatingCartBar from '../components/delivery/FloatingCartBar';
+import CheckoutFlow from '../components/delivery/CheckoutFlow';
+import type { CartLine } from '../components/delivery/CheckoutFlow';
 
 export default function DeliveryMenu() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, i18n } = useTranslation();
-  const { user, updateUser } = useDeliveryAuth();
+  const { user, updateUser, isLoading: authLoading } = useDeliveryAuth();
+  // Produto pedido via navegação (carrossel da página /delivery)
+  const requestedProductId = (location.state as { openProductId?: string } | null)?.openProductId ?? null;
+  // Garante que o auto-open só dispare uma vez por entrada na página
+  const autoOpenedRef = useRef(false);
   
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
-  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   // Modal de detalhes do produto (slide de baixo + arrastar para fechar)
   const [productModalProduct, setProductModalProduct] = useState<Product | null>(null);
@@ -49,15 +52,11 @@ export default function DeliveryMenu() {
   const [sheetAnimateIn, setSheetAnimateIn] = useState(false);
   const [backdropVisible, setBackdropVisible] = useState(false);
 
-  // Dados do cliente
-  const [customerName, setCustomerName] = useState(user?.name || '');
-  const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
-  const [customerAddress, setCustomerAddress] = useState(user?.address || '');
-  const [paymentMethod, setPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>(
-    user?.defaultPaymentMethod || 'money'
+  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+  const stripePromise = useMemo(
+    () => (stripePublishableKey ? loadStripe(stripePublishableKey) : null),
+    [stripePublishableKey]
   );
-  const [observations, setObservations] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const deliveryFee = 5.00; // Taxa de entrega fixa
 
@@ -84,16 +83,6 @@ export default function DeliveryMenu() {
   // Refs das seções para scroll spy e scroll-into-view ao clicar na aba
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
-  // Carregar informações do usuário quando ele estiver logado
-  useEffect(() => {
-    if (user) {
-      setCustomerName(user.name);
-      setCustomerPhone(user.phone);
-      setCustomerAddress(user.address);
-      setPaymentMethod(user.defaultPaymentMethod);
-    }
-  }, [user]);
 
   useEffect(() => {
     loadRestaurantData();
@@ -178,6 +167,34 @@ export default function DeliveryMenu() {
     setBackdropVisible(false);
   }, []);
 
+  // Abre automaticamente o modal do produto pedido pelo carrossel da home
+  // (rota /delivery -> /delivery/:restaurantId com state.openProductId).
+  // Dispara apenas uma vez por entrada na página.
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (loading) return;
+    if (!requestedProductId) return;
+    if (products.length === 0) return;
+
+    const target = products.find((p) => p.id === requestedProductId);
+    if (!target) {
+      autoOpenedRef.current = true;
+      return;
+    }
+
+    autoOpenedRef.current = true;
+    openProductModal(target);
+    // Limpa o state da rota para que um refresh não reabra o modal
+    navigate(location.pathname, { replace: true });
+  }, [
+    loading,
+    products,
+    requestedProductId,
+    openProductModal,
+    navigate,
+    location.pathname,
+  ]);
+
   const handleAddFromModal = useCallback(() => {
     if (!productModalProduct) return;
     const existing = selectedItems.find(item => item.product.id === productModalProduct.id);
@@ -225,72 +242,64 @@ export default function DeliveryMenu() {
     }
   }, [sheetTranslateY, closeProductModal]);
 
-  const calculateTotal = () => {
-    const subtotal = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-    return subtotal + deliveryFee;
-  };
+  const calculateSubtotal = useCallback(
+    () => selectedItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    [selectedItems]
+  );
 
-  const handleSubmitOrder = async () => {
-    if (!restaurant || !customerName || !customerPhone || !customerAddress) {
-      alert(t('delivery.fillDeliveryData'));
-      return;
-    }
+  const subtotal = calculateSubtotal();
+  const itemCount = selectedItems.reduce((s, it) => s + it.quantity, 0);
 
-    if (selectedItems.length === 0) {
-      alert(t('delivery.addOneItem'));
-      return;
-    }
+  const updateItemQuantity = useCallback((productId: string, nextQuantity: number) => {
+    setSelectedItems((prev) => {
+      if (nextQuantity <= 0) {
+        return prev.filter((it) => it.product.id !== productId);
+      }
+      return prev.map((it) =>
+        it.product.id === productId ? { ...it, quantity: nextQuantity } : it
+      );
+    });
+  }, []);
 
-    try {
-      setIsSubmitting(true);
+  const removeItem = useCallback((productId: string) => {
+    setSelectedItems((prev) => prev.filter((it) => it.product.id !== productId));
+  }, []);
 
-      // Se o usuário estiver logado, atualizar suas informações salvas
+  const fmtBRL = useMemo(
+    () =>
+      new Intl.NumberFormat(i18n.language.startsWith('pt') ? 'pt-BR' : 'en-US', {
+        style: 'currency',
+        currency: 'BRL',
+      }),
+    [i18n.language]
+  );
+
+  const handleOrderCreated = useCallback(
+    async ({ orderPayload }: { orderPayload: CreateDeliveryOrderData }) => {
       if (user) {
         try {
           const updatedUser = await saveDeliveryUser({
-            name: customerName,
+            name: orderPayload.customerName,
             email: user.email,
-            phone: customerPhone,
-            address: customerAddress,
-            defaultPaymentMethod: paymentMethod
+            phone: orderPayload.customerPhone,
+            address: orderPayload.customerAddress,
+            defaultPaymentMethod: orderPayload.paymentMethod,
+            stripeCustomerId: user.stripeCustomerId,
           });
           updateUser(updatedUser);
         } catch (error) {
           console.error('Erro ao atualizar informações do usuário:', error);
-          // Não falha o pedido se a atualização do usuário falhar
         }
       }
 
-      const orderItems: DeliveryOrderItem[] = selectedItems.map(item => ({
-        productId: item.product.id,
-        productName: item.product.name,
-        quantity: item.quantity,
-        price: item.product.price,
-        observations: item.observations
-      }));
-
-      await createDeliveryOrder({
-        restaurantId: restaurant.id,
-        restaurantName: restaurant.name,
-        customerName,
-        customerPhone,
-        customerAddress,
-        items: orderItems,
-        total: calculateTotal(),
-        paymentMethod,
-        deliveryFee,
-        observations
-      });
-
+      await createDeliveryOrder(orderPayload);
+      setCheckoutOpen(false);
+      setSelectedItems([]);
       alert(t('delivery.orderSuccess'));
-      navigate('/delivery/orders', { state: { phone: customerPhone } });
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error);
-      alert(t('delivery.orderError'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      navigate('/delivery/orders', { state: { phone: orderPayload.customerPhone } });
+    },
+    [user, updateUser, t, navigate]
+  );
 
   if (loading) {
     return (
@@ -485,10 +494,10 @@ export default function DeliveryMenu() {
         </div>
       </div>
 
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-full overflow-x-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-3xl overflow-x-hidden">
+        <div className="grid grid-cols-1 gap-6 lg:gap-8">
           {/* Menu - itens por categoria, com nome da categoria no início de cada seção */}
-          <div className="lg:col-span-2 min-w-0">
+          <div className="min-w-0">
             <div className="space-y-8 sm:space-y-10">
               {categoryNamesWithProducts.map((categoryName) => {
                 const sectionProducts = productsByCategory[categoryName] ?? [];
@@ -568,66 +577,40 @@ export default function DeliveryMenu() {
               })}
             </div>
           </div>
-
-          {/* Cart Summary - em mobile fica abaixo da lista, em lg fica sticky */}
-          <div className="lg:col-span-1 min-w-0">
-            <div className="bg-white rounded-xl shadow-lg border border-stone-100 p-4 sm:p-6 lg:sticky lg:top-4">
-              <h2 className="text-xl font-bold text-stone-800 mb-4 flex items-center">
-                <span className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mr-3">
-                  <ShoppingCart className="w-5 h-5 text-amber-600" />
-                </span>
-                {t('delivery.yourOrder')}
-              </h2>
-
-              {selectedItems.length === 0 ? (
-                <p className="text-stone-500 text-center py-8">{t('delivery.emptyCart')}</p>
-              ) : (
-                <>
-                  <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
-                    {selectedItems.map((item) => (
-                      <div key={item.product.id} className="flex justify-between items-start text-sm">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-stone-700">{item.quantity}x {item.product.name}</p>
-                          {item.observations && (
-                            <p className="text-xs text-stone-500 mt-1">Obs: {item.observations}</p>
-                          )}
-                        </div>
-                        <p className="font-semibold text-stone-800 ml-2 shrink-0">R$ {(item.product.price * item.quantity).toFixed(2)}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="border-t border-stone-200 pt-4 space-y-2">
-                    <div className="flex justify-between text-sm text-stone-600">
-                      <span>{t('delivery.subtotal')}</span>
-                      <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-stone-600">
-                      <span className="flex items-center">
-                        <Bike className="w-4 h-4 mr-1.5 text-stone-500" />
-                        {t('delivery.deliveryFee')}
-                      </span>
-                      <span>R$ {deliveryFee.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center font-bold text-lg pt-3 mt-3 border-t-2 border-amber-100 bg-amber-50/80 rounded-lg px-3 py-2.5">
-                      <span className="text-stone-700">{t('delivery.total')}</span>
-                      <span className="text-amber-700">R$ {calculateTotal().toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setShowCheckout(true)}
-                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:from-amber-600 hover:to-amber-700 active:scale-[0.98] transition-all mt-4"
-                  >
-                    {t('delivery.finishOrder')}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
         </div>
       </div>
       </div>
+
+      <FloatingCartBar
+        itemCount={itemCount}
+        subtotalLabel={t('delivery.withoutDeliveryFee')}
+        itemsLabel={`${fmtBRL.format(subtotal)} / ${itemCount} ${itemCount === 1 ? t('delivery.item') : t('delivery.items')}`}
+        ctaLabel={t('delivery.viewBag')}
+        onClick={() => setCheckoutOpen(true)}
+        accentColor={restaurant.theme?.primaryColor || '#E91120'}
+      />
+
+      <CheckoutFlow
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        items={selectedItems}
+        onChangeQuantity={updateItemQuantity}
+        onRemoveItem={removeItem}
+        user={user}
+        authLoading={authLoading}
+        onUpdateUser={updateUser}
+        restaurantId={restaurant.id}
+        restaurantName={restaurant.name}
+        accentColor={restaurant.theme?.primaryColor || '#E91120'}
+        baseDeliveryFee={deliveryFee}
+        defaultName={user?.name || ''}
+        defaultPhone={user?.phone || ''}
+        defaultAddress={user?.address || ''}
+        currency="BRL"
+        locale={i18n.language}
+        stripePromise={stripePromise}
+        onOrderCreated={handleOrderCreated}
+      />
 
       {/* Modal de detalhes do produto - slide de baixo, arrastar para fechar */}
       {productModalProduct && (
@@ -747,141 +730,6 @@ export default function DeliveryMenu() {
         </>
       )}
 
-      {/* Checkout Modal - responsivo e scrollável em mobile */}
-      {showCheckout && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto pb-8">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">{t('delivery.checkoutTitle')}</h2>
-                <button
-                  onClick={() => setShowCheckout(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              {user && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
-                  ✓ {t('delivery.userInfoFilled')}
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <User className="w-4 h-4 inline mr-2" />
-                    {t('delivery.fullName')}
-                  </label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
-                    placeholder="Seu nome"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Phone className="w-4 h-4 inline mr-2" />
-                    {t('delivery.phone')}
-                  </label>
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <MapPin className="w-4 h-4 inline mr-2" />
-                    {t('delivery.address')}
-                  </label>
-                  <textarea
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
-                    rows={3}
-                    placeholder="Rua, número, complemento, bairro, cidade"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <CreditCard className="w-4 h-4 inline mr-2" />
-                    {t('delivery.paymentMethod')}
-                  </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 bg-white"
-                  >
-                    <option value="money">{t('delivery.money')}</option>
-                    <option value="credit">{t('delivery.credit')}</option>
-                    <option value="debit">{t('delivery.debit')}</option>
-                    <option value="pix">{t('delivery.pix')}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('delivery.observationsOptional')}
-                  </label>
-                  <textarea
-                    value={observations}
-                    onChange={(e) => setObservations(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
-                    rows={2}
-                    placeholder={t('menu.observationsPlaceholder')}
-                  />
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">{t('delivery.orderSummary')}</h3>
-                  <div className="space-y-1 text-sm text-gray-700">
-                    <div className="flex justify-between">
-                      <span>{t('delivery.subtotal')}</span>
-                      <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>{t('delivery.deliveryFee')}</span>
-                      <span>R$ {deliveryFee.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300 text-gray-900">
-                      <span>{t('delivery.total')}</span>
-                      <span className="text-amber-600">R$ {calculateTotal().toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 mt-6">
-                <button
-                  onClick={() => setShowCheckout(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
-                >
-                  {t('delivery.cancel')}
-                </button>
-                <button
-                  onClick={handleSubmitOrder}
-                  disabled={isSubmitting || !customerName || !customerPhone || !customerAddress}
-                  className={`flex-1 px-6 py-3 rounded-lg font-bold ${isSubmitting || !customerName || !customerPhone || !customerAddress
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-amber-600 text-white hover:bg-amber-700'
-                    }`}
-                >
-                  {isSubmitting ? t('delivery.submitting') : t('menu.confirmOrderButton')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

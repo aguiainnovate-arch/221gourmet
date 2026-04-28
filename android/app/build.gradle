@@ -7,10 +7,10 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.gourmet.app"
+    namespace = "com.noctis.gourmetapp"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.gourmet.app"
+        applicationId "com.noctis.gourmetapp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

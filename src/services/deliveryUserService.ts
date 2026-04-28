@@ -20,26 +20,33 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
     const existingUserByPhone = phoneSnapshot.docs[0];
     const existingUser = existingUserByEmail || existingUserByPhone;
 
+    // Firestore não aceita campos undefined
+    const cleanData: Record<string, unknown> = {
+      ...userData,
+      phone: normalizedPhone,
+    };
+    if (userData.stripeCustomerId === undefined) delete cleanData.stripeCustomerId;
+
     if (existingUser) {
       // Atualizar usuário existente
       const userRef = doc(db, 'deliveryUsers', existingUser.id);
       await updateDoc(userRef, {
-        ...userData,
-        phone: normalizedPhone,
+        ...cleanData,
         updatedAt: Timestamp.now()
       });
 
+      const prevData = existingUser.data();
       return {
         id: existingUser.id,
         ...userData,
-        createdAt: existingUser.data().createdAt?.toDate() || new Date(),
+        stripeCustomerId: userData.stripeCustomerId ?? prevData.stripeCustomerId,
+        createdAt: prevData.createdAt?.toDate() || new Date(),
         updatedAt: new Date()
       };
     } else {
       // Criar novo usuário (telefone em E.164)
       const docRef = await addDoc(collection(db, 'deliveryUsers'), {
-        ...userData,
-        phone: normalizedPhone,
+        ...cleanData,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       });
@@ -77,6 +84,7 @@ export const getDeliveryUserByEmail = async (email: string): Promise<DeliveryUse
       name: data.name,
       address: data.address,
       defaultPaymentMethod: data.defaultPaymentMethod,
+      stripeCustomerId: data.stripeCustomerId,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date()
     };
@@ -108,6 +116,7 @@ export const getDeliveryUserByPhone = async (phone: string): Promise<DeliveryUse
       name: data.name,
       address: data.address,
       defaultPaymentMethod: data.defaultPaymentMethod,
+      stripeCustomerId: data.stripeCustomerId,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date()
     };
@@ -136,12 +145,30 @@ export const getDeliveryUserById = async (userId: string): Promise<DeliveryUser 
       name: data.name,
       address: data.address,
       defaultPaymentMethod: data.defaultPaymentMethod,
+      stripeCustomerId: data.stripeCustomerId,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date()
     };
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
+  }
+};
+
+/** Atualiza apenas o stripeCustomerId do usuário (sem alterar outros campos). */
+export const updateDeliveryUserStripeCustomer = async (
+  userId: string,
+  stripeCustomerId: string
+): Promise<void> => {
+  try {
+    const userRef = doc(db, 'deliveryUsers', userId);
+    await updateDoc(userRef, {
+      stripeCustomerId,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar stripeCustomerId:', error);
+    throw new Error('Falha ao salvar cliente Stripe.');
   }
 };
 
@@ -159,6 +186,7 @@ export const getAllDeliveryUsers = async (): Promise<DeliveryUser[]> => {
         name: data.name,
         address: data.address,
         defaultPaymentMethod: data.defaultPaymentMethod,
+        stripeCustomerId: data.stripeCustomerId,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       };

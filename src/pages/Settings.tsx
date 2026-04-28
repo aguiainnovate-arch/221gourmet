@@ -3162,7 +3162,8 @@ export default function Settings() {
                                         <CreditCard className="w-3 h-3 shrink-0" />
                                         <span className="shrink-0">{order.paymentMethod === 'money' ? 'Dinheiro' :
                                           order.paymentMethod === 'credit' ? 'Cartão de Crédito' :
-                                            order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}</span>
+                                            order.paymentMethod === 'debit' ? 'Cartão de Débito' :
+                                              order.paymentMethod === 'stripe' ? 'Cartão online (Stripe)' : 'PIX'}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -3274,7 +3275,7 @@ export default function Settings() {
                         <p className="text-sm text-gray-700">{selectedDeliveryOrder.customerName}</p>
                         <p className="text-sm text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedDeliveryOrder.customerPhone}</p>
                         <p className="text-sm text-gray-700 flex items-start gap-1"><MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {selectedDeliveryOrder.customerAddress}</p>
-                        <p className="text-sm text-gray-600">Pagamento: {selectedDeliveryOrder.paymentMethod === 'money' ? 'Dinheiro' : selectedDeliveryOrder.paymentMethod === 'credit' ? 'Crédito' : selectedDeliveryOrder.paymentMethod === 'debit' ? 'Débito' : 'PIX'}</p>
+                        <p className="text-sm text-gray-600">Pagamento: {selectedDeliveryOrder.paymentMethod === 'money' ? 'Dinheiro' : selectedDeliveryOrder.paymentMethod === 'credit' ? 'Crédito' : selectedDeliveryOrder.paymentMethod === 'debit' ? 'Débito' : selectedDeliveryOrder.paymentMethod === 'stripe' ? 'Cartão online (Stripe)' : 'PIX'}</p>
                       </div>
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">Itens</h4>

@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_USE_FUNCTIONS_EMULATOR?: string;
   readonly VITE_APP_URL?: string;
   readonly VITE_UNSPLASH_ACCESS_KEY?: string;
+  /** Chave publicável Stripe (pk_...) — segura no front; nunca use sk_ aqui. */
+  readonly VITE_STRIPE_PUBLISHABLE_KEY?: string;
 }
 
 interface ImportMeta {

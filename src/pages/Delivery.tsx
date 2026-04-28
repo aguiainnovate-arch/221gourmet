@@ -4,14 +4,14 @@ import { Store, MapPin, Phone, ChevronRight, Utensils, User, LogOut, Clock, Truc
 import { useTranslation } from 'react-i18next';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
-import { fetchFeaturedFoodImages, getDefaultFoodImages } from '../services/foodImageService';
+import { fetchFeaturedProductImages, getDefaultFoodImages } from '../services/foodImageService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
 import LanguageSelector from '../components/LanguageSelector';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 
 export default function Delivery() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const carouselRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
@@ -30,7 +30,7 @@ export default function Delivery() {
   }, []);
 
   useEffect(() => {
-    fetchFeaturedFoodImages().then((imgs) => {
+    fetchFeaturedProductImages().then((imgs) => {
       if (imgs.length > 0) setFeaturedImages(imgs);
     });
   }, []);
@@ -334,33 +334,97 @@ export default function Delivery() {
             role="region"
             aria-label={t('delivery.highlightsOfTheDay')}
           >
-            {featuredImages.map((img, i) => (
-              <div
-                key={`${i}-${img.url}`}
-                className="relative shrink-0 rounded-2xl overflow-hidden snap-center shadow-lg border border-[#E9D7C4]"
-                style={{ width: 'calc(75vw)', maxWidth: '280px', height: '160px', backgroundColor: '#FAF0DB' }}
-              >
-                <img
-                  src={img.url}
-                  alt={img.alt}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.style.display = 'none';
-                    const fallback = target.nextElementSibling as HTMLElement;
-                    if (fallback) {
-                      fallback.classList.remove('hidden');
-                      fallback.classList.add('flex');
+            {featuredImages.map((img, i) => {
+              const isClickable = !!(img.productId && img.restaurantId);
+              const handleClick = () => {
+                if (!isClickable) return;
+                navigate(`/delivery/${img.restaurantId}`, {
+                  state: { openProductId: img.productId },
+                });
+              };
+              const priceLabel =
+                typeof img.price === 'number'
+                  ? new Intl.NumberFormat(
+                      i18n.language.startsWith('pt') ? 'pt-BR' : 'en-US',
+                      { style: 'currency', currency: 'BRL' }
+                    ).format(img.price)
+                  : null;
+              return (
+                <div
+                  key={`${i}-${img.url}`}
+                  role={isClickable ? 'button' : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onClick={handleClick}
+                  onKeyDown={(e) => {
+                    if (!isClickable) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleClick();
                     }
                   }}
-                />
-                <div className="absolute inset-0 hidden flex-col items-center justify-center text-sm" style={{ backgroundColor: '#FAF0DB', color: '#6B5A54' }} aria-hidden>
-                  <span>{img.alt}</span>
+                  aria-label={
+                    isClickable
+                      ? t('delivery.openProduct', {
+                          name: img.productName ?? img.alt,
+                          defaultValue: `Abrir ${img.productName ?? img.alt}`,
+                        })
+                      : undefined
+                  }
+                  className={`relative shrink-0 rounded-2xl overflow-hidden snap-center shadow-lg border border-[#E9D7C4] ${
+                    isClickable
+                      ? 'cursor-pointer transition-transform active:scale-[0.98] hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E91120]/60'
+                      : ''
+                  }`}
+                  style={{
+                    width: 'calc(75vw)',
+                    maxWidth: '280px',
+                    height: '160px',
+                    backgroundColor: '#FAF0DB',
+                  }}
+                >
+                  <img
+                    src={img.url}
+                    alt={img.alt}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.style.display = 'none';
+                      const fallback = target.nextElementSibling as HTMLElement;
+                      if (fallback) {
+                        fallback.classList.remove('hidden');
+                        fallback.classList.add('flex');
+                      }
+                    }}
+                  />
+                  <div
+                    className="absolute inset-0 hidden flex-col items-center justify-center text-sm"
+                    style={{ backgroundColor: '#FAF0DB', color: '#6B5A54' }}
+                    aria-hidden
+                  >
+                    <span>{img.alt}</span>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent pointer-events-none" />
+                  {isClickable && (
+                    <div className="absolute inset-x-0 bottom-0 p-3 text-white pointer-events-none">
+                      <div className="flex items-end justify-between gap-2">
+                        <p className="font-semibold text-sm leading-tight line-clamp-2 drop-shadow">
+                          {img.productName ?? img.alt}
+                        </p>
+                        {priceLabel && (
+                          <span
+                            className="shrink-0 text-xs font-bold px-2 py-1 rounded-full text-white tabular-nums shadow"
+                            style={{ backgroundColor: '#E91120' }}
+                          >
+                            {priceLabel}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

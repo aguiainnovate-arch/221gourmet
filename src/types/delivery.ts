@@ -16,8 +16,14 @@ export interface DeliveryOrder {
   items: DeliveryOrderItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
-  paymentMethod: 'money' | 'credit' | 'debit' | 'pix';
+  paymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   deliveryFee: number;
+  stripePaymentIntentId?: string;
+  asaasPaymentId?: string;
+  pixCopyPaste?: string;
+  pixQrCodeImage?: string;
+  pixInvoiceUrl?: string;
+  pixStatus?: string;
   observations?: string;
   cancellationReason?: string;
   motoboyUserId?: string | null;
@@ -33,7 +39,13 @@ export interface CreateDeliveryOrderData {
   customerAddress: string;
   items: DeliveryOrderItem[];
   total: number;
-  paymentMethod: 'money' | 'credit' | 'debit' | 'pix';
+  paymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   deliveryFee: number;
+  stripePaymentIntentId?: string;
+  asaasPaymentId?: string;
+  pixCopyPaste?: string;
+  pixQrCodeImage?: string;
+  pixInvoiceUrl?: string;
+  pixStatus?: string;
   observations?: string;
 }
