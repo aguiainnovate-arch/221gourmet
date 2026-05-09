@@ -591,6 +591,7 @@ export default function DeliveryMenu() {
       />
 
       <CheckoutFlow
+        onlineCardPaymentsEnabled={restaurant.stripeConnectChargesEnabled === true}
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         items={selectedItems}

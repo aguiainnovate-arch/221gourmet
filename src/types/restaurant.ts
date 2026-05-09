@@ -38,6 +38,11 @@ export interface Restaurant {
     enabled: boolean;
     aiDescription: string;
   };
+  /** Stripe Connect — Express (IDs e flags sincronizados pelo backend). */
+  stripeConnectAccountId?: string;
+  stripeConnectChargesEnabled?: boolean;
+  stripeConnectDetailsSubmitted?: boolean;
+  stripeConnectPayoutsEnabled?: boolean;
 }
 
 export interface CreateRestaurantData {

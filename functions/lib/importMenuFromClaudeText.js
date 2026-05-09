@@ -153,9 +153,9 @@ exports.importMenuFromClaudeText = (0, https_1.onCall)({
         }),
     });
     if (!res.ok) {
-        const err = await res.text();
-        console.error('[importMenuFromClaudeText] Anthropic HTTP', res.status, err.slice(0, 400));
-        throw new https_1.HttpsError('internal', 'Erro ao consultar Claude.');
+        const errBody = await res.text();
+        console.error('[importMenuFromClaudeText] Anthropic HTTP', res.status, errBody.slice(0, 800));
+        throw new https_1.HttpsError('internal', `Erro ao consultar Claude (HTTP ${res.status}). Verifique chave Anthropic, billing e logs da função.`, { anthropicStatus: res.status });
     }
     const data = (await res.json());
     const raw = (_d = (_c = data.content) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.text;

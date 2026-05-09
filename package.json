@@ -14,6 +14,7 @@
     "create:demo-accounts": "tsx src/scripts/createDemoAccounts.ts",
     "create:demo-users-by-phone": "tsx src/scripts/createDemoUsersByPhone.ts",
     "seed:demo-restaurants": "tsx src/scripts/seedDemoRestaurants.ts",
+    "stripe:provision-connect-restaurants": "tsx src/scripts/provisionStripeConnectForRestaurants.ts",
     "seed:all": "npm run create:demo-accounts && npm run seed:demo-restaurants",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npm run cap:sync && CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npx cap open android",
@@ -48,6 +49,7 @@
     "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
+    "stripe": "^17.7.0",
     "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.30.1",
     "@types/bcryptjs": "^2.4.6",

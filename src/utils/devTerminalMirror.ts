@@ -21,6 +21,7 @@ function serializeParts(parts: unknown[]): string {
 
 function mirror(level: 'log' | 'warn' | 'error', parts: unknown[]): void {
   if (!import.meta.env.DEV) return;
+  if (import.meta.env.VITE_DEV_TERMINAL_MIRROR !== 'true') return;
   const message = serializeParts(parts);
   void fetch('/__dev-client-log', {
     method: 'POST',

@@ -117,7 +117,21 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
         theme: data.theme,
         settings: data.settings,
         permissions: data.permissions,
-        deliverySettings
+        deliverySettings,
+        stripeConnectAccountId:
+          typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
+        stripeConnectChargesEnabled:
+          typeof data.stripeConnectChargesEnabled === 'boolean'
+            ? data.stripeConnectChargesEnabled
+            : undefined,
+        stripeConnectDetailsSubmitted:
+          typeof data.stripeConnectDetailsSubmitted === 'boolean'
+            ? data.stripeConnectDetailsSubmitted
+            : undefined,
+        stripeConnectPayoutsEnabled:
+          typeof data.stripeConnectPayoutsEnabled === 'boolean'
+            ? data.stripeConnectPayoutsEnabled
+            : undefined,
       });
     });
 
@@ -149,7 +163,21 @@ export const getRestaurantById = async (id: string): Promise<Restaurant | null> 
       theme: data.theme,
       settings: data.settings,
       permissions: data.permissions,
-      deliverySettings: data.deliverySettings ?? { enabled: true, aiDescription: '' }
+      deliverySettings: data.deliverySettings ?? { enabled: true, aiDescription: '' },
+      stripeConnectAccountId:
+        typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
+      stripeConnectChargesEnabled:
+        typeof data.stripeConnectChargesEnabled === 'boolean'
+          ? data.stripeConnectChargesEnabled
+          : undefined,
+      stripeConnectDetailsSubmitted:
+        typeof data.stripeConnectDetailsSubmitted === 'boolean'
+          ? data.stripeConnectDetailsSubmitted
+          : undefined,
+      stripeConnectPayoutsEnabled:
+        typeof data.stripeConnectPayoutsEnabled === 'boolean'
+          ? data.stripeConnectPayoutsEnabled
+          : undefined,
     };
   } catch (error) {
     console.error('Erro ao buscar restaurante por ID:', error);
@@ -193,7 +221,21 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
       updatedAt: data.updatedAt?.toDate() || new Date(),
       theme: data.theme,
       settings: data.settings,
-      deliverySettings
+      deliverySettings,
+      stripeConnectAccountId:
+        typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
+      stripeConnectChargesEnabled:
+        typeof data.stripeConnectChargesEnabled === 'boolean'
+          ? data.stripeConnectChargesEnabled
+          : undefined,
+      stripeConnectDetailsSubmitted:
+        typeof data.stripeConnectDetailsSubmitted === 'boolean'
+          ? data.stripeConnectDetailsSubmitted
+          : undefined,
+      stripeConnectPayoutsEnabled:
+        typeof data.stripeConnectPayoutsEnabled === 'boolean'
+          ? data.stripeConnectPayoutsEnabled
+          : undefined,
     };
   } catch (error) {
     console.error('Erro ao buscar restaurante por domínio:', error);
@@ -304,7 +346,21 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
         theme: data.theme,
         settings: data.settings,
         permissions: data.permissions,
-        deliverySettings
+        deliverySettings,
+        stripeConnectAccountId:
+          typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
+        stripeConnectChargesEnabled:
+          typeof data.stripeConnectChargesEnabled === 'boolean'
+            ? data.stripeConnectChargesEnabled
+            : undefined,
+        stripeConnectDetailsSubmitted:
+          typeof data.stripeConnectDetailsSubmitted === 'boolean'
+            ? data.stripeConnectDetailsSubmitted
+            : undefined,
+        stripeConnectPayoutsEnabled:
+          typeof data.stripeConnectPayoutsEnabled === 'boolean'
+            ? data.stripeConnectPayoutsEnabled
+            : undefined,
       });
     });
 

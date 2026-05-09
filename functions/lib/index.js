@@ -3,16 +3,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
+exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
 const params_1 = require("firebase-functions/params");
 const https_1 = require("firebase-functions/v2/https");
 const stripe_1 = __importDefault(require("stripe"));
+const stripeClient_1 = require("./stripeClient");
+const stripeUtils_1 = require("./stripeUtils");
+const stripeRestaurantConnect_1 = require("./stripeRestaurantConnect");
 var extractMenuPdfText_1 = require("./extractMenuPdfText");
 Object.defineProperty(exports, "extractMenuPdfText", { enumerable: true, get: function () { return extractMenuPdfText_1.extractMenuPdfText; } });
 var importMenuFromClaudeText_1 = require("./importMenuFromClaudeText");
 Object.defineProperty(exports, "importMenuFromClaudeText", { enumerable: true, get: function () { return importMenuFromClaudeText_1.importMenuFromClaudeText; } });
+var stripeRestaurantConnect_2 = require("./stripeRestaurantConnect");
+Object.defineProperty(exports, "createRestaurantStripeConnectOnboardingLink", { enumerable: true, get: function () { return stripeRestaurantConnect_2.createRestaurantStripeConnectOnboardingLink; } });
+Object.defineProperty(exports, "syncRestaurantStripeConnectStatus", { enumerable: true, get: function () { return stripeRestaurantConnect_2.syncRestaurantStripeConnectStatus; } });
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
-const stripeSecretKey = (0, params_1.defineSecret)('STRIPE_SECRET_KEY');
 const MODEL = 'claude-3-haiku-20240307';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const SYSTEM_PROMPT = `Você é um filtro de segurança e qualidade para cadastros de RESTAURANTES na plataforma brasileira "Bora Comer".
@@ -35,7 +40,7 @@ Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou dep
 {"allowed":true}
 ou
 {"allowed":false,"user_message_pt":"mensagem educada em português do Brasil, até 2 frases."}`;
-exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region: 'us-central1', cors: true }, async (request) => {
+exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a, _b;
     const payload = request.data;
     if (!payload || typeof payload !== 'object') {
@@ -103,35 +108,8 @@ exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region:
         };
     }
 });
-function getStripe() {
-    const secret = stripeSecretKey.value();
-    if (!secret) {
-        throw new https_1.HttpsError('failed-precondition', 'Stripe não configurado (secret ausente).');
-    }
-    return new stripe_1.default(secret);
-}
-function sanitizeMetadata(raw) {
-    const metadata = {};
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        for (const [k, v] of Object.entries(raw)) {
-            if (typeof k === 'string' && k.length <= 40 && typeof v === 'string' && v.length <= 500) {
-                metadata[k] = v.slice(0, 500);
-            }
-        }
-    }
-    return metadata;
-}
-function translateStripeError(err, ctx) {
-    if (err instanceof stripe_1.default.errors.StripeError) {
-        console.error(`[${ctx}] Stripe`, err.type, err.message);
-        const msg = `Stripe: ${err.message}`.slice(0, 240);
-        return new https_1.HttpsError('failed-precondition', msg);
-    }
-    console.error(`[${ctx}]`, err);
-    return new https_1.HttpsError('internal', 'Erro inesperado com o Stripe.');
-}
 /** Cria PaymentIntent para checkout delivery. Aceita cartão salvo (off_session) ou fluxo interativo. */
-exports.createDeliveryPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecretKey], region: 'us-central1', cors: true }, async (request) => {
+exports.createDeliveryPaymentIntent = (0, https_1.onCall)({ secrets: [stripeClient_1.stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a, _b;
     const raw = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const amountCents = raw.amountCents;
@@ -145,19 +123,38 @@ exports.createDeliveryPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecr
     const currency = typeof raw.currency === 'string' && /^[a-z]{3}$/i.test(raw.currency)
         ? raw.currency.toLowerCase()
         : 'brl';
-    const metadata = sanitizeMetadata(raw.metadata);
+    const usePix = raw.usePix === true;
+    const metadata = (0, stripeUtils_1.sanitizeMetadata)(raw.metadata);
+    const restaurantIdMeta = typeof metadata.restaurantId === 'string' ? metadata.restaurantId.trim() : '';
+    if (!restaurantIdMeta) {
+        throw new https_1.HttpsError('invalid-argument', 'metadata.restaurantId é obrigatório para pagamento delivery.');
+    }
+    const { destination, applicationFeeAmount } = await (0, stripeRestaurantConnect_1.resolveDestinationAndFee)(amountCents, restaurantIdMeta);
     const customerId = typeof raw.customerId === 'string' ? raw.customerId : undefined;
     const paymentMethodId = typeof raw.paymentMethodId === 'string' ? raw.paymentMethodId : undefined;
     const savePaymentMethod = raw.savePaymentMethod === true;
-    const stripe = getStripe();
+    const stripe = (0, stripeClient_1.getStripe)();
+    const currencyEffective = usePix ? 'brl' : currency;
+    if (usePix && currency !== 'brl') {
+        throw new https_1.HttpsError('invalid-argument', 'PIX só está disponível em BRL.');
+    }
     const params = {
         amount: amountCents,
-        currency,
+        currency: currencyEffective,
         metadata,
+        transfer_data: {
+            destination,
+        },
     };
+    if (applicationFeeAmount > 0) {
+        params.application_fee_amount = applicationFeeAmount;
+    }
     if (customerId)
         params.customer = customerId;
-    if (paymentMethodId && customerId) {
+    if (usePix) {
+        params.payment_method_types = ['pix'];
+    }
+    else if (paymentMethodId && customerId) {
         // Fluxo com cartão salvo — confirmar imediatamente
         params.payment_method = paymentMethodId;
         params.confirm = true;
@@ -186,7 +183,7 @@ exports.createDeliveryPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecr
                 requiresAction: pi.status === 'requires_action' || pi.status === 'requires_confirmation',
             };
         }
-        throw translateStripeError(err, 'createDeliveryPaymentIntent');
+        throw (0, stripeUtils_1.translateStripeError)(err, 'createDeliveryPaymentIntent');
     }
     if (!intent.client_secret) {
         console.error('[createDeliveryPaymentIntent] PaymentIntent sem client_secret');
@@ -200,7 +197,7 @@ exports.createDeliveryPaymentIntent = (0, https_1.onCall)({ secrets: [stripeSecr
     };
 });
 /** Garante Stripe Customer para o usuário delivery. Retorna customerId (cria se não existir). */
-exports.ensureDeliveryStripeCustomer = (0, https_1.onCall)({ secrets: [stripeSecretKey], region: 'us-central1', cors: true }, async (request) => {
+exports.ensureDeliveryStripeCustomer = (0, https_1.onCall)({ secrets: [stripeClient_1.stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a;
     const raw = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const deliveryUserId = typeof raw.deliveryUserId === 'string' ? raw.deliveryUserId.trim() : '';
@@ -213,7 +210,7 @@ exports.ensureDeliveryStripeCustomer = (0, https_1.onCall)({ secrets: [stripeSec
     const existingCustomerId = typeof raw.existingCustomerId === 'string' && raw.existingCustomerId.startsWith('cus_')
         ? raw.existingCustomerId
         : undefined;
-    const stripe = getStripe();
+    const stripe = (0, stripeClient_1.getStripe)();
     try {
         if (existingCustomerId) {
             const customer = await stripe.customers.retrieve(existingCustomerId);
@@ -238,18 +235,18 @@ exports.ensureDeliveryStripeCustomer = (0, https_1.onCall)({ secrets: [stripeSec
         return { customerId: created.id };
     }
     catch (err) {
-        throw translateStripeError(err, 'ensureDeliveryStripeCustomer');
+        throw (0, stripeUtils_1.translateStripeError)(err, 'ensureDeliveryStripeCustomer');
     }
 });
 /** Cria SetupIntent para salvar cartão do customer (sem cobrar). */
-exports.createDeliverySetupIntent = (0, https_1.onCall)({ secrets: [stripeSecretKey], region: 'us-central1', cors: true }, async (request) => {
+exports.createDeliverySetupIntent = (0, https_1.onCall)({ secrets: [stripeClient_1.stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a;
     const raw = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const customerId = typeof raw.customerId === 'string' ? raw.customerId : '';
     if (!customerId.startsWith('cus_')) {
         throw new https_1.HttpsError('invalid-argument', 'customerId inválido.');
     }
-    const stripe = getStripe();
+    const stripe = (0, stripeClient_1.getStripe)();
     try {
         // Somente cartão: evita Stripe Link / outros métodos que pedem "login"
         // em outra conta (confundido com a sessão do app).
@@ -264,18 +261,18 @@ exports.createDeliverySetupIntent = (0, https_1.onCall)({ secrets: [stripeSecret
         return { clientSecret: setup.client_secret };
     }
     catch (err) {
-        throw translateStripeError(err, 'createDeliverySetupIntent');
+        throw (0, stripeUtils_1.translateStripeError)(err, 'createDeliverySetupIntent');
     }
 });
 /** Lista cartões salvos do customer. */
-exports.listDeliverySavedCards = (0, https_1.onCall)({ secrets: [stripeSecretKey], region: 'us-central1', cors: true }, async (request) => {
+exports.listDeliverySavedCards = (0, https_1.onCall)({ secrets: [stripeClient_1.stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a;
     const raw = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const customerId = typeof raw.customerId === 'string' ? raw.customerId : '';
     if (!customerId.startsWith('cus_')) {
         throw new https_1.HttpsError('invalid-argument', 'customerId inválido.');
     }
-    const stripe = getStripe();
+    const stripe = (0, stripeClient_1.getStripe)();
     try {
         const list = await stripe.paymentMethods.list({
             customer: customerId,
@@ -294,24 +291,24 @@ exports.listDeliverySavedCards = (0, https_1.onCall)({ secrets: [stripeSecretKey
         return { cards };
     }
     catch (err) {
-        throw translateStripeError(err, 'listDeliverySavedCards');
+        throw (0, stripeUtils_1.translateStripeError)(err, 'listDeliverySavedCards');
     }
 });
 /** Remove um PaymentMethod (desanexa do customer). */
-exports.removeDeliverySavedCard = (0, https_1.onCall)({ secrets: [stripeSecretKey], region: 'us-central1', cors: true }, async (request) => {
+exports.removeDeliverySavedCard = (0, https_1.onCall)({ secrets: [stripeClient_1.stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a;
     const raw = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const paymentMethodId = typeof raw.paymentMethodId === 'string' ? raw.paymentMethodId : '';
     if (!paymentMethodId.startsWith('pm_')) {
         throw new https_1.HttpsError('invalid-argument', 'paymentMethodId inválido.');
     }
-    const stripe = getStripe();
+    const stripe = (0, stripeClient_1.getStripe)();
     try {
         await stripe.paymentMethods.detach(paymentMethodId);
         return { removed: true };
     }
     catch (err) {
-        throw translateStripeError(err, 'removeDeliverySavedCard');
+        throw (0, stripeUtils_1.translateStripeError)(err, 'removeDeliverySavedCard');
     }
 });
 //# sourceMappingURL=index.js.map

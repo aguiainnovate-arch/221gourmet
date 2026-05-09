@@ -2,12 +2,18 @@ import { defineSecret } from 'firebase-functions/params';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import Stripe from 'stripe';
 
+import { getStripe, stripeSecretKey } from './stripeClient';
+import { sanitizeMetadata, translateStripeError } from './stripeUtils';
+import { resolveDestinationAndFee } from './stripeRestaurantConnect';
+
 export { extractMenuPdfText } from './extractMenuPdfText';
 export { importMenuFromClaudeText } from './importMenuFromClaudeText';
+export {
+  createRestaurantStripeConnectOnboardingLink,
+  syncRestaurantStripeConnectStatus,
+} from './stripeRestaurantConnect';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
-const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
-const asaasApiKey = defineSecret('ASAAS_API_KEY');
 
 const MODEL = 'claude-3-haiku-20240307';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
@@ -55,7 +61,7 @@ interface ModerationResult {
 }
 
 export const moderateLead = onCall(
-  { secrets: [anthropicApiKey], region: 'us-central1', cors: true },
+  { secrets: [anthropicApiKey], region: 'us-central1', cors: true, invoker: 'public' },
   async (request): Promise<ModerationResult> => {
     const payload = request.data as LeadPayload;
 
@@ -137,39 +143,9 @@ export const moderateLead = onCall(
   }
 );
 
-function getStripe(): Stripe {
-  const secret = stripeSecretKey.value();
-  if (!secret) {
-    throw new HttpsError('failed-precondition', 'Stripe não configurado (secret ausente).');
-  }
-  return new Stripe(secret);
-}
-
-function sanitizeMetadata(raw: unknown): Record<string, string> {
-  const metadata: Record<string, string> = {};
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if (typeof k === 'string' && k.length <= 40 && typeof v === 'string' && v.length <= 500) {
-        metadata[k] = v.slice(0, 500);
-      }
-    }
-  }
-  return metadata;
-}
-
-function translateStripeError(err: unknown, ctx: string): HttpsError {
-  if (err instanceof Stripe.errors.StripeError) {
-    console.error(`[${ctx}] Stripe`, err.type, err.message);
-    const msg = `Stripe: ${err.message}`.slice(0, 240);
-    return new HttpsError('failed-precondition', msg);
-  }
-  console.error(`[${ctx}]`, err);
-  return new HttpsError('internal', 'Erro inesperado com o Stripe.');
-}
-
 /** Cria PaymentIntent para checkout delivery. Aceita cartão salvo (off_session) ou fluxo interativo. */
 export const createDeliveryPaymentIntent = onCall(
-  { secrets: [stripeSecretKey], region: 'us-central1', cors: true },
+  { secrets: [stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' },
   async (request): Promise<{
     clientSecret: string;
     paymentIntentId: string;
@@ -193,22 +169,52 @@ export const createDeliveryPaymentIntent = onCall(
         ? raw.currency.toLowerCase()
         : 'brl';
 
+    const usePix = raw.usePix === true;
+
     const metadata = sanitizeMetadata(raw.metadata);
+    const restaurantIdMeta =
+      typeof metadata.restaurantId === 'string' ? metadata.restaurantId.trim() : '';
+    if (!restaurantIdMeta) {
+      throw new HttpsError(
+        'invalid-argument',
+        'metadata.restaurantId é obrigatório para pagamento delivery.'
+      );
+    }
+
+    const { destination, applicationFeeAmount } = await resolveDestinationAndFee(
+      amountCents,
+      restaurantIdMeta
+    );
+
     const customerId = typeof raw.customerId === 'string' ? raw.customerId : undefined;
     const paymentMethodId = typeof raw.paymentMethodId === 'string' ? raw.paymentMethodId : undefined;
     const savePaymentMethod = raw.savePaymentMethod === true;
 
     const stripe = getStripe();
 
+    const currencyEffective = usePix ? 'brl' : currency;
+    if (usePix && currency !== 'brl') {
+      throw new HttpsError('invalid-argument', 'PIX só está disponível em BRL.');
+    }
+
     const params: Stripe.PaymentIntentCreateParams = {
       amount: amountCents,
-      currency,
+      currency: currencyEffective,
       metadata,
+      transfer_data: {
+        destination,
+      },
     };
+
+    if (applicationFeeAmount > 0) {
+      params.application_fee_amount = applicationFeeAmount;
+    }
 
     if (customerId) params.customer = customerId;
 
-    if (paymentMethodId && customerId) {
+    if (usePix) {
+      params.payment_method_types = ['pix'];
+    } else if (paymentMethodId && customerId) {
       // Fluxo com cartão salvo — confirmar imediatamente
       params.payment_method = paymentMethodId;
       params.confirm = true;
@@ -257,7 +263,7 @@ export const createDeliveryPaymentIntent = onCall(
 
 /** Garante Stripe Customer para o usuário delivery. Retorna customerId (cria se não existir). */
 export const ensureDeliveryStripeCustomer = onCall(
-  { secrets: [stripeSecretKey], region: 'us-central1', cors: true },
+  { secrets: [stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' },
   async (request): Promise<{ customerId: string }> => {
     const raw = (request.data ?? {}) as Record<string, unknown>;
     const deliveryUserId = typeof raw.deliveryUserId === 'string' ? raw.deliveryUserId.trim() : '';
@@ -307,7 +313,7 @@ export const ensureDeliveryStripeCustomer = onCall(
 
 /** Cria SetupIntent para salvar cartão do customer (sem cobrar). */
 export const createDeliverySetupIntent = onCall(
-  { secrets: [stripeSecretKey], region: 'us-central1', cors: true },
+  { secrets: [stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' },
   async (request): Promise<{ clientSecret: string }> => {
     const raw = (request.data ?? {}) as Record<string, unknown>;
     const customerId = typeof raw.customerId === 'string' ? raw.customerId : '';
@@ -337,7 +343,7 @@ export const createDeliverySetupIntent = onCall(
 
 /** Lista cartões salvos do customer. */
 export const listDeliverySavedCards = onCall(
-  { secrets: [stripeSecretKey], region: 'us-central1', cors: true },
+  { secrets: [stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' },
   async (request): Promise<{
     cards: Array<{
       id: string;
@@ -379,7 +385,7 @@ export const listDeliverySavedCards = onCall(
 
 /** Remove um PaymentMethod (desanexa do customer). */
 export const removeDeliverySavedCard = onCall(
-  { secrets: [stripeSecretKey], region: 'us-central1', cors: true },
+  { secrets: [stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' },
   async (request): Promise<{ removed: boolean }> => {
     const raw = (request.data ?? {}) as Record<string, unknown>;
     const paymentMethodId = typeof raw.paymentMethodId === 'string' ? raw.paymentMethodId : '';
@@ -396,147 +402,3 @@ export const removeDeliverySavedCard = onCall(
   }
 );
 
-type AsaasBillingType = 'PIX';
-
-interface CreateAsaasPixChargeRequest {
-  customerName: string;
-  customerEmail?: string;
-  customerPhone: string;
-  customerCpfCnpj?: string;
-  amount: number;
-  description?: string;
-  externalReference?: string;
-}
-
-interface CreateAsaasPixChargeResponse {
-  paymentId: string;
-  invoiceUrl: string;
-  pixCopyPaste?: string;
-  pixQrCodeImage?: string;
-  status: string;
-}
-
-function getAsaasConfig() {
-  const apiKey = asaasApiKey.value();
-  if (!apiKey) {
-    throw new HttpsError('failed-precondition', 'Asaas não configurado (token ausente).');
-  }
-  const baseUrl = process.env.ASAAS_API_BASE_URL?.trim() || 'https://api-sandbox.asaas.com/v3';
-  return { apiKey, baseUrl };
-}
-
-async function asaasRequest<TResponse>(
-  baseUrl: string,
-  apiKey: string,
-  path: string,
-  init?: RequestInit
-): Promise<TResponse> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      access_token: apiKey,
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-
-  if (!response.ok) {
-    const errorText =
-      typeof body?.errors === 'object' ? JSON.stringify(body.errors).slice(0, 300) : response.statusText;
-    throw new HttpsError('failed-precondition', `Asaas erro ${response.status}: ${errorText}`);
-  }
-
-  return body as TResponse;
-}
-
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '').slice(0, 11);
-}
-
-function sanitizeAsaasText(value: unknown, max = 200): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const sanitized = value.trim();
-  if (!sanitized) return undefined;
-  return sanitized.slice(0, max);
-}
-
-function getDueDateString(): string {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-/** Cria cobrança PIX no Asaas e retorna URL/fonte de pagamento. */
-export const createDeliveryAsaasPixCharge = onCall(
-  { secrets: [asaasApiKey], region: 'us-central1', cors: true },
-  async (request): Promise<CreateAsaasPixChargeResponse> => {
-    const raw = (request.data ?? {}) as Partial<CreateAsaasPixChargeRequest>;
-
-    const customerName = sanitizeAsaasText(raw.customerName, 100);
-    const customerEmail = sanitizeAsaasText(raw.customerEmail, 120);
-    const customerPhone = sanitizeAsaasText(raw.customerPhone, 20);
-    const customerCpfCnpj = sanitizeAsaasText(raw.customerCpfCnpj, 18);
-    const description = sanitizeAsaasText(raw.description, 500);
-    const externalReference = sanitizeAsaasText(raw.externalReference, 100);
-
-    if (!customerName || !customerPhone) {
-      throw new HttpsError('invalid-argument', 'Nome e telefone são obrigatórios para o Asaas.');
-    }
-
-    if (typeof raw.amount !== 'number' || !Number.isFinite(raw.amount) || raw.amount < 1 || raw.amount > 100000) {
-      throw new HttpsError('invalid-argument', 'Valor do pedido inválido para cobrança Asaas.');
-    }
-
-    const { apiKey, baseUrl } = getAsaasConfig();
-
-    const customerPayload: Record<string, unknown> = {
-      name: customerName,
-      phone: normalizePhone(customerPhone),
-      notificationDisabled: true,
-    };
-
-    if (customerEmail) customerPayload.email = customerEmail;
-    if (customerCpfCnpj) customerPayload.cpfCnpj = customerCpfCnpj.replace(/\D/g, '');
-
-    const customer = await asaasRequest<{ id: string }>(baseUrl, apiKey, '/customers', {
-      method: 'POST',
-      body: JSON.stringify(customerPayload),
-    });
-
-    const payment = await asaasRequest<{
-      id: string;
-      status: string;
-      invoiceUrl?: string;
-      bankSlipUrl?: string;
-    }>(baseUrl, apiKey, '/payments', {
-      method: 'POST',
-      body: JSON.stringify({
-        customer: customer.id,
-        billingType: 'PIX' as AsaasBillingType,
-        value: Number(raw.amount.toFixed(2)),
-        dueDate: getDueDateString(),
-        description,
-        externalReference,
-      }),
-    });
-
-    const pixData = await asaasRequest<{
-      payload?: string;
-      encodedImage?: string;
-    }>(baseUrl, apiKey, `/payments/${payment.id}/pixQrCode`, {
-      method: 'GET',
-    });
-
-    return {
-      paymentId: payment.id,
-      invoiceUrl: payment.invoiceUrl || payment.bankSlipUrl || '',
-      pixCopyPaste: pixData.payload,
-      pixQrCodeImage: pixData.encodedImage,
-      status: payment.status,
-    };
-  }
-);

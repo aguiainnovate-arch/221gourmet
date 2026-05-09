@@ -48,6 +48,10 @@ import { getStatistics, type GeneralStats } from '../services/statisticsService'
 import { hasRestaurantPermission } from '../services/permissionService';
 import { translateProduct } from '../services/openaiService';
 import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder, subscribeDeliveryOrdersByRestaurant } from '../services/deliveryService';
+import {
+  startRestaurantStripeConnectOnboarding,
+  syncRestaurantStripeConnectFromStripe,
+} from '../services/restaurantStripeConnectService';
 import { playNotificationSound, getNotificationSoundEnabled, setNotificationSoundEnabled } from '../utils/notificationSound';
 import { getRestaurants } from '../services/restaurantService';
 import type { DeliveryOrder } from '../types/delivery';
@@ -151,6 +155,21 @@ export default function Settings() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [deliveryToast, setDeliveryToast] = useState<{ message: string; orderId: string } | null>(null);
   const [deliveryPendingCount, setDeliveryPendingCount] = useState(0);
+
+  const [stripeConnectBanner, setStripeConnectBanner] = useState<string | null>(null);
+  const [restaurantAccountEmail, setRestaurantAccountEmail] = useState('');
+  const [stripeConnectAccountId, setStripeConnectAccountId] = useState<string | undefined>(undefined);
+  const [stripeConnectChargesEnabled, setStripeConnectChargesEnabled] = useState<boolean | undefined>(
+    undefined
+  );
+  const [stripeConnectDetailsSubmitted, setStripeConnectDetailsSubmitted] = useState<boolean | undefined>(
+    undefined
+  );
+  const [stripeModalOpen, setStripeModalOpen] = useState(false);
+  const [stripeModalAction, setStripeModalAction] = useState<'onboard' | 'sync'>('onboard');
+  const [stripeModalPassword, setStripeModalPassword] = useState('');
+  const [stripeModalBusy, setStripeModalBusy] = useState(false);
+  const [stripeModalError, setStripeModalError] = useState<string | null>(null);
   const [notificationSoundEnabled, setNotificationSoundEnabledState] = useState(true);
   const [selectedDeliveryOrder, setSelectedDeliveryOrder] = useState<DeliveryOrder | null>(null);
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<string>('all');
@@ -337,6 +356,11 @@ export default function Settings() {
           const { getRestaurants } = await import('../services/restaurantService');
           const restaurants = await getRestaurants();
           const restaurant = restaurants.find(r => r.id === restaurantId);
+
+          setRestaurantAccountEmail(restaurant?.email?.trim() ?? '');
+          setStripeConnectAccountId(restaurant?.stripeConnectAccountId);
+          setStripeConnectChargesEnabled(restaurant?.stripeConnectChargesEnabled);
+          setStripeConnectDetailsSubmitted(restaurant?.stripeConnectDetailsSubmitted);
           
           console.log('📖 Carregando configurações de delivery...');
           console.log('   Restaurante encontrado:', restaurant?.name);
@@ -1524,8 +1548,26 @@ export default function Settings() {
   // Detectar parâmetro tab na URL
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['mesas', 'cardapio', 'personalizacao', 'relatorios', 'cozinha'].includes(tabParam)) {
+    if (
+      tabParam &&
+      ['mesas', 'cardapio', 'personalizacao', 'relatorios', 'cozinha', 'delivery'].includes(tabParam)
+    ) {
       setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const sc = searchParams.get('stripe_connect');
+    if (sc === 'return') {
+      setStripeConnectBanner(
+        'Você voltou do cadastro na Stripe. Clique em «Atualizar status» abaixo para confirmar se o recebimento online já está ativo.'
+      );
+      setActiveTab('delivery');
+    } else if (sc === 'refresh') {
+      setStripeConnectBanner(
+        'O link de cadastro expirou ou foi interrompido. Use «Conectar / continuar cadastro» novamente.'
+      );
+      setActiveTab('delivery');
     }
   }, [searchParams]);
 
@@ -1733,6 +1775,59 @@ export default function Settings() {
     setShowCancelModal(false);
     setOrderToCancel(null);
     setCancelReason('');
+  };
+
+  const submitStripeConnectModal = async () => {
+    if (!restaurantId || !restaurantAccountEmail.trim()) {
+      setStripeModalError('Email do restaurante não carregado. Recarregue a página.');
+      return;
+    }
+    if (!stripeModalPassword.trim()) {
+      setStripeModalError('Informe a senha do restaurante.');
+      return;
+    }
+    setStripeModalBusy(true);
+    setStripeModalError(null);
+    try {
+      if (stripeModalAction === 'onboard') {
+        const { url } = await startRestaurantStripeConnectOnboarding({
+          restaurantId,
+          email: restaurantAccountEmail.trim(),
+          password: stripeModalPassword,
+        });
+        window.location.href = url;
+        return;
+      }
+      await syncRestaurantStripeConnectFromStripe({
+        restaurantId,
+        email: restaurantAccountEmail.trim(),
+        password: stripeModalPassword,
+      });
+      const restaurants = await getRestaurants();
+      const r = restaurants.find((x) => x.id === restaurantId);
+      setStripeConnectAccountId(r?.stripeConnectAccountId);
+      setStripeConnectChargesEnabled(r?.stripeConnectChargesEnabled);
+      setStripeConnectDetailsSubmitted(r?.stripeConnectDetailsSubmitted);
+      setStripeModalPassword('');
+      setStripeModalOpen(false);
+      setStripeConnectBanner(null);
+    } catch (e: unknown) {
+      let msg = 'Não foi possível concluir. Tente novamente.';
+      if (e && typeof e === 'object') {
+        const err = e as { code?: string; message?: unknown };
+        const code = typeof err.code === 'string' ? err.code : '';
+        const rawMsg = typeof err.message === 'string' ? err.message : '';
+        if (code === 'functions/internal' || rawMsg === 'internal') {
+          msg =
+            'Erro no servidor (functions). Faça deploy das Cloud Functions com `firebase deploy --only functions` e confira STRIPE_SECRET_KEY / secrets.';
+        } else if (rawMsg) {
+          msg = rawMsg;
+        }
+      }
+      setStripeModalError(msg);
+    } finally {
+      setStripeModalBusy(false);
+    }
   };
 
   const getStatusButtonText = (status: string) => {
@@ -3332,6 +3427,99 @@ export default function Settings() {
               </div>
 
               <div className="space-y-6">
+                {/* Stripe Connect — recebimento online */}
+                <div className="bg-white rounded-lg shadow-sm border border-emerald-200 p-6">
+                  <div className="flex items-start space-x-3 mb-4">
+                    <div className="bg-emerald-100 p-2 rounded-lg">
+                      <CreditCard className="w-5 h-5 text-emerald-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                        Recebimento online (Stripe Connect)
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Para aceitar cartão no delivery, é preciso criar uma subconta Stripe vinculada ao seu
+                        restaurante. O valor do pedido é repassado para essa conta (a plataforma pode reter uma
+                        taxa configurável no servidor).
+                      </p>
+                      {stripeConnectBanner && (
+                        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+                          {stripeConnectBanner}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 text-xs mb-4">
+                        <span
+                          className={`px-2 py-1 rounded-full font-medium ${
+                            stripeConnectAccountId
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          Conta Stripe: {stripeConnectAccountId ? 'criada' : 'não criada'}
+                        </span>
+                        <span
+                          className={`px-2 py-1 rounded-full font-medium ${
+                            stripeConnectChargesEnabled === true
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          Cobranças:{' '}
+                          {stripeConnectChargesEnabled === true
+                            ? 'ativas'
+                            : stripeConnectChargesEnabled === false
+                              ? 'inativas'
+                              : '—'}
+                        </span>
+                        <span
+                          className={`px-2 py-1 rounded-full font-medium ${
+                            stripeConnectDetailsSubmitted === true
+                              ? 'bg-blue-50 text-blue-800'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          Cadastro:{' '}
+                          {stripeConnectDetailsSubmitted === true
+                            ? 'enviado'
+                            : stripeConnectDetailsSubmitted === false
+                              ? 'pendente'
+                              : '—'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStripeModalAction('onboard');
+                            setStripeModalPassword('');
+                            setStripeModalError(null);
+                            setStripeModalOpen(true);
+                          }}
+                          className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          Conectar / continuar cadastro Stripe
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStripeModalAction('sync');
+                            setStripeModalPassword('');
+                            setStripeModalError(null);
+                            setStripeModalOpen(true);
+                          }}
+                          className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-800 hover:bg-gray-50"
+                        >
+                          Atualizar status
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-3">
+                        É necessário informar a senha do restaurante (mesma das configurações) para falar com a
+                        Stripe com segurança. Ative o Connect no painel Stripe da plataforma se ainda não ativou.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Card: Habilitar/Desabilitar Delivery */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-start justify-between">
@@ -3510,6 +3698,56 @@ export default function Settings() {
 
         </div>
       </div>
+
+      {/* Modal Stripe Connect — confirma senha do restaurante */}
+      {stripeModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              {stripeModalAction === 'onboard'
+                ? 'Conectar recebimento Stripe'
+                : 'Atualizar status Stripe'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Informe a senha deste restaurante (mesma usada para entrar em Configurações).
+            </p>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Senha</label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={stripeModalPassword}
+              onChange={(e) => setStripeModalPassword(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-black mb-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              disabled={stripeModalBusy}
+            />
+            {stripeModalError && (
+              <p className="text-sm text-red-600 mb-3">{stripeModalError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStripeModalOpen(false);
+                  setStripeModalPassword('');
+                  setStripeModalError(null);
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
+                disabled={stripeModalBusy}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitStripeConnectModal()}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+                disabled={stripeModalBusy}
+              >
+                {stripeModalBusy ? 'Aguarde…' : stripeModalAction === 'onboard' ? 'Continuar' : 'Sincronizar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal para Adicionar Mesa */}
       {showAddModal && (

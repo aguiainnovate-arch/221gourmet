@@ -21,6 +21,8 @@ export interface CreateDeliveryPaymentIntentRequest {
   customerId?: string;
   paymentMethodId?: string;
   savePaymentMethod?: boolean;
+  /** PIX instantâneo (Brasil) — PaymentIntent só com `pix`; confirmação no cliente com confirmPixPayment. */
+  usePix?: boolean;
 }
 
 export interface CreateDeliveryPaymentIntentResponse {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,7 +39,6 @@ import {
   brandLabel,
   type SavedCard,
 } from '../../services/deliveryStripeService';
-import { createDeliveryAsaasPixCharge } from '../../services/deliveryPixService';
 
 export interface CartLine {
   product: Product;
@@ -52,7 +51,9 @@ export type CodPayment = 'money' | 'credit' | 'debit' | 'pix';
 export type PaymentSelection =
   | { kind: 'cod'; method: CodPayment }
   | { kind: 'saved'; card: SavedCard }
-  | { kind: 'new-card' };
+  | { kind: 'new-card' }
+  /** PIX instantâneo via Stripe (QR) — requer Connect + BRL. */
+  | { kind: 'stripe-pix' };
 
 export type DeliveryOption = 'standard' | 'turbo';
 
@@ -77,12 +78,14 @@ interface Props {
   stripePromise: Promise<StripeType | null> | null;
   /** Enquanto o contexto de auth carrega o usuário do storage (evita falso "não logado"). */
   authLoading?: boolean;
+  /** Requer Stripe Connect ativo no restaurante (subconta com cobranças habilitadas). */
+  onlineCardPaymentsEnabled?: boolean;
   onOrderCreated: (data: {
     orderPayload: CreateDeliveryOrderData;
   }) => Promise<void>;
 }
 
-type Step = 'bag' | 'address' | 'payment' | 'new-card';
+type Step = 'bag' | 'address' | 'payment' | 'new-card' | 'pix-wait';
 
 type AddressDraft = {
   street: string;
@@ -145,7 +148,7 @@ const getAddressHistoryStorageKey = (user: DeliveryUser | null): string => {
 };
 
 const COD_OPTIONS: Array<{ method: CodPayment; icon: React.ReactNode; labelKey: string }> = [
-  { method: 'pix', icon: <QrCode className="w-5 h-5" />, labelKey: 'delivery.pix' },
+  { method: 'pix', icon: <QrCode className="w-5 h-5" />, labelKey: 'delivery.pixOnDelivery' },
   { method: 'credit', icon: <CreditCard className="w-5 h-5" />, labelKey: 'delivery.credit' },
   { method: 'debit', icon: <CreditCard className="w-5 h-5" />, labelKey: 'delivery.debit' },
   { method: 'money', icon: <Banknote className="w-5 h-5" />, labelKey: 'delivery.money' },
@@ -171,6 +174,7 @@ export default function CheckoutFlow({
   locale = 'pt-BR',
   stripePromise,
   authLoading = false,
+  onlineCardPaymentsEnabled = false,
   onOrderCreated,
 }: Props) {
   const { t } = useTranslation();
@@ -192,6 +196,29 @@ export default function CheckoutFlow({
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
+  const [pixWait, setPixWait] = useState<{
+    clientSecret: string;
+    paymentIntentId: string;
+    imageUrlPng?: string;
+    copyPaste?: string;
+    hostedInstructionsUrl?: string;
+  } | null>(null);
+
+  const pixOrderBaseRef = useRef<Omit<
+    CreateDeliveryOrderData,
+    'paymentMethod' | 'stripePaymentIntentId'
+  > | null>(null);
+  const pixSucceededRef = useRef(false);
+  const onOrderCreatedRef = useRef(onOrderCreated);
+  const onCloseRef = useRef(onClose);
+  onOrderCreatedRef.current = onOrderCreated;
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!onlineCardPaymentsEnabled && (payment?.kind === 'saved' || payment?.kind === 'stripe-pix')) {
+      setPayment(null);
+    }
+  }, [onlineCardPaymentsEnabled, payment?.kind]);
 
   useEffect(() => {
     if (!open) return;
@@ -227,7 +254,12 @@ export default function CheckoutFlow({
   }, [user?.stripeCustomerId]);
 
   useEffect(() => {
-    if (!open) setStep('bag');
+    if (!open) {
+      setStep('bag');
+      setPixWait(null);
+      pixOrderBaseRef.current = null;
+      pixSucceededRef.current = false;
+    }
   }, [open]);
 
   const fmt = useCallback(
@@ -330,6 +362,42 @@ export default function CheckoutFlow({
     goTo('payment');
   };
 
+  useEffect(() => {
+    if (step !== 'pix-wait' || !pixWait?.clientSecret || !stripePromise) return;
+
+    const run = async () => {
+      if (pixSucceededRef.current) return;
+      try {
+        const stripe = await stripePromise;
+        if (!stripe) return;
+        const { paymentIntent } = await stripe.retrievePaymentIntent(pixWait.clientSecret);
+        if (paymentIntent?.status === 'succeeded' && !pixSucceededRef.current) {
+          pixSucceededRef.current = true;
+          const base = pixOrderBaseRef.current;
+          if (base) {
+            await onOrderCreatedRef.current({
+              orderPayload: {
+                ...base,
+                paymentMethod: 'stripe',
+                stripePaymentIntentId: paymentIntent.id,
+              },
+            });
+          }
+          setPixWait(null);
+          pixOrderBaseRef.current = null;
+          setStep('bag');
+          onCloseRef.current();
+        }
+      } catch (e) {
+        console.error('[CheckoutFlow] pix poll', e);
+      }
+    };
+
+    void run();
+    const id = window.setInterval(() => void run(), 2500);
+    return () => window.clearInterval(id);
+  }, [step, pixWait?.clientSecret, stripePromise]);
+
   const canProceedFromAddress =
     customerName.trim().length >= 2 &&
     customerPhone.trim().length >= 8 &&
@@ -401,35 +469,120 @@ export default function CheckoutFlow({
 
     try {
       if (payment.kind === 'cod') {
-        if (payment.method === 'pix') {
-          const pixCharge = await createDeliveryAsaasPixCharge({
-            customerName,
-            customerEmail: user?.email,
-            customerPhone,
-            amount: Number(total.toFixed(2)),
-            description: `Pedido delivery - ${restaurantName}`,
-            externalReference: `${restaurantId}-${Date.now()}`,
-          });
-          await onOrderCreated({
-            orderPayload: {
-              ...basePayload,
-              paymentMethod: 'pix',
-              asaasPaymentId: pixCharge.paymentId,
-              pixCopyPaste: pixCharge.pixCopyPaste,
-              pixQrCodeImage: pixCharge.pixQrCodeImage,
-              pixInvoiceUrl: pixCharge.invoiceUrl,
-              pixStatus: pixCharge.status,
-            },
-          });
-          return;
-        }
-
         await onOrderCreated({
           orderPayload: {
             ...basePayload,
             paymentMethod: payment.method,
           },
         });
+        return;
+      }
+
+      if (payment.kind === 'stripe-pix') {
+        if (!onlineCardPaymentsEnabled) {
+          setErrorBanner(t('delivery.stripeConnectRestaurantPending'));
+          return;
+        }
+        if (!stripePromise) {
+          setErrorBanner(t('delivery.stripeNotConfigured'));
+          return;
+        }
+        if ((currency || 'BRL').toUpperCase() !== 'BRL') {
+          setErrorBanner(t('delivery.stripePixBrlOnly'));
+          return;
+        }
+
+        pixOrderBaseRef.current = basePayload;
+        pixSucceededRef.current = false;
+
+        const res = await createDeliveryPaymentIntent({
+          amountCents: Math.round(total * 100),
+          currency: 'brl',
+          usePix: true,
+          metadata: {
+            restaurantId,
+            restaurantName: restaurantName.slice(0, 200),
+            customerPhone: customerPhone.slice(0, 200),
+          },
+        });
+
+        const stripe = await stripePromise;
+        if (!stripe) {
+          setErrorBanner(t('delivery.stripeNotConfigured'));
+          return;
+        }
+        const digits = customerPhone.replace(/\D/g, '');
+        const emailPix =
+          user?.email?.trim() ||
+          (digits.length >= 8 ? `pix-${digits}@guest.boracomer.invalid` : 'cliente@guest.boracomer.invalid');
+
+        const pixResult = await stripe.confirmPixPayment(
+          res.clientSecret,
+          {
+            payment_method: {
+              billing_details: {
+                name: customerName.trim() || 'Cliente',
+                email: emailPix,
+              },
+            },
+          },
+          { handleActions: false }
+        );
+
+        if (pixResult.error) {
+          setErrorBanner(pixResult.error.message ?? t('delivery.stripePixFailed'));
+          return;
+        }
+
+        const pi = pixResult.paymentIntent;
+        if (!pi) {
+          setErrorBanner(t('delivery.stripePixFailed'));
+          return;
+        }
+
+        if (pi.status === 'succeeded') {
+          await onOrderCreated({
+            orderPayload: {
+              ...basePayload,
+              paymentMethod: 'stripe',
+              stripePaymentIntentId: pi.id,
+            },
+          });
+          return;
+        }
+
+        const na = pi.next_action as
+          | { type?: string; pix_display_qr_code?: { image_url_png?: string; data?: string; hosted_instructions_url?: string } }
+          | null
+          | undefined;
+        if (
+          pi.status === 'requires_action' &&
+          na &&
+          na.type === 'pix_display_qr_code' &&
+          na.pix_display_qr_code
+        ) {
+          const p = na.pix_display_qr_code;
+          setPixWait({
+            clientSecret: res.clientSecret,
+            paymentIntentId: pi.id,
+            imageUrlPng: p.image_url_png ?? undefined,
+            copyPaste: p.data ?? undefined,
+            hostedInstructionsUrl: p.hosted_instructions_url ?? undefined,
+          });
+          setStep('pix-wait');
+          return;
+        }
+
+        if (pi.status === 'processing' || pi.status === 'requires_action') {
+          setPixWait({
+            clientSecret: res.clientSecret,
+            paymentIntentId: pi.id,
+          });
+          setStep('pix-wait');
+          return;
+        }
+
+        setErrorBanner(t('delivery.stripePixUnexpected'));
         return;
       }
 
@@ -513,6 +666,13 @@ export default function CheckoutFlow({
         <Header
           step={step}
           onBack={() => {
+            if (step === 'pix-wait') {
+              setPixWait(null);
+              pixOrderBaseRef.current = null;
+              setPayment({ kind: 'stripe-pix' });
+              goTo('payment');
+              return;
+            }
             if (step === 'bag') onClose();
             else if (step === 'address') goTo('bag');
             else if (step === 'payment') goTo('address');
@@ -563,6 +723,7 @@ export default function CheckoutFlow({
 
           {step === 'payment' && (
             <PaymentStep
+              onlineCardPaymentsEnabled={onlineCardPaymentsEnabled}
               savedCards={savedCards}
               loadingCards={loadingCards}
               payment={payment}
@@ -623,6 +784,48 @@ export default function CheckoutFlow({
               />
             </Elements>
           )}
+
+          {step === 'pix-wait' && pixWait && (
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-gray-700 text-center leading-relaxed">
+                {t('delivery.stripePixScan')}
+              </p>
+              {pixWait.imageUrlPng ? (
+                <div className="flex justify-center">
+                  <img
+                    src={pixWait.imageUrlPng}
+                    alt="PIX QR"
+                    className="max-w-[220px] w-full h-auto rounded-lg border border-gray-200"
+                  />
+                </div>
+              ) : null}
+              {pixWait.copyPaste ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-600">{t('delivery.stripePixCopy')}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(pixWait.copyPaste ?? '');
+                    }}
+                    className="w-full py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                  >
+                    {t('delivery.stripePixCopyButton')}
+                  </button>
+                </div>
+              ) : null}
+              {pixWait.hostedInstructionsUrl ? (
+                <a
+                  href={pixWait.hostedInstructionsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center text-sm text-amber-700 underline"
+                >
+                  {t('delivery.stripePixHostedLink')}
+                </a>
+              ) : null}
+              <p className="text-xs text-gray-500 text-center">{t('delivery.stripePixPolling')}</p>
+            </div>
+          )}
         </div>
 
         <Footer
@@ -652,6 +855,12 @@ export default function CheckoutFlow({
             goTo('payment');
           }}
           onConfirmPayment={handleConfirmOrder}
+          onCancelPixWait={() => {
+            setPixWait(null);
+            pixOrderBaseRef.current = null;
+            setPayment({ kind: 'stripe-pix' });
+            goTo('payment');
+          }}
         />
       </div>
     </div>
@@ -679,6 +888,7 @@ function Header({
     address: t('delivery.addressStepTitle'),
     payment: t('delivery.paymentStepTitle'),
     'new-card': t('delivery.newCardTitle'),
+    'pix-wait': t('delivery.stripePixWaitTitle'),
   };
   return (
     <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-b border-gray-100 bg-white sticky top-0 z-10">
@@ -722,6 +932,7 @@ function Footer({
   onContinueBag,
   onContinueAddress,
   onConfirmPayment,
+  onCancelPixWait,
 }: {
   step: Step;
   busy: boolean;
@@ -736,9 +947,33 @@ function Footer({
   onContinueBag: () => void;
   onContinueAddress: () => void;
   onConfirmPayment: () => void;
+  onCancelPixWait: () => void;
 }) {
   const { t } = useTranslation();
   if (step === 'new-card') return null;
+
+  if (step === 'pix-wait') {
+    return (
+      <div
+        className="border-t border-gray-200 bg-white px-4 pt-3 pb-4"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+      >
+        <div className="space-y-1 text-sm mb-3">
+          <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-100">
+            <span>{t('delivery.total')}</span>
+            <span style={{ color: accentColor }}>{fmt(total)}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCancelPixWait}
+          className="w-full py-3 rounded-xl font-semibold border border-gray-300 text-gray-800 hover:bg-gray-50"
+        >
+          {t('delivery.stripePixBackToPayment')}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1196,6 +1431,7 @@ function DeliveryOptionCard({
 }
 
 function PaymentStep({
+  onlineCardPaymentsEnabled,
   savedCards,
   loadingCards,
   payment,
@@ -1210,6 +1446,7 @@ function PaymentStep({
   authLoading,
   busy,
 }: {
+  onlineCardPaymentsEnabled: boolean;
   savedCards: SavedCard[];
   loadingCards: boolean;
   payment: PaymentSelection | null;
@@ -1235,7 +1472,11 @@ function PaymentStep({
           {t('delivery.savedCardsTitle')}
         </h3>
 
-        {loadingCards ? (
+        {!onlineCardPaymentsEnabled ? (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+            {t('delivery.stripeConnectRestaurantPending')}
+          </p>
+        ) : loadingCards ? (
           <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             {t('delivery.loadingCards')}
@@ -1264,56 +1505,95 @@ function PaymentStep({
           </div>
         )}
 
-        {authLoading ? (
-          <div className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-500">
-            <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-            <span className="text-sm">{t('delivery.checkingLogin')}</span>
-          </div>
-        ) : !hasUser ? (
+        {onlineCardPaymentsEnabled ? (
+          authLoading ? (
+            <div className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-500">
+              <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+              <span className="text-sm">{t('delivery.checkingLogin')}</span>
+            </div>
+          ) : !hasUser ? (
+            <button
+              type="button"
+              onClick={onLoginForCard}
+              disabled={busy}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 border-dashed text-left hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              style={{ borderColor: accentColor, color: accentColor }}
+            >
+              <span
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: `${accentColor}15` }}
+              >
+                <PlusIcon className="w-5 h-5" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">{t('delivery.loginToAddCardCta')}</p>
+                <p className="text-xs text-gray-500">{t('delivery.loginToAddCardHint')}</p>
+              </div>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onAddNewCard}
+              disabled={busy}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 border-dashed text-left hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              style={{ borderColor: accentColor, color: accentColor }}
+            >
+              <span
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: `${accentColor}15` }}
+              >
+                <PlusIcon className="w-5 h-5" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">
+                  {t('delivery.addNewCard')}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {t('delivery.addNewCardDesc', { amount: fmt(total) })}
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          )
+        ) : null}
+
+        {onlineCardPaymentsEnabled ? (
           <button
             type="button"
-            onClick={onLoginForCard}
+            onClick={() => setPayment({ kind: 'stripe-pix' })}
             disabled={busy}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 border-dashed text-left hover:bg-gray-50 disabled:opacity-50 transition-colors"
-            style={{ borderColor: accentColor, color: accentColor }}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 bg-white text-left transition-colors hover:bg-gray-50 disabled:opacity-50 mt-3"
+            style={{
+              borderColor: payment?.kind === 'stripe-pix' ? accentColor : '#E5E7EB',
+            }}
           >
             <span
               className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: `${accentColor}15` }}
+              style={{
+                backgroundColor: payment?.kind === 'stripe-pix' ? accentColor : '#F3F4F6',
+                color: payment?.kind === 'stripe-pix' ? 'white' : '#4B5563',
+              }}
             >
-              <PlusIcon className="w-5 h-5" />
+              <QrCode className="w-5 h-5" />
             </span>
             <div className="flex-1">
-              <p className="text-sm font-semibold">{t('delivery.loginToAddCardCta')}</p>
-              <p className="text-xs text-gray-500">{t('delivery.loginToAddCardHint')}</p>
+              <p className="text-sm font-semibold text-gray-900">{t('delivery.stripePixOnline')}</p>
+              <p className="text-xs text-gray-500">{t('delivery.stripePixOnlineHint')}</p>
             </div>
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onAddNewCard}
-            disabled={busy}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 border-dashed text-left hover:bg-gray-50 disabled:opacity-50 transition-colors"
-            style={{ borderColor: accentColor, color: accentColor }}
-          >
             <span
-              className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: `${accentColor}15` }}
+              className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
+              style={{ borderColor: payment?.kind === 'stripe-pix' ? accentColor : '#D1D5DB' }}
             >
-              <PlusIcon className="w-5 h-5" />
+              {payment?.kind === 'stripe-pix' ? (
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: accentColor }}
+                />
+              ) : null}
             </span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold">
-                {t('delivery.addNewCard')}
-              </p>
-              <p className="text-xs text-gray-500">
-                {t('delivery.addNewCardDesc', { amount: fmt(total) })}
-              </p>
-            </div>
-            <ChevronRight className="w-5 h-5" />
           </button>
-        )}
+        ) : null}
       </div>
 
       <div>
@@ -1321,7 +1601,9 @@ function PaymentStep({
           {t('delivery.payOnDeliveryTitle')}
         </h3>
         <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-          {t('delivery.payOnDeliveryCardClarify')}
+          {onlineCardPaymentsEnabled
+            ? t('delivery.payOnDeliveryCardClarify')
+            : t('delivery.payOnDeliveryDesc')}
         </p>
         <div className="space-y-2">
           {COD_OPTIONS.map((opt) => {
