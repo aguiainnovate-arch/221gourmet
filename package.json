@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:capacitor": "CAPACITOR_BUILD=true npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "migrate:delivery": "tsx src/scripts/migrateDeliveryPermission.ts",
@@ -16,7 +17,7 @@
     "seed:demo-restaurants": "tsx src/scripts/seedDemoRestaurants.ts",
     "stripe:provision-connect-restaurants": "tsx src/scripts/provisionStripeConnectForRestaurants.ts",
     "seed:all": "npm run create:demo-accounts && npm run seed:demo-restaurants",
-    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync": "npm run build:capacitor && npx cap sync",
     "cap:android": "CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npm run cap:sync && CAPACITOR_ANDROID_STUDIO_PATH=/snap/android-studio/current/bin/studio.sh npx cap open android",
     "cap:ios": "npm run cap:sync && npx cap cap open ios",
     "cap:run:android": "npm run cap:sync && npx cap run android",

@@ -1,3 +1,7 @@
+# Se você usa Content-Security-Policy na Netlify e vê erro com connect-js.stripe.com:
+# inclua https://connect-js.stripe.com em connect-src (e script-src/frame-src conforme Stripe).
+# Detalhes: README.md → "Netlify e Stripe (Content-Security-Policy)".
+
 [[redirects]]
 from = "/*"
 to = "/index.html"

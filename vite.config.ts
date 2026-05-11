@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const MAX_BODY = 16_384
+const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true'
 
 /** Espelha logs do browser no terminal durante `npm run dev`. */
 function devClientLogPlugin(): Plugin {
@@ -50,7 +51,7 @@ function devClientLogPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), devClientLogPlugin()],
-  base: './', // necessário para Capacitor (file://) carregar assets corretamente
+  base: isCapacitorBuild ? './' : '/',
   server: {
     host: true, // escuta em 0.0.0.0 — acessível na rede (ex.: celular/outro PC na mesma Wi‑Fi)
     port: 5173,

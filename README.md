@@ -17,6 +17,17 @@ VITE_OPENAI_API_KEY=sua_chave_openai_aqui
 VITE_APP_URL=https://seu-site.netlify.app
 ```
 
+### Netlify e Stripe (Content-Security-Policy)
+
+Se no console aparecer CSP bloqueando `https://connect-js.stripe.com` (por exemplo `connect.js.map` e a diretiva `connect-src`), o cabeçalho **Content-Security-Policy** do site está restritivo demais ou foi copiado de uma lista Stripe antiga.
+
+**Correção:** no mesmo lugar em que você define o CSP (Netlify **Site configuration → Headers**, `_headers`, plugin de headers ou equivalente), acrescente **`https://connect-js.stripe.com`** em:
+
+- **`connect-src`** (obrigatório para esse erro)
+- **`script-src`** e **`frame-src`** — também devem permitir `https://connect-js.stripe.com` e `https://js.stripe.com` se usar componentes Connect incorporados ([documentação Stripe — CSP](https://docs.stripe.com/connect/get-started-connect-embedded-components#csp-and-http-header-requirements)).
+
+O bloqueio do arquivo `.map` costuma afetar só source maps no DevTools; se o onboarding ou pagamentos falharem de fato, ajuste o CSP como acima. Evite `Cross-Origin-Opener-Policy: same-origin` no front que use fluxos Stripe Connect em popup/componentes incorporados (o padrão `unsafe-none`/ausente é o compatível).
+
 ### Instalação
 
 ```bash

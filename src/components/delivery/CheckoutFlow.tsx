@@ -23,6 +23,7 @@ import {
   Home,
   Hash,
   Building2,
+  Package,
 } from 'lucide-react';
 import type { Stripe as StripeType, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -147,11 +148,12 @@ const getAddressHistoryStorageKey = (user: DeliveryUser | null): string => {
   return 'delivery_address_history:guest';
 };
 
+/** PIX na entrega fica por último para não confundir com PIX instantâneo (QR) no app — ícone diferente de QrCode. */
 const COD_OPTIONS: Array<{ method: CodPayment; icon: React.ReactNode; labelKey: string }> = [
-  { method: 'pix', icon: <QrCode className="w-5 h-5" />, labelKey: 'delivery.pixOnDelivery' },
+  { method: 'money', icon: <Banknote className="w-5 h-5" />, labelKey: 'delivery.money' },
   { method: 'credit', icon: <CreditCard className="w-5 h-5" />, labelKey: 'delivery.credit' },
   { method: 'debit', icon: <CreditCard className="w-5 h-5" />, labelKey: 'delivery.debit' },
-  { method: 'money', icon: <Banknote className="w-5 h-5" />, labelKey: 'delivery.money' },
+  { method: 'pix', icon: <Package className="w-5 h-5" />, labelKey: 'delivery.pixOnDelivery' },
 ];
 
 export default function CheckoutFlow({
@@ -534,9 +536,26 @@ export default function CheckoutFlow({
           return;
         }
 
-        const pi = pixResult.paymentIntent;
+        let pi = pixResult.paymentIntent;
         if (!pi) {
           setErrorBanner(t('delivery.stripePixFailed'));
+          return;
+        }
+
+        const refreshed = await stripe.retrievePaymentIntent(res.clientSecret);
+        if (refreshed.paymentIntent) {
+          pi = refreshed.paymentIntent;
+        }
+
+        const pm = pi.payment_method;
+        if (
+          pi.status === 'succeeded' &&
+          pm &&
+          typeof pm === 'object' &&
+          'type' in pm &&
+          (pm as { type: string }).type !== 'pix'
+        ) {
+          setErrorBanner(t('delivery.stripePixUnexpected'));
           return;
         }
 
@@ -573,7 +592,11 @@ export default function CheckoutFlow({
           return;
         }
 
-        if (pi.status === 'processing' || pi.status === 'requires_action') {
+        if (
+          pi.status === 'processing' ||
+          pi.status === 'requires_action' ||
+          pi.status === 'requires_confirmation'
+        ) {
           setPixWait({
             clientSecret: res.clientSecret,
             paymentIntentId: pi.id,
@@ -1054,6 +1077,10 @@ function Footer({
                 <Loader2 className="w-5 h-5 animate-spin" />
                 {t('delivery.processing')}
               </>
+            ) : payment?.kind === 'cod' ? (
+              t('delivery.confirmOrderCod', { amount: fmt(total) })
+            ) : payment?.kind === 'stripe-pix' ? (
+              t('delivery.confirmOrderStripePix', { amount: fmt(total) })
             ) : (
               t('delivery.confirmAndPay', { amount: fmt(total) })
             )}
@@ -1610,9 +1637,11 @@ function PaymentStep({
             const selected =
               payment?.kind === 'cod' && payment.method === opt.method;
             const codDesc =
-              opt.method === 'credit' || opt.method === 'debit'
-                ? t('delivery.payOnDeliveryCardAtDoor')
-                : t('delivery.payOnDeliveryDesc');
+              opt.method === 'pix'
+                ? t('delivery.pixOnDeliveryHint')
+                : opt.method === 'credit' || opt.method === 'debit'
+                  ? t('delivery.payOnDeliveryCardAtDoor')
+                  : t('delivery.payOnDeliveryDesc');
             return (
               <button
                 key={opt.method}
