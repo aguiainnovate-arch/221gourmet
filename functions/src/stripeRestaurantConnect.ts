@@ -2,6 +2,7 @@ import { defineString } from 'firebase-functions/params';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import bcrypt from 'bcryptjs';
 import { FieldValue } from 'firebase-admin/firestore';
+import type Stripe from 'stripe';
 
 import { admin } from './firebaseAdmin';
 import { getStripe, stripeSecretKey } from './stripeClient';
@@ -42,6 +43,27 @@ function restaurantStripeConnectReturnUrl(
 const platformFeeBps = defineString('STRIPE_PLATFORM_FEE_BPS', {
   default: '0',
 });
+
+function summarizeStripeAccountRequirements(acct: Stripe.Account): string | null {
+  const requirements = acct.requirements;
+  const disabledReason = requirements?.disabled_reason;
+  const pending = [
+    ...(requirements?.currently_due ?? []),
+    ...(requirements?.past_due ?? []),
+  ];
+  const uniquePending = [...new Set(pending)].slice(0, 8);
+
+  if (disabledReason && uniquePending.length > 0) {
+    return `${disabledReason}: ${uniquePending.join(', ')}`;
+  }
+  if (disabledReason) {
+    return disabledReason;
+  }
+  if (uniquePending.length > 0) {
+    return uniquePending.join(', ');
+  }
+  return null;
+}
 
 async function verifyRestaurantOwnerPassword(
   restaurantId: string,
@@ -173,6 +195,8 @@ export const syncRestaurantStripeConnectStatus = onCall(
     chargesEnabled: boolean;
     detailsSubmitted: boolean;
     payoutsEnabled: boolean;
+    disabledReason: string | null;
+    requirementsSummary: string | null;
   }> => {
     const raw = (request.data ?? {}) as Record<string, unknown>;
     const restaurantId = typeof raw.restaurantId === 'string' ? raw.restaurantId.trim() : '';
@@ -211,6 +235,8 @@ export const syncRestaurantStripeConnectStatus = onCall(
         chargesEnabled: false,
         detailsSubmitted: false,
         payoutsEnabled: false,
+        disabledReason: null,
+        requirementsSummary: null,
       };
     }
 
@@ -221,11 +247,15 @@ export const syncRestaurantStripeConnectStatus = onCall(
       const chargesEnabled = acct.charges_enabled === true;
       const detailsSubmitted = acct.details_submitted === true;
       const payoutsEnabled = acct.payouts_enabled === true;
+      const disabledReason = acct.requirements?.disabled_reason ?? null;
+      const requirementsSummary = summarizeStripeAccountRequirements(acct);
 
       await ref.update({
         stripeConnectChargesEnabled: chargesEnabled,
         stripeConnectDetailsSubmitted: detailsSubmitted,
         stripeConnectPayoutsEnabled: payoutsEnabled,
+        stripeConnectDisabledReason: disabledReason,
+        stripeConnectRequirementsSummary: requirementsSummary,
         stripeConnectUpdatedAt: FieldValue.serverTimestamp(),
       });
 
@@ -234,6 +264,8 @@ export const syncRestaurantStripeConnectStatus = onCall(
         chargesEnabled,
         detailsSubmitted,
         payoutsEnabled,
+        disabledReason,
+        requirementsSummary,
       };
     } catch (err: unknown) {
       throw translateStripeError(err, 'syncRestaurantStripeConnectStatus');

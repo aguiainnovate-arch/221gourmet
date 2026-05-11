@@ -132,6 +132,14 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
           typeof data.stripeConnectPayoutsEnabled === 'boolean'
             ? data.stripeConnectPayoutsEnabled
             : undefined,
+        stripeConnectDisabledReason:
+          typeof data.stripeConnectDisabledReason === 'string'
+            ? data.stripeConnectDisabledReason
+            : null,
+        stripeConnectRequirementsSummary:
+          typeof data.stripeConnectRequirementsSummary === 'string'
+            ? data.stripeConnectRequirementsSummary
+            : null,
       });
     });
 
@@ -178,6 +186,14 @@ export const getRestaurantById = async (id: string): Promise<Restaurant | null> 
         typeof data.stripeConnectPayoutsEnabled === 'boolean'
           ? data.stripeConnectPayoutsEnabled
           : undefined,
+      stripeConnectDisabledReason:
+        typeof data.stripeConnectDisabledReason === 'string'
+          ? data.stripeConnectDisabledReason
+          : null,
+      stripeConnectRequirementsSummary:
+        typeof data.stripeConnectRequirementsSummary === 'string'
+          ? data.stripeConnectRequirementsSummary
+          : null,
     };
   } catch (error) {
     console.error('Erro ao buscar restaurante por ID:', error);
@@ -236,6 +252,14 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
         typeof data.stripeConnectPayoutsEnabled === 'boolean'
           ? data.stripeConnectPayoutsEnabled
           : undefined,
+      stripeConnectDisabledReason:
+        typeof data.stripeConnectDisabledReason === 'string'
+          ? data.stripeConnectDisabledReason
+          : null,
+      stripeConnectRequirementsSummary:
+        typeof data.stripeConnectRequirementsSummary === 'string'
+          ? data.stripeConnectRequirementsSummary
+          : null,
     };
   } catch (error) {
     console.error('Erro ao buscar restaurante por domínio:', error);
@@ -361,6 +385,14 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
           typeof data.stripeConnectPayoutsEnabled === 'boolean'
             ? data.stripeConnectPayoutsEnabled
             : undefined,
+        stripeConnectDisabledReason:
+          typeof data.stripeConnectDisabledReason === 'string'
+            ? data.stripeConnectDisabledReason
+            : null,
+        stripeConnectRequirementsSummary:
+          typeof data.stripeConnectRequirementsSummary === 'string'
+            ? data.stripeConnectRequirementsSummary
+            : null,
       });
     });
 

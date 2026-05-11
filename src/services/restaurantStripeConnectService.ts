@@ -18,6 +18,8 @@ const syncFn = httpsCallable<
     chargesEnabled: boolean;
     detailsSubmitted: boolean;
     payoutsEnabled: boolean;
+    disabledReason: string | null;
+    requirementsSummary: string | null;
   }
 >(functions, 'syncRestaurantStripeConnectStatus');
 
@@ -42,6 +44,8 @@ export async function syncRestaurantStripeConnectFromStripe(args: {
   chargesEnabled: boolean;
   detailsSubmitted: boolean;
   payoutsEnabled: boolean;
+  disabledReason: string | null;
+  requirementsSummary: string | null;
 }> {
   const { data } = await syncFn(args);
   if (!data) {

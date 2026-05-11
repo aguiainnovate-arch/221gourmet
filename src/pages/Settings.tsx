@@ -165,6 +165,10 @@ export default function Settings() {
   const [stripeConnectDetailsSubmitted, setStripeConnectDetailsSubmitted] = useState<boolean | undefined>(
     undefined
   );
+  const [stripeConnectDisabledReason, setStripeConnectDisabledReason] = useState<string | null>(null);
+  const [stripeConnectRequirementsSummary, setStripeConnectRequirementsSummary] = useState<string | null>(
+    null
+  );
   const [stripeModalOpen, setStripeModalOpen] = useState(false);
   const [stripeModalAction, setStripeModalAction] = useState<'onboard' | 'sync'>('onboard');
   const [stripeModalPassword, setStripeModalPassword] = useState('');
@@ -361,6 +365,8 @@ export default function Settings() {
           setStripeConnectAccountId(restaurant?.stripeConnectAccountId);
           setStripeConnectChargesEnabled(restaurant?.stripeConnectChargesEnabled);
           setStripeConnectDetailsSubmitted(restaurant?.stripeConnectDetailsSubmitted);
+          setStripeConnectDisabledReason(restaurant?.stripeConnectDisabledReason ?? null);
+          setStripeConnectRequirementsSummary(restaurant?.stripeConnectRequirementsSummary ?? null);
           
           console.log('📖 Carregando configurações de delivery...');
           console.log('   Restaurante encontrado:', restaurant?.name);
@@ -1808,6 +1814,8 @@ export default function Settings() {
       setStripeConnectAccountId(r?.stripeConnectAccountId);
       setStripeConnectChargesEnabled(r?.stripeConnectChargesEnabled);
       setStripeConnectDetailsSubmitted(r?.stripeConnectDetailsSubmitted);
+      setStripeConnectDisabledReason(r?.stripeConnectDisabledReason ?? null);
+      setStripeConnectRequirementsSummary(r?.stripeConnectRequirementsSummary ?? null);
       setStripeModalPassword('');
       setStripeModalOpen(false);
       setStripeConnectBanner(null);
@@ -3428,95 +3436,218 @@ export default function Settings() {
 
               <div className="space-y-6">
                 {/* Stripe Connect — recebimento online */}
-                <div className="bg-white rounded-lg shadow-sm border border-emerald-200 p-6">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="bg-emerald-100 p-2 rounded-lg">
-                      <CreditCard className="w-5 h-5 text-emerald-700" />
+                <div className="relative overflow-hidden rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-6 shadow-[0_18px_45px_rgba(16,185,129,0.14)]">
+                  <div className="absolute right-0 top-0 h-28 w-28 translate-x-8 -translate-y-10 rounded-full bg-emerald-200/40 blur-2xl" />
+                  <div className="absolute bottom-0 left-10 h-20 w-20 translate-y-12 rounded-full bg-sky-200/50 blur-2xl" />
+
+                  <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="rounded-2xl bg-emerald-600 p-3 shadow-lg shadow-emerald-600/25">
+                        <CreditCard className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                            Etapa obrigatória
+                          </span>
+                          <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                            Libera pagamento pelo app
+                          </span>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-950">
+                          Ative o recebimento online para seus clientes pagarem no aplicativo
+                        </h3>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-700">
+                          Para aceitar cartão e PIX online no delivery, conecte o restaurante à Stripe e conclua
+                          o cadastro. Enquanto as cobranças estiverem inativas, os clientes só verão dinheiro,
+                          PIX ou cartão na entrega.
+                        </p>
+
+                        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-xl border border-emerald-100 bg-white/85 p-3">
+                            <p className="text-xs font-bold text-emerald-800">1. Conectar</p>
+                            <p className="mt-1 text-xs text-gray-600">Abra o cadastro seguro da Stripe.</p>
+                          </div>
+                          <div className="rounded-xl border border-emerald-100 bg-white/85 p-3">
+                            <p className="text-xs font-bold text-emerald-800">2. Concluir dados</p>
+                            <p className="mt-1 text-xs text-gray-600">Envie dados bancários e responsáveis.</p>
+                          </div>
+                          <div className="rounded-xl border border-emerald-100 bg-white/85 p-3">
+                            <p className="text-xs font-bold text-emerald-800">3. Atualizar status</p>
+                            <p className="mt-1 text-xs text-gray-600">Confirme quando “Cobranças” ficar ativa.</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        Recebimento online (Stripe Connect)
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Para aceitar cartão no delivery, é preciso criar uma subconta Stripe vinculada ao seu
-                        restaurante. O valor do pedido é repassado para essa conta (a plataforma pode reter uma
-                        taxa configurável no servidor).
-                      </p>
-                      {stripeConnectBanner && (
-                        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
-                          {stripeConnectBanner}
+                  </div>
+
+                  <div className="relative mt-5 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
+                    {stripeConnectBanner && (
+                      <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        {stripeConnectBanner}
+                      </div>
+                    )}
+                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                            Status da solicitação Stripe
+                          </p>
+                          <h4 className="mt-1 text-base font-bold text-slate-950">
+                            {stripeConnectChargesEnabled === true
+                              ? 'Pagamento pelo app liberado'
+                              : stripeConnectDetailsSubmitted === true
+                                ? 'Aguardando liberação de cobranças pela Stripe'
+                                : stripeConnectAccountId
+                                  ? 'Cadastro Stripe iniciado'
+                                  : 'Conexão Stripe ainda não iniciada'}
+                          </h4>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {stripeConnectChargesEnabled === true
+                              ? 'Os clientes já podem pagar cartão e PIX online pelo aplicativo.'
+                              : stripeConnectDetailsSubmitted === true
+                                ? 'O cadastro foi enviado, mas a Stripe ainda não autorizou esta conta a receber pagamentos.'
+                                : stripeConnectAccountId
+                                  ? 'Continue o cadastro para enviar os dados exigidos pela Stripe.'
+                                  : 'Conecte o restaurante para iniciar a análise e liberar pagamento online.'}
+                          </p>
+                        </div>
+                        <span
+                          className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${
+                            stripeConnectChargesEnabled === true
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : stripeConnectDetailsSubmitted === true
+                                ? 'bg-amber-100 text-amber-900'
+                                : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {stripeConnectChargesEnabled === true ? (
+                            <CheckCircle className="h-4 w-4" />
+                          ) : stripeConnectDetailsSubmitted === true ? (
+                            <RefreshCw className="h-4 w-4" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4" />
+                          )}
+                          {stripeConnectChargesEnabled === true
+                            ? 'Ativo'
+                            : stripeConnectDetailsSubmitted === true
+                              ? 'Em análise'
+                              : 'Pendente'}
+                        </span>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div
+                          className={`rounded-xl border p-3 ${
+                            stripeConnectAccountId
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : 'border-slate-200 bg-white'
+                          }`}
+                        >
+                          <div className="mb-2 flex items-center gap-2">
+                            {stripeConnectAccountId ? (
+                              <CheckCircle className="h-4 w-4 text-emerald-700" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-slate-500" />
+                            )}
+                            <p className="text-xs font-bold text-slate-900">1. Conta conectada</p>
+                          </div>
+                          <p className="text-xs leading-5 text-slate-600">
+                            {stripeConnectAccountId
+                              ? 'A subconta Stripe do restaurante já foi criada.'
+                              : 'Ainda falta iniciar a conexão com a Stripe.'}
+                          </p>
+                        </div>
+
+                        <div
+                          className={`rounded-xl border p-3 ${
+                            stripeConnectDetailsSubmitted === true
+                              ? 'border-blue-200 bg-blue-50'
+                              : 'border-slate-200 bg-white'
+                          }`}
+                        >
+                          <div className="mb-2 flex items-center gap-2">
+                            {stripeConnectDetailsSubmitted === true ? (
+                              <CheckCircle className="h-4 w-4 text-blue-700" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-slate-500" />
+                            )}
+                            <p className="text-xs font-bold text-slate-900">2. Cadastro enviado</p>
+                          </div>
+                          <p className="text-xs leading-5 text-slate-600">
+                            {stripeConnectDetailsSubmitted === true
+                              ? 'Os dados obrigatórios foram enviados para análise.'
+                              : 'Complete os dados bancários e do responsável.'}
+                          </p>
+                        </div>
+
+                        <div
+                          className={`rounded-xl border p-3 ${
+                            stripeConnectChargesEnabled === true
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : 'border-amber-200 bg-amber-50'
+                          }`}
+                        >
+                          <div className="mb-2 flex items-center gap-2">
+                            {stripeConnectChargesEnabled === true ? (
+                              <CheckCircle className="h-4 w-4 text-emerald-700" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-amber-700" />
+                            )}
+                            <p className="text-xs font-bold text-slate-900">3. Pagamento no app</p>
+                          </div>
+                          <p className="text-xs leading-5 text-slate-600">
+                            {stripeConnectChargesEnabled === true
+                              ? 'Liberado para os clientes pagarem pelo aplicativo.'
+                              : 'Ainda bloqueado no checkout até a Stripe ativar cobranças.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    {stripeConnectChargesEnabled === false &&
+                      (stripeConnectDisabledReason || stripeConnectRequirementsSummary) && (
+                        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          <p className="font-semibold">Motivo informado pela Stripe:</p>
+                          {stripeConnectDisabledReason && (
+                            <p className="mt-1">Status: {stripeConnectDisabledReason}</p>
+                          )}
+                          {stripeConnectRequirementsSummary && (
+                            <p className="mt-1 break-words">
+                              Pendências: {stripeConnectRequirementsSummary}
+                            </p>
+                          )}
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-2 text-xs mb-4">
-                        <span
-                          className={`px-2 py-1 rounded-full font-medium ${
-                            stripeConnectAccountId
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          Conta Stripe: {stripeConnectAccountId ? 'criada' : 'não criada'}
-                        </span>
-                        <span
-                          className={`px-2 py-1 rounded-full font-medium ${
-                            stripeConnectChargesEnabled === true
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          Cobranças:{' '}
-                          {stripeConnectChargesEnabled === true
-                            ? 'ativas'
-                            : stripeConnectChargesEnabled === false
-                              ? 'inativas'
-                              : '—'}
-                        </span>
-                        <span
-                          className={`px-2 py-1 rounded-full font-medium ${
-                            stripeConnectDetailsSubmitted === true
-                              ? 'bg-blue-50 text-blue-800'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          Cadastro:{' '}
-                          {stripeConnectDetailsSubmitted === true
-                            ? 'enviado'
-                            : stripeConnectDetailsSubmitted === false
-                              ? 'pendente'
-                              : '—'}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStripeModalAction('onboard');
-                            setStripeModalPassword('');
-                            setStripeModalError(null);
-                            setStripeModalOpen(true);
-                          }}
-                          className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          Conectar / continuar cadastro Stripe
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStripeModalAction('sync');
-                            setStripeModalPassword('');
-                            setStripeModalError(null);
-                            setStripeModalOpen(true);
-                          }}
-                          className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-800 hover:bg-gray-50"
-                        >
-                          Atualizar status
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-3">
-                        É necessário informar a senha do restaurante (mesma das configurações) para falar com a
-                        Stripe com segurança. Ative o Connect no painel Stripe da plataforma se ainda não ativou.
-                      </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStripeModalAction('onboard');
+                          setStripeModalPassword('');
+                          setStripeModalError(null);
+                          setStripeModalOpen(true);
+                        }}
+                        className="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700"
+                      >
+                        Conectar / continuar cadastro Stripe
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStripeModalAction('sync');
+                          setStripeModalPassword('');
+                          setStripeModalError(null);
+                          setStripeModalOpen(true);
+                        }}
+                        className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:-translate-y-0.5 hover:bg-gray-50"
+                      >
+                        Atualizar status
+                      </button>
                     </div>
+                    <p className="mt-3 text-xs leading-5 text-gray-500">
+                      Por segurança, vamos pedir a senha do restaurante antes de falar com a Stripe. O pagamento
+                      pelo app só aparece para os clientes quando a Stripe confirmar cobranças ativas.
+                    </p>
                   </div>
                 </div>
 

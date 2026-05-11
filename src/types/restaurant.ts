@@ -43,6 +43,8 @@ export interface Restaurant {
   stripeConnectChargesEnabled?: boolean;
   stripeConnectDetailsSubmitted?: boolean;
   stripeConnectPayoutsEnabled?: boolean;
+  stripeConnectDisabledReason?: string | null;
+  stripeConnectRequirementsSummary?: string | null;
 }
 
 export interface CreateRestaurantData {

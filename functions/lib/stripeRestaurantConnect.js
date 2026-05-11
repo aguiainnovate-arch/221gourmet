@@ -42,6 +42,26 @@ function restaurantStripeConnectReturnUrl(origin, restaurantId, stripeConnect) {
 const platformFeeBps = (0, params_1.defineString)('STRIPE_PLATFORM_FEE_BPS', {
     default: '0',
 });
+function summarizeStripeAccountRequirements(acct) {
+    var _a, _b;
+    const requirements = acct.requirements;
+    const disabledReason = requirements === null || requirements === void 0 ? void 0 : requirements.disabled_reason;
+    const pending = [
+        ...((_a = requirements === null || requirements === void 0 ? void 0 : requirements.currently_due) !== null && _a !== void 0 ? _a : []),
+        ...((_b = requirements === null || requirements === void 0 ? void 0 : requirements.past_due) !== null && _b !== void 0 ? _b : []),
+    ];
+    const uniquePending = [...new Set(pending)].slice(0, 8);
+    if (disabledReason && uniquePending.length > 0) {
+        return `${disabledReason}: ${uniquePending.join(', ')}`;
+    }
+    if (disabledReason) {
+        return disabledReason;
+    }
+    if (uniquePending.length > 0) {
+        return uniquePending.join(', ');
+    }
+    return null;
+}
 async function verifyRestaurantOwnerPassword(restaurantId, email, plainPassword) {
     const snap = await firebaseAdmin_1.admin.firestore().collection('restaurants').doc(restaurantId).get();
     if (!snap.exists) {
@@ -139,7 +159,7 @@ exports.syncRestaurantStripeConnectStatus = (0, https_1.onCall)({
     cors: true,
     invoker: 'public',
 }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const raw = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const restaurantId = typeof raw.restaurantId === 'string' ? raw.restaurantId.trim() : '';
     const email = typeof raw.email === 'string' ? raw.email.trim() : '';
@@ -168,6 +188,8 @@ exports.syncRestaurantStripeConnectStatus = (0, https_1.onCall)({
             chargesEnabled: false,
             detailsSubmitted: false,
             payoutsEnabled: false,
+            disabledReason: null,
+            requirementsSummary: null,
         };
     }
     const stripe = (0, stripeClient_1.getStripe)();
@@ -176,10 +198,14 @@ exports.syncRestaurantStripeConnectStatus = (0, https_1.onCall)({
         const chargesEnabled = acct.charges_enabled === true;
         const detailsSubmitted = acct.details_submitted === true;
         const payoutsEnabled = acct.payouts_enabled === true;
+        const disabledReason = (_d = (_c = acct.requirements) === null || _c === void 0 ? void 0 : _c.disabled_reason) !== null && _d !== void 0 ? _d : null;
+        const requirementsSummary = summarizeStripeAccountRequirements(acct);
         await ref.update({
             stripeConnectChargesEnabled: chargesEnabled,
             stripeConnectDetailsSubmitted: detailsSubmitted,
             stripeConnectPayoutsEnabled: payoutsEnabled,
+            stripeConnectDisabledReason: disabledReason,
+            stripeConnectRequirementsSummary: requirementsSummary,
             stripeConnectUpdatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         return {
@@ -187,6 +213,8 @@ exports.syncRestaurantStripeConnectStatus = (0, https_1.onCall)({
             chargesEnabled,
             detailsSubmitted,
             payoutsEnabled,
+            disabledReason,
+            requirementsSummary,
         };
     }
     catch (err) {
