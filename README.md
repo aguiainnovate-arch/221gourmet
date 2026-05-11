@@ -9,7 +9,12 @@ Sistema completo de gerenciamento de restaurantes com cardápio digital, control
 Crie um arquivo `.env` na raiz do projeto. Exemplo:
 
 ```bash
-VITE_OPENAI_API_KEY=sua_chave_openai_aqui
+# Opcional no front: tradução de produto, OCR de cardápio (fluxos que ainda usam o SDK no browser).
+# O chat de recomendação na página Delivery NÃO usa esta variável — usa a Cloud Function
+# recommendRestaurantsWithAI com o secret OPENAI_API_KEY no servidor:
+#   firebase functions:secrets:set OPENAI_API_KEY
+#   firebase deploy --only functions
+VITE_OPENAI_API_KEY=
 
 # URL do app em produção (opcional). Usado nos QR codes das mesas.
 # Se não definir, os QR codes usam a URL de onde o app está aberto.
@@ -34,8 +39,7 @@ O bloqueio do arquivo `.map` costuma afetar só source maps no DevTools; se o on
 # Instalar dependências
 npm install
 
-# Criar arquivo .env com a chave da OpenAI
-echo "VITE_OPENAI_API_KEY=sua_chave_aqui" > .env
+# Criar .env (veja .env.example). Para o chat Delivery, configure OPENAI_API_KEY nas Functions.
 
 # Iniciar servidor de desenvolvimento
 npm run dev

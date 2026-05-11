@@ -107,6 +107,27 @@ const emptyAddressDraft = (): AddressDraft => ({
 });
 
 const parseAddress = (address: string): AddressDraft => {
+  const labeledParts = Object.fromEntries(
+    address
+      .split(',')
+      .map((part) => part.trim())
+      .map((part) => {
+        const [label, ...valueParts] = part.split(':');
+        return [label?.trim().toLowerCase(), valueParts.join(':').trim()];
+      })
+      .filter(([label, value]) => label && value)
+  );
+
+  if (Object.keys(labeledParts).length > 0) {
+    return {
+      city: labeledParts.cidade ?? '',
+      neighborhood: labeledParts.bairro ?? '',
+      street: labeledParts.rua ?? '',
+      number: labeledParts.número ?? labeledParts.numero ?? '',
+      complement: labeledParts.complemento ?? '',
+    };
+  }
+
   const parts = address
     .split(',')
     .map((part) => part.trim())
@@ -134,12 +155,14 @@ const parseAddress = (address: string): AddressDraft => {
 
 const buildAddress = (draft: AddressDraft): string => {
   const pieces = [
-    draft.street.trim(),
-    draft.number.trim(),
-    draft.complement.trim(),
-    draft.neighborhood.trim(),
-    draft.city.trim(),
-  ].filter(Boolean);
+    ['Cidade', draft.city.trim()],
+    ['Bairro', draft.neighborhood.trim()],
+    ['Rua', draft.street.trim()],
+    ['Número', draft.number.trim()],
+    ['Complemento', draft.complement.trim()],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`);
   return pieces.join(', ');
 };
 
@@ -1298,6 +1321,22 @@ function AddressStep({
             </div>
           )}
           <LabeledInput
+            icon={<MapPin className="w-4 h-4" />}
+            label={t('delivery.city')}
+            value={addressDraft.city}
+            onChange={(city) => onAddressDraftChange({ ...addressDraft, city })}
+            placeholder={t('delivery.cityPlaceholder')}
+          />
+          <LabeledInput
+            icon={<Building2 className="w-4 h-4" />}
+            label={t('delivery.neighborhood')}
+            value={addressDraft.neighborhood}
+            onChange={(neighborhood) =>
+              onAddressDraftChange({ ...addressDraft, neighborhood })
+            }
+            placeholder={t('delivery.neighborhoodPlaceholder')}
+          />
+          <LabeledInput
             icon={<Home className="w-4 h-4" />}
             label={t('delivery.street')}
             value={addressDraft.street}
@@ -1317,22 +1356,6 @@ function AddressStep({
             value={addressDraft.complement}
             onChange={(complement) => onAddressDraftChange({ ...addressDraft, complement })}
             placeholder={t('delivery.complementPlaceholder')}
-          />
-          <LabeledInput
-            icon={<Building2 className="w-4 h-4" />}
-            label={t('delivery.neighborhood')}
-            value={addressDraft.neighborhood}
-            onChange={(neighborhood) =>
-              onAddressDraftChange({ ...addressDraft, neighborhood })
-            }
-            placeholder={t('delivery.neighborhoodPlaceholder')}
-          />
-          <LabeledInput
-            icon={<MapPin className="w-4 h-4" />}
-            label={t('delivery.city')}
-            value={addressDraft.city}
-            onChange={(city) => onAddressDraftChange({ ...addressDraft, city })}
-            placeholder={t('delivery.cityPlaceholder')}
           />
         </div>
       </div>

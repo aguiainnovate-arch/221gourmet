@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
+exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.recommendRestaurantsWithAI = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
 const params_1 = require("firebase-functions/params");
 const https_1 = require("firebase-functions/v2/https");
 const stripe_1 = __importDefault(require("stripe"));
@@ -17,6 +17,8 @@ Object.defineProperty(exports, "importMenuFromClaudeText", { enumerable: true, g
 var stripeRestaurantConnect_2 = require("./stripeRestaurantConnect");
 Object.defineProperty(exports, "createRestaurantStripeConnectOnboardingLink", { enumerable: true, get: function () { return stripeRestaurantConnect_2.createRestaurantStripeConnectOnboardingLink; } });
 Object.defineProperty(exports, "syncRestaurantStripeConnectStatus", { enumerable: true, get: function () { return stripeRestaurantConnect_2.syncRestaurantStripeConnectStatus; } });
+var recommendRestaurantsWithAI_1 = require("./recommendRestaurantsWithAI");
+Object.defineProperty(exports, "recommendRestaurantsWithAI", { enumerable: true, get: function () { return recommendRestaurantsWithAI_1.recommendRestaurantsWithAI; } });
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const MODEL = 'claude-3-haiku-20240307';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
@@ -40,40 +42,66 @@ Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou dep
 {"allowed":true}
 ou
 {"allowed":false,"user_message_pt":"mensagem educada em português do Brasil, até 2 frases."}`;
+function anthropicHttpToHttpsError(status, errBodyPreview) {
+    console.error('[moderateLead] Erro HTTP Anthropic:', status, errBodyPreview);
+    const transient = status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 529;
+    if (transient) {
+        return new https_1.HttpsError('unavailable', 'Não foi possível validar seu cadastro agora. Tente novamente em alguns instantes.');
+    }
+    if (status === 401 || status === 403) {
+        return new https_1.HttpsError('failed-precondition', 'Validação automática indisponível. Tente mais tarde ou fale com nosso time comercial.');
+    }
+    return new https_1.HttpsError('internal', 'Não foi possível concluir a validação automática. Tente novamente em instantes.');
+}
 exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a, _b;
     const payload = request.data;
     if (!payload || typeof payload !== 'object') {
-        throw new https_1.HttpsError('invalid-argument', 'Payload inválido.');
+        throw new https_1.HttpsError('invalid-argument', 'Dados do formulário inválidos para validação.');
     }
     const apiKey = anthropicApiKey.value();
     if (!apiKey) {
-        throw new https_1.HttpsError('failed-precondition', 'Chave da IA não configurada.');
+        console.error('[moderateLead] Secret ANTHROPIC_API_KEY ausente ou vazia.');
+        throw new https_1.HttpsError('failed-precondition', 'Validação automática não está disponível no momento. Tente mais tarde ou fale com nosso time comercial.');
     }
     const userMessage = `Dados do formulário (JSON):\n${JSON.stringify(payload, null, 2)}`;
-    const res = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-            model: MODEL,
-            max_tokens: 512,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: userMessage }],
-        }),
-    });
+    let res;
+    try {
+        res = await fetch(ANTHROPIC_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+                model: MODEL,
+                max_tokens: 512,
+                system: SYSTEM_PROMPT,
+                messages: [{ role: 'user', content: userMessage }],
+            }),
+        });
+    }
+    catch (e) {
+        console.error('[moderateLead] Falha de rede ao chamar Anthropic:', e);
+        throw new https_1.HttpsError('unavailable', 'Não foi possível validar seu cadastro agora. Tente novamente em alguns instantes.');
+    }
     if (!res.ok) {
         const err = await res.text();
-        console.error('[moderateLead] Erro Anthropic:', res.status, err.slice(0, 300));
-        throw new https_1.HttpsError('internal', 'Erro ao consultar IA de moderação.');
+        throw anthropicHttpToHttpsError(res.status, err.slice(0, 300));
     }
-    const data = (await res.json());
+    let data;
+    try {
+        data = (await res.json());
+    }
+    catch (e) {
+        console.error('[moderateLead] Resposta Anthropic não é JSON válido:', e);
+        throw new https_1.HttpsError('internal', 'Não foi possível interpretar a validação automática. Tente novamente em instantes.');
+    }
     const text = (_b = (_a = data.content) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.text;
-    if (!text) {
-        throw new https_1.HttpsError('internal', 'Resposta vazia da IA.');
+    if (!text || !String(text).trim()) {
+        console.warn('[moderateLead] Bloco de texto vazio na resposta da IA.');
+        throw new https_1.HttpsError('internal', 'Não foi possível concluir a validação automática. Tente novamente em instantes.');
     }
     const cleaned = text
         .trim()
@@ -81,32 +109,27 @@ exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region:
         .replace(/^```\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
+    let parsed;
     try {
-        const parsed = JSON.parse(cleaned);
-        if (typeof parsed.allowed !== 'boolean') {
-            console.warn('[moderateLead] JSON sem "allowed" boolean — bloqueando.');
-            return {
-                allowed: false,
-                userMessage: 'Não foi possível validar o cadastro. Tente novamente.',
-            };
-        }
-        if (parsed.allowed) {
-            return { allowed: true };
-        }
-        return {
-            allowed: false,
-            userMessage: typeof parsed.user_message_pt === 'string' && parsed.user_message_pt.trim()
-                ? parsed.user_message_pt.trim()
-                : 'Não conseguimos validar seu cadastro. Verifique se os dados correspondem a um restaurante real.',
-        };
+        parsed = JSON.parse(cleaned);
     }
-    catch (_c) {
-        console.warn('[moderateLead] JSON inválido da IA — bloqueando.');
-        return {
-            allowed: false,
-            userMessage: 'Não foi possível validar o cadastro. Tente novamente.',
-        };
+    catch (e) {
+        console.warn('[moderateLead] JSON da IA inválido (parse). Trecho:', cleaned.slice(0, 200), e);
+        throw new https_1.HttpsError('internal', 'Não foi possível concluir a validação automática. Tente novamente em instantes.');
     }
+    if (typeof parsed.allowed !== 'boolean') {
+        console.warn('[moderateLead] JSON da IA sem campo boolean "allowed".', cleaned.slice(0, 200));
+        throw new https_1.HttpsError('internal', 'Não foi possível concluir a validação automática. Tente novamente em instantes.');
+    }
+    if (parsed.allowed) {
+        return { allowed: true };
+    }
+    return {
+        allowed: false,
+        userMessage: typeof parsed.user_message_pt === 'string' && parsed.user_message_pt.trim()
+            ? parsed.user_message_pt.trim()
+            : 'Não conseguimos validar seu cadastro. Verifique se os dados correspondem a um restaurante real.',
+    };
 });
 /** Cria PaymentIntent para checkout delivery. Aceita cartão salvo (off_session) ou fluxo interativo. */
 exports.createDeliveryPaymentIntent = (0, https_1.onCall)({ secrets: [stripeClient_1.stripeSecretKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {

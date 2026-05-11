@@ -3,6 +3,12 @@
 # Detalhes: README.md → "Netlify e Stripe (Content-Security-Policy)".
 
 [[redirects]]
+from = "/__proxy-openai/*"
+to = "https://api.openai.com/:splat"
+status = 200
+force = true
+
+[[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200

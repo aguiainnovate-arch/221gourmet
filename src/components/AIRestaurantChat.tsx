@@ -148,7 +148,13 @@ export default function AIRestaurantChat() {
         };
         setMessages(prev => [...prev, fallbackResponse]);
         
-        if (result.error?.includes('não configurado')) {
+        if (
+          result.error &&
+          (/OPENAI_API_KEY|não configurad|não estão disponíveis|segredo|administrador/i.test(
+            result.error
+          ) ||
+            result.error.includes('VITE_OPENAI_API_KEY'))
+        ) {
           setAiConfigured(false);
         }
       }
@@ -167,8 +173,11 @@ export default function AIRestaurantChat() {
   };
 
   const getFallbackResponse = (error: string): string => {
-    if (error.includes('não configurado')) {
-      return '🤖 Para ativar as recomendações inteligentes, é necessário configurar a chave da API OpenAI. Entre em contato com o administrador.\n\nEnquanto isso, me conte: que tipo de comida você está procurando hoje? 🍽️';
+    if (
+      /OPENAI_API_KEY|não configurad|não estão disponíveis|segredo|administrador/i.test(error) ||
+      error.includes('VITE_OPENAI_API_KEY')
+    ) {
+      return '🤖 As recomendações inteligentes dependem do servidor (Firebase Cloud Function com o segredo OPENAI_API_KEY). Peça ao administrador para configurar o secret e publicar as functions.\n\nEnquanto isso, me conte: que tipo de comida você está procurando hoje? 🍽️';
     }
     return '🤔 Interessante! Para te recomendar os melhores restaurantes, me conte mais: você tem preferência por algum tipo de comida específica? Italiana, japonesa, brasileira, lanches... Ou prefere que eu te mostre os mais populares?';
   };
@@ -245,7 +254,7 @@ export default function AIRestaurantChat() {
             <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 text-yellow-600" />
               <p className="text-xs text-yellow-800">
-                IA em modo limitado. Configure a API OpenAI para recomendações completas.
+                IA em modo limitado. No servidor, configure o segredo OPENAI_API_KEY nas Firebase Functions e faça o deploy da function recommendRestaurantsWithAI.
               </p>
             </div>
           )}

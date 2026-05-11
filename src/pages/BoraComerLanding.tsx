@@ -15,6 +15,7 @@ import {
 import {
   submitRestaurantLead,
   RestaurantLeadModerationError,
+  RestaurantLeadValidationUnavailableError,
   type RestaurantLeadPayload
 } from '../services/restaurantLeadService';
 import { FlipWords } from '../ui/flip-words';
@@ -311,14 +312,27 @@ export default function BoraComerLanding() {
     try {
       const response = await submitRestaurantLead(formData);
       setStatus('success');
-      setMessage(
-        response.status === 'created'
-          ? 'Cadastro recebido com sucesso! Em breve nossa equipe entrará em contato.'
-          : 'Recebemos seu cadastro! Assim que o backend estiver disponível, os dados serão sincronizados.'
-      );
+      if (response.awaitingManualModeration) {
+        setMessage(
+          response.status === 'created'
+            ? 'Recebemos seus dados. A validação automática não respondeu no momento; nossa equipe revisará seu cadastro e entrará em contato em breve.'
+            : 'Recebemos seus dados localmente. A validação automática falhou; quando o sistema sincronizar, nossa equipe revisará seu cadastro.'
+        );
+      } else {
+        setMessage(
+          response.status === 'created'
+            ? 'Cadastro recebido com sucesso! Em breve nossa equipe entrará em contato.'
+            : 'Recebemos seu cadastro! Assim que o backend estiver disponível, os dados serão sincronizados.'
+        );
+      }
       setFormData(initialForm);
     } catch (error) {
       if (error instanceof RestaurantLeadModerationError) {
+        setStatus('error');
+        setMessage(error.message);
+        return;
+      }
+      if (error instanceof RestaurantLeadValidationUnavailableError) {
         setStatus('error');
         setMessage(error.message);
         return;

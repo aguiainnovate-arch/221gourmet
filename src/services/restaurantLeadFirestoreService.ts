@@ -18,17 +18,27 @@ export interface RestaurantLead extends RestaurantLeadPayload {
   status: LeadStatus;
   createdAt: Date;
   updatedAt: Date;
+  /** Preenchido quando o lead foi salvo sem decisão da IA por falha técnica na moderação. */
+  savedWithoutAiModeration?: boolean;
 }
 
 const COLLECTION = 'restaurantLeads';
 
+export type SaveLeadOptions = {
+  /** Falha técnica na moderação automática; lead segue pendente para revisão humana. */
+  savedWithoutAiModeration?: boolean;
+};
+
 export async function saveLeadToFirestore(
-  payload: RestaurantLeadPayload
+  payload: RestaurantLeadPayload,
+  options?: SaveLeadOptions
 ): Promise<RestaurantLead> {
   const now = Timestamp.now();
+  const savedWithoutAiModeration = options?.savedWithoutAiModeration === true;
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...payload,
     status: 'pending',
+    ...(savedWithoutAiModeration ? { savedWithoutAiModeration: true } : {}),
     createdAt: now,
     updatedAt: now
   });
@@ -37,6 +47,7 @@ export async function saveLeadToFirestore(
     id: docRef.id,
     ...payload,
     status: 'pending',
+    savedWithoutAiModeration: savedWithoutAiModeration ? true : undefined,
     createdAt: now.toDate(),
     updatedAt: now.toDate()
   };
@@ -62,6 +73,7 @@ export async function getRestaurantLeads(): Promise<RestaurantLead[]> {
       priceRange: data.priceRange ?? '',
       socialLink: data.socialLink ?? '',
       description: data.description ?? '',
+      ...(data.savedWithoutAiModeration === true ? { savedWithoutAiModeration: true as const } : {}),
       status: (data.status as LeadStatus) ?? 'pending',
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
       updatedAt: data.updatedAt?.toDate?.() ?? new Date()
