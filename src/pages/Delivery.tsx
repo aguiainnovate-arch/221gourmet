@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, ChevronRight, Utensils, User, LogOut, Clock, Truck, Star, Receipt } from 'lucide-react';
+import { Store, MapPin, Phone, ChevronRight, Utensils, Clock, Truck, Star, ClipboardList, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
@@ -9,6 +9,13 @@ import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
 import LanguageSelector from '../components/LanguageSelector';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
+import DeliveryProfileMenu, { DeliveryProfileLoginButton } from '../components/delivery/DeliveryProfileMenu';
+import DeliveryLocationModal from '../components/delivery/DeliveryLocationModal';
+import {
+  getDeliveryLocation,
+  setDeliveryLocation,
+  type DeliveryLocation,
+} from '../utils/deliveryLocationStorage';
 
 export default function Delivery() {
   const { t, i18n } = useTranslation();
@@ -16,9 +23,12 @@ export default function Delivery() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { user, logout } = useDeliveryAuth();
+  const { user, logout, updateUser } = useDeliveryAuth();
+  const [userLocation, setUserLocation] = useState<DeliveryLocation>(() => getDeliveryLocation());
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [showFilters, setShowFilters] = useState(false);
@@ -38,6 +48,7 @@ export default function Delivery() {
   const loadRestaurants = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const data = await getRestaurants();
       
       // Filtrar apenas restaurantes ativos
@@ -67,6 +78,8 @@ export default function Delivery() {
       setRestaurants(allowedRestaurants);
     } catch (error) {
       console.error('Erro ao carregar restaurantes:', error);
+      setLoadError(t('delivery.loadRestaurantsError'));
+      setRestaurants([]);
     } finally {
       setLoading(false);
     }
@@ -192,38 +205,23 @@ export default function Delivery() {
             <div className="flex items-center gap-2 shrink-0 min-w-0">
             <Link
               to={user ? '/delivery/orders' : '/delivery/auth?redirect=/delivery/orders'}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-colors shrink-0"
-              style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all shrink-0 active:scale-[0.98] shadow-sm"
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderColor: '#E91120',
+                color: '#E91120',
+              }}
+              aria-label={t('delivery.myOrders')}
               title={t('delivery.myOrders')}
             >
-              <Receipt className="w-4 h-4 shrink-0" />
-              <span className="font-medium text-xs hidden sm:inline">{t('delivery.myOrders')}</span>
+              <ClipboardList className="w-4 h-4 shrink-0" strokeWidth={2.25} />
+              <span className="font-bold text-xs">{t('delivery.myOrdersShort')}</span>
             </Link>
             {user ? (
-              <>
-                <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border min-w-0" style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}>
-                  <User className="w-4 h-4 shrink-0" />
-                  <span className="font-medium text-xs max-w-[80px] truncate">{user.name}</span>
-                </div>
-                <button
-                  onClick={logout}
-                  className="p-2 rounded-xl border transition-colors shrink-0"
-                  style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
-                  title={t('delivery.logout')}
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </>
+              <DeliveryProfileMenu user={user} onUpdateUser={updateUser} onLogout={logout} />
             ) : (
-              <Link
-                to="/delivery/auth"
-                className="flex items-center gap-1.5 text-white px-3 py-2 rounded-xl font-semibold text-xs transition-all shadow-md shrink-0 hover:opacity-90"
-                style={{ backgroundColor: '#E91120' }}
-              >
-                <User className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">{t('delivery.signIn')}</span>
-                </Link>
-              )}
+              <DeliveryProfileLoginButton />
+            )}
             </div>
           </div>
         </div>
@@ -292,36 +290,53 @@ export default function Delivery() {
           </div>
         </div>
 
-        {/* ── CATEGORIAS + CONTADOR ── sticky: ao rolar, gruda logo abaixo do header; só os cards rolam por baixo */}
+        {/* ── TÍTULO + CATEGORIAS ── sticky: duas linhas no mobile evitam sobreposição dos chips */}
         <div
-          className="sticky top-0 z-10 w-full pt-3 pb-2 -mb-2"
+          className="sticky top-0 z-10 w-full pt-3 pb-2"
           style={{ backgroundColor: '#FFF8F2' }}
         >
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full px-4">
-            <h2 className="text-base font-bold shrink-0" style={{ color: '#2A1E1A' }}>
-              {searchTerm ? t('delivery.searchResults') : t('delivery.nearbyRestaurants')}
-            </h2>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {categories.map((cat) => {
-                const active = selectedCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${active ? 'text-white shadow-md' : 'border'}`}
-                    style={active ? { backgroundColor: '#E91120' } : { backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
+          <div className="w-full px-4 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2 min-w-0 w-full">
+              <h2 className="text-base font-bold shrink-0" style={{ color: '#2A1E1A' }}>
+                {searchTerm ? t('delivery.searchResults') : t('delivery.nearbyRestaurants')}
+              </h2>
+              {!searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setLocationModalOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold min-w-0 max-w-[58%] truncate active:scale-[0.98] transition-transform shrink"
+                  style={{ backgroundColor: '#FFFFFF', borderColor: '#E91120', color: '#E91120' }}
+                  title={t('delivery.changeLocation')}
+                >
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{userLocation.label}</span>
+                  <ChevronDown className="w-3 h-3 shrink-0 opacity-70" />
+                </button>
+              )}
             </div>
-            <span className="text-xs font-medium tabular-nums ml-auto shrink-0" style={{ color: '#6B5A54' }}>
-              {filteredRestaurants.length}{' '}
-              {filteredRestaurants.length === 1
-                ? t('delivery.restaurantSingular')
-                : t('delivery.restaurantPlural')}
-            </span>
+            <div className="flex items-center gap-2 min-w-0 w-full">
+              <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                {categories.map((cat) => {
+                  const active = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${active ? 'text-white shadow-md' : 'border'}`}
+                      style={active ? { backgroundColor: '#E91120' } : { backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-xs font-medium tabular-nums shrink-0" style={{ color: '#6B5A54' }}>
+                {filteredRestaurants.length}{' '}
+                {filteredRestaurants.length === 1
+                  ? t('delivery.restaurantSingular')
+                  : t('delivery.restaurantPlural')}
+              </span>
+            </div>
           </div>
         </div>
         {/* Carrossel de destaques — full width, padding só nas laterais do scroll */}
@@ -436,11 +451,29 @@ export default function Delivery() {
               <Store className="w-8 h-8" style={{ color: '#6B5A54' }} />
             </div>
             <h3 className="text-xl font-semibold mb-2" style={{ color: '#2A1E1A' }}>
-              {searchTerm ? t('delivery.noRestaurantsFound') : t('delivery.noRestaurantsAvailable')}
+              {loadError
+                ? t('delivery.loadRestaurantsErrorTitle')
+                : searchTerm
+                  ? t('delivery.noRestaurantsFound')
+                  : t('delivery.noRestaurantsAvailable')}
             </h3>
             <p className="text-sm max-w-sm mx-auto" style={{ color: '#6B5A54' }}>
-              {searchTerm ? t('delivery.tryOtherTerms') : t('delivery.comingSoon')}
+              {loadError
+                ? loadError
+                : searchTerm
+                  ? t('delivery.tryOtherTerms')
+                  : t('delivery.comingSoon')}
             </p>
+            {loadError && (
+              <button
+                type="button"
+                onClick={loadRestaurants}
+                className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: '#E91120' }}
+              >
+                {t('delivery.retryLoadRestaurants')}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -512,6 +545,16 @@ export default function Delivery() {
 
       {/* ── CHAT ── ancorado na viewport, sempre visível */}
       <AIRestaurantChat />
+
+      <DeliveryLocationModal
+        open={locationModalOpen}
+        current={userLocation}
+        onClose={() => setLocationModalOpen(false)}
+        onSave={(loc) => {
+          setUserLocation(loc);
+          setDeliveryLocation(loc);
+        }}
+      />
     </div>
   );
 }

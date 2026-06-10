@@ -40,6 +40,8 @@ import {
   brandLabel,
   type SavedCard,
 } from '../../services/deliveryStripeService';
+import PixWaitStep from './PixWaitStep';
+import { extractPixDetailsFromPaymentIntent } from '../../utils/stripePix';
 
 export interface CartLine {
   product: Product;
@@ -83,7 +85,10 @@ interface Props {
   onlineCardPaymentsEnabled?: boolean;
   onOrderCreated: (data: {
     orderPayload: CreateDeliveryOrderData;
-  }) => Promise<void>;
+    /** Pedido criado ao exibir PIX; confirmação atualiza o mesmo registro. */
+    pixPhase?: 'awaiting' | 'paid';
+    orderId?: string;
+  }) => Promise<string | void>;
 }
 
 type Step = 'bag' | 'address' | 'payment' | 'new-card' | 'pix-wait';
@@ -233,6 +238,7 @@ export default function CheckoutFlow({
     CreateDeliveryOrderData,
     'paymentMethod' | 'stripePaymentIntentId'
   > | null>(null);
+  const pendingPixOrderIdRef = useRef<string | null>(null);
   const pixSucceededRef = useRef(false);
   const onOrderCreatedRef = useRef(onOrderCreated);
   const onCloseRef = useRef(onClose);
@@ -283,9 +289,39 @@ export default function CheckoutFlow({
       setStep('bag');
       setPixWait(null);
       pixOrderBaseRef.current = null;
+      pendingPixOrderIdRef.current = null;
       pixSucceededRef.current = false;
     }
   }, [open]);
+
+  const ensurePixPendingOrder = useCallback(
+    async (args: {
+      paymentIntentId: string;
+      copyPaste?: string;
+      imageUrlPng?: string;
+    }) => {
+      if (pendingPixOrderIdRef.current) return pendingPixOrderIdRef.current;
+      const base = pixOrderBaseRef.current;
+      if (!base) return null;
+
+      const orderId = await onOrderCreatedRef.current({
+        pixPhase: 'awaiting',
+        orderPayload: {
+          ...base,
+          paymentMethod: 'stripe',
+          stripePaymentIntentId: args.paymentIntentId,
+          pixCopyPaste: args.copyPaste,
+          pixQrCodeImage: args.imageUrlPng,
+          pixStatus: 'awaiting_payment',
+        },
+      });
+      if (typeof orderId === 'string') {
+        pendingPixOrderIdRef.current = orderId;
+      }
+      return typeof orderId === 'string' ? orderId : null;
+    },
+    []
+  );
 
   const fmt = useCallback(
     (v: number) =>
@@ -396,20 +432,58 @@ export default function CheckoutFlow({
         const stripe = await stripePromise;
         if (!stripe) return;
         const { paymentIntent } = await stripe.retrievePaymentIntent(pixWait.clientSecret);
+
+        if (paymentIntent) {
+          const details = extractPixDetailsFromPaymentIntent(paymentIntent);
+          if (details && (!pixWait.copyPaste || !pixWait.imageUrlPng)) {
+            setPixWait((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    imageUrlPng: prev.imageUrlPng ?? details.imageUrlPng,
+                    copyPaste: prev.copyPaste ?? details.copyPaste,
+                    hostedInstructionsUrl:
+                      prev.hostedInstructionsUrl ?? details.hostedInstructionsUrl,
+                  }
+                : prev
+            );
+          }
+
+          if (
+            paymentIntent.status === 'requires_action' ||
+            paymentIntent.status === 'processing' ||
+            paymentIntent.status === 'requires_confirmation'
+          ) {
+            const copyPaste = details?.copyPaste ?? pixWait.copyPaste;
+            const imageUrlPng = details?.imageUrlPng ?? pixWait.imageUrlPng;
+            if (copyPaste || imageUrlPng) {
+              await ensurePixPendingOrder({
+                paymentIntentId: paymentIntent.id,
+                copyPaste,
+                imageUrlPng,
+              });
+            }
+          }
+        }
+
         if (paymentIntent?.status === 'succeeded' && !pixSucceededRef.current) {
           pixSucceededRef.current = true;
           const base = pixOrderBaseRef.current;
           if (base) {
             await onOrderCreatedRef.current({
+              pixPhase: 'paid',
+              orderId: pendingPixOrderIdRef.current ?? undefined,
               orderPayload: {
                 ...base,
                 paymentMethod: 'stripe',
                 stripePaymentIntentId: paymentIntent.id,
+                pixStatus: 'paid',
               },
             });
           }
           setPixWait(null);
           pixOrderBaseRef.current = null;
+          pendingPixOrderIdRef.current = null;
           setStep('bag');
           onCloseRef.current();
         }
@@ -421,7 +495,7 @@ export default function CheckoutFlow({
     void run();
     const id = window.setInterval(() => void run(), 2500);
     return () => window.clearInterval(id);
-  }, [step, pixWait?.clientSecret, stripePromise]);
+  }, [step, pixWait, stripePromise, ensurePixPendingOrder]);
 
   const canProceedFromAddress =
     customerName.trim().length >= 2 &&
@@ -593,37 +667,26 @@ export default function CheckoutFlow({
           return;
         }
 
-        const na = pi.next_action as
-          | { type?: string; pix_display_qr_code?: { image_url_png?: string; data?: string; hosted_instructions_url?: string } }
-          | null
-          | undefined;
+        const pixDetails = extractPixDetailsFromPaymentIntent(pi);
         if (
-          pi.status === 'requires_action' &&
-          na &&
-          na.type === 'pix_display_qr_code' &&
-          na.pix_display_qr_code
-        ) {
-          const p = na.pix_display_qr_code;
-          setPixWait({
-            clientSecret: res.clientSecret,
-            paymentIntentId: pi.id,
-            imageUrlPng: p.image_url_png ?? undefined,
-            copyPaste: p.data ?? undefined,
-            hostedInstructionsUrl: p.hosted_instructions_url ?? undefined,
-          });
-          setStep('pix-wait');
-          return;
-        }
-
-        if (
-          pi.status === 'processing' ||
           pi.status === 'requires_action' ||
+          pi.status === 'processing' ||
           pi.status === 'requires_confirmation'
         ) {
           setPixWait({
             clientSecret: res.clientSecret,
             paymentIntentId: pi.id,
+            imageUrlPng: pixDetails?.imageUrlPng,
+            copyPaste: pixDetails?.copyPaste,
+            hostedInstructionsUrl: pixDetails?.hostedInstructionsUrl,
           });
+          if (pixDetails?.copyPaste || pixDetails?.imageUrlPng) {
+            await ensurePixPendingOrder({
+              paymentIntentId: pi.id,
+              copyPaste: pixDetails.copyPaste,
+              imageUrlPng: pixDetails.imageUrlPng,
+            });
+          }
           setStep('pix-wait');
           return;
         }
@@ -715,6 +778,7 @@ export default function CheckoutFlow({
             if (step === 'pix-wait') {
               setPixWait(null);
               pixOrderBaseRef.current = null;
+              pendingPixOrderIdRef.current = null;
               setPayment({ kind: 'stripe-pix' });
               goTo('payment');
               return;
@@ -832,45 +896,14 @@ export default function CheckoutFlow({
           )}
 
           {step === 'pix-wait' && pixWait && (
-            <div className="p-4 space-y-4">
-              <p className="text-sm text-gray-700 text-center leading-relaxed">
-                {t('delivery.stripePixScan')}
-              </p>
-              {pixWait.imageUrlPng ? (
-                <div className="flex justify-center">
-                  <img
-                    src={pixWait.imageUrlPng}
-                    alt="PIX QR"
-                    className="max-w-[220px] w-full h-auto rounded-lg border border-gray-200"
-                  />
-                </div>
-              ) : null}
-              {pixWait.copyPaste ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-gray-600">{t('delivery.stripePixCopy')}</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(pixWait.copyPaste ?? '');
-                    }}
-                    className="w-full py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50"
-                  >
-                    {t('delivery.stripePixCopyButton')}
-                  </button>
-                </div>
-              ) : null}
-              {pixWait.hostedInstructionsUrl ? (
-                <a
-                  href={pixWait.hostedInstructionsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-center text-sm text-amber-700 underline"
-                >
-                  {t('delivery.stripePixHostedLink')}
-                </a>
-              ) : null}
-              <p className="text-xs text-gray-500 text-center">{t('delivery.stripePixPolling')}</p>
-            </div>
+            <PixWaitStep
+              totalLabel={fmt(total)}
+              imageUrlPng={pixWait.imageUrlPng}
+              copyPaste={pixWait.copyPaste}
+              hostedInstructionsUrl={pixWait.hostedInstructionsUrl}
+              loadingCode={!pixWait.copyPaste}
+              accentColor={accentColor}
+            />
           )}
         </div>
 
@@ -904,6 +937,7 @@ export default function CheckoutFlow({
           onCancelPixWait={() => {
             setPixWait(null);
             pixOrderBaseRef.current = null;
+            pendingPixOrderIdRef.current = null;
             setPayment({ kind: 'stripe-pix' });
             goTo('payment');
           }}
@@ -1517,6 +1551,48 @@ function PaymentStep({
 
   return (
     <div className="p-4 space-y-5">
+      {onlineCardPaymentsEnabled ? (
+        <div>
+          <h3 className="text-sm font-bold text-gray-900 mb-3">
+            {t('delivery.pixInAppTitle')}
+          </h3>
+          <button
+            type="button"
+            onClick={() => setPayment({ kind: 'stripe-pix' })}
+            disabled={busy}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 bg-white text-left transition-colors hover:bg-gray-50 disabled:opacity-50"
+            style={{
+              borderColor: payment?.kind === 'stripe-pix' ? accentColor : '#E5E7EB',
+            }}
+          >
+            <span
+              className="w-10 h-10 rounded-full flex items-center justify-center"
+              style={{
+                backgroundColor: payment?.kind === 'stripe-pix' ? accentColor : '#F3F4F6',
+                color: payment?.kind === 'stripe-pix' ? 'white' : '#4B5563',
+              }}
+            >
+              <QrCode className="w-5 h-5" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">{t('delivery.stripePixOnline')}</p>
+              <p className="text-xs text-gray-500">{t('delivery.stripePixOnlineHint')}</p>
+            </div>
+            <span
+              className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
+              style={{ borderColor: payment?.kind === 'stripe-pix' ? accentColor : '#D1D5DB' }}
+            >
+              {payment?.kind === 'stripe-pix' ? (
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: accentColor }}
+                />
+              ) : null}
+            </span>
+          </button>
+        </div>
+      ) : null}
+
       <div>
         <h3 className="text-sm font-bold text-gray-900 mb-3">
           {t('delivery.savedCardsTitle')}
@@ -1606,43 +1682,6 @@ function PaymentStep({
               <ChevronRight className="w-5 h-5" />
             </button>
           )
-        ) : null}
-
-        {onlineCardPaymentsEnabled ? (
-          <button
-            type="button"
-            onClick={() => setPayment({ kind: 'stripe-pix' })}
-            disabled={busy}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 bg-white text-left transition-colors hover:bg-gray-50 disabled:opacity-50 mt-3"
-            style={{
-              borderColor: payment?.kind === 'stripe-pix' ? accentColor : '#E5E7EB',
-            }}
-          >
-            <span
-              className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{
-                backgroundColor: payment?.kind === 'stripe-pix' ? accentColor : '#F3F4F6',
-                color: payment?.kind === 'stripe-pix' ? 'white' : '#4B5563',
-              }}
-            >
-              <QrCode className="w-5 h-5" />
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-900">{t('delivery.stripePixOnline')}</p>
-              <p className="text-xs text-gray-500">{t('delivery.stripePixOnlineHint')}</p>
-            </div>
-            <span
-              className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-              style={{ borderColor: payment?.kind === 'stripe-pix' ? accentColor : '#D1D5DB' }}
-            >
-              {payment?.kind === 'stripe-pix' ? (
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: accentColor }}
-                />
-              ) : null}
-            </span>
-          </button>
         ) : null}
       </div>
 

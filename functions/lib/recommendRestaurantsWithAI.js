@@ -3,12 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.recommendRestaurantsWithAI = exports.openaiApiKey = void 0;
-const params_1 = require("firebase-functions/params");
+exports.recommendRestaurantsWithAI = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const openai_1 = __importDefault(require("openai"));
 const firebaseAdmin_1 = require("./firebaseAdmin");
-exports.openaiApiKey = (0, params_1.defineSecret)('OPENAI_API_KEY');
+const openaiSecret_1 = require("./openaiSecret");
 const CHATBOT_CONFIG_DOC = 'global-chatbot-config';
 const MAX_USER_MESSAGE = 4000;
 const MAX_HISTORY_MESSAGES = 24;
@@ -244,9 +243,9 @@ function cardsInstructionsFor(threshold) {
             return 'Seja conservador ao recomendar restaurantes. Apenas mostre cards quando o usuário pedir explicitamente ou a conversa claramente indicar que está pronto para ver opções.';
     }
 }
-exports.recommendRestaurantsWithAI = (0, https_1.onCall)({ secrets: [exports.openaiApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
+exports.recommendRestaurantsWithAI = (0, https_1.onCall)({ secrets: [openaiSecret_1.openaiApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
     var _a, _b;
-    const apiKey = exports.openaiApiKey.value();
+    const apiKey = openaiSecret_1.openaiApiKey.value();
     if (!apiKey) {
         console.error('[recommendRestaurantsWithAI] Secret OPENAI_API_KEY ausente ou vazia.');
         throw new https_1.HttpsError('failed-precondition', 'Recomendações por IA não estão configuradas no servidor. Peça ao administrador para configurar o segredo OPENAI_API_KEY nas Cloud Functions.');

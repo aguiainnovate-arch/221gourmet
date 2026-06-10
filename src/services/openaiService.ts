@@ -1,4 +1,6 @@
 import OpenAI from 'openai';
+import { getOpenAIBaseURL } from '../utils/openaiBaseUrl';
+import { nativeFetch } from '../utils/nativeFetch';
 
 export interface OpenAIConfig {
   apiKey: string;
@@ -65,15 +67,11 @@ class OpenAIService {
       ...config
     };
 
-    const baseURL =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/__proxy-openai/v1`
-        : undefined;
-
     this.client = new OpenAI({
       apiKey: config.apiKey,
-      baseURL,
-      dangerouslyAllowBrowser: true
+      baseURL: getOpenAIBaseURL(),
+      dangerouslyAllowBrowser: true,
+      fetch: nativeFetch,
     });
   }
 

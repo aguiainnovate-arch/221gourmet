@@ -1,10 +1,8 @@
-import { defineSecret } from 'firebase-functions/params';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import OpenAI from 'openai';
 
 import { admin } from './firebaseAdmin';
-
-export const openaiApiKey = defineSecret('OPENAI_API_KEY');
+import { openaiApiKey } from './openaiSecret';
 
 const CHATBOT_CONFIG_DOC = 'global-chatbot-config';
 

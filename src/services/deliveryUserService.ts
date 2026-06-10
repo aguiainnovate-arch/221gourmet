@@ -155,6 +155,24 @@ export const getDeliveryUserById = async (userId: string): Promise<DeliveryUser 
   }
 };
 
+/** Atualiza perfil do usuário logado (por ID). */
+export const updateDeliveryUserProfile = async (
+  userId: string,
+  data: Partial<Pick<DeliveryUser, 'name' | 'email' | 'phone' | 'address'>>
+): Promise<DeliveryUser> => {
+  const userRef = doc(db, 'deliveryUsers', userId);
+  await updateDoc(userRef, {
+    ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+    ...(data.email !== undefined ? { email: data.email.trim().toLowerCase() } : {}),
+    ...(data.phone !== undefined ? { phone: normalizePhone(data.phone) } : {}),
+    ...(data.address !== undefined ? { address: data.address.trim() } : {}),
+    updatedAt: Timestamp.now(),
+  });
+  const updated = await getDeliveryUserById(userId);
+  if (!updated) throw new Error('Usuário não encontrado após atualização.');
+  return updated;
+};
+
 /** Atualiza apenas o stripeCustomerId do usuário (sem alterar outros campos). */
 export const updateDeliveryUserStripeCustomer = async (
   userId: string,

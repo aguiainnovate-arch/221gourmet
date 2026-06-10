@@ -20,6 +20,9 @@ export interface RestaurantLead extends RestaurantLeadPayload {
   updatedAt: Date;
   /** Preenchido quando o lead foi salvo sem decisão da IA por falha técnica na moderação. */
   savedWithoutAiModeration?: boolean;
+  /** Restaurante criado automaticamente após moderação IA aprovar (Bora Comer). */
+  createdRestaurantId?: string;
+  provisionDomain?: string;
 }
 
 const COLLECTION = 'restaurantLeads';
@@ -27,6 +30,11 @@ const COLLECTION = 'restaurantLeads';
 export type SaveLeadOptions = {
   /** Falha técnica na moderação automática; lead segue pendente para revisão humana. */
   savedWithoutAiModeration?: boolean;
+  /** Lead aprovado pela IA e restaurante já criado em `restaurants`. */
+  aiProvisionedRestaurant?: {
+    restaurantId: string;
+    domain: string;
+  };
 };
 
 export async function saveLeadToFirestore(
@@ -35,10 +43,18 @@ export async function saveLeadToFirestore(
 ): Promise<RestaurantLead> {
   const now = Timestamp.now();
   const savedWithoutAiModeration = options?.savedWithoutAiModeration === true;
+  const provision = options?.aiProvisionedRestaurant;
+  const status: LeadStatus = provision ? 'approved' : 'pending';
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...payload,
-    status: 'pending',
+    status,
     ...(savedWithoutAiModeration ? { savedWithoutAiModeration: true } : {}),
+    ...(provision
+      ? {
+          createdRestaurantId: provision.restaurantId,
+          provisionDomain: provision.domain,
+        }
+      : {}),
     createdAt: now,
     updatedAt: now
   });
@@ -46,8 +62,14 @@ export async function saveLeadToFirestore(
   return {
     id: docRef.id,
     ...payload,
-    status: 'pending',
+    status,
     savedWithoutAiModeration: savedWithoutAiModeration ? true : undefined,
+    ...(provision
+      ? {
+          createdRestaurantId: provision.restaurantId,
+          provisionDomain: provision.domain,
+        }
+      : {}),
     createdAt: now.toDate(),
     updatedAt: now.toDate()
   };
@@ -74,6 +96,10 @@ export async function getRestaurantLeads(): Promise<RestaurantLead[]> {
       socialLink: data.socialLink ?? '',
       description: data.description ?? '',
       ...(data.savedWithoutAiModeration === true ? { savedWithoutAiModeration: true as const } : {}),
+      ...(typeof data.createdRestaurantId === 'string'
+        ? { createdRestaurantId: data.createdRestaurantId }
+        : {}),
+      ...(typeof data.provisionDomain === 'string' ? { provisionDomain: data.provisionDomain } : {}),
       status: (data.status as LeadStatus) ?? 'pending',
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
       updatedAt: data.updatedAt?.toDate?.() ?? new Date()

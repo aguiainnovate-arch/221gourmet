@@ -118,7 +118,11 @@ export default function Dashboard({ onNavigate }: { onNavigate: (section: string
             <StatCard
               title="Moderação por IA"
               value={metrics?.aiActive ? 'Ativa' : 'Inativa'}
-              description={metrics?.aiActive ? 'filtrando cadastros automaticamente' : 'configure VITE_OPENAI_API_KEY'}
+              description={
+                metrics?.aiActive
+                  ? 'filtrando cadastros automaticamente'
+                  : 'configure o secret OPENAI_API_KEY nas Cloud Functions'
+              }
               accent={metrics?.aiActive ? 'bg-indigo-100' : 'bg-gray-100'}
               icon={
                 <svg className={`w-6 h-6 ${metrics?.aiActive ? 'text-indigo-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

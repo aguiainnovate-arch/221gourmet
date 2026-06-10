@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Clock3,
@@ -16,6 +17,8 @@ import {
   submitRestaurantLead,
   RestaurantLeadModerationError,
   RestaurantLeadValidationUnavailableError,
+  RestaurantLeadDuplicateEmailError,
+  RestaurantLeadAutoProvisionError,
   type RestaurantLeadPayload
 } from '../services/restaurantLeadService';
 import { FlipWords } from '../ui/flip-words';
@@ -194,6 +197,11 @@ export default function BoraComerLanding() {
   const [formData, setFormData] = useState<RestaurantLeadPayload>(initialForm);
   const [status, setStatus] = useState<FormStatus>('idle');
   const [message, setMessage] = useState('');
+  const [provisionResult, setProvisionResult] = useState<{
+    restaurantId: string;
+    domain: string;
+    temporaryPassword: string;
+  } | null>(null);
   /* Parallax no hero: glow de fundo move-se mais devagar que o scroll (efeito profundidade). */
   const { ref: parallaxGlowRef, transform: parallaxGlow } = useParallax(0.35, { disableBelowWidth: 768 });
   const { ref: parallaxImageRef, transform: parallaxImage } = useParallax(0.15, { disableBelowWidth: 768 });
@@ -308,17 +316,25 @@ export default function BoraComerLanding() {
 
     setStatus('sending');
     setMessage('Validando e enviando seus dados...');
+    setProvisionResult(null);
 
     try {
       const response = await submitRestaurantLead(formData);
       setStatus('success');
       if (response.awaitingManualModeration) {
+        setProvisionResult(null);
         setMessage(
           response.status === 'created'
             ? 'Recebemos seus dados. A validação automática não respondeu no momento; nossa equipe revisará seu cadastro e entrará em contato em breve.'
             : 'Recebemos seus dados localmente. A validação automática falhou; quando o sistema sincronizar, nossa equipe revisará seu cadastro.'
         );
+      } else if (response.restaurantProvisioned) {
+        setProvisionResult(response.restaurantProvisioned);
+        setMessage(
+          'Seu restaurante foi criado e aprovado automaticamente. Guarde a senha provisória abaixo — ela não será exibida novamente.'
+        );
       } else {
+        setProvisionResult(null);
         setMessage(
           response.status === 'created'
             ? 'Cadastro recebido com sucesso! Em breve nossa equipe entrará em contato.'
@@ -327,12 +343,23 @@ export default function BoraComerLanding() {
       }
       setFormData(initialForm);
     } catch (error) {
+      setProvisionResult(null);
       if (error instanceof RestaurantLeadModerationError) {
         setStatus('error');
         setMessage(error.message);
         return;
       }
       if (error instanceof RestaurantLeadValidationUnavailableError) {
+        setStatus('error');
+        setMessage(error.message);
+        return;
+      }
+      if (error instanceof RestaurantLeadDuplicateEmailError) {
+        setStatus('error');
+        setMessage(error.message);
+        return;
+      }
+      if (error instanceof RestaurantLeadAutoProvisionError) {
         setStatus('error');
         setMessage(error.message);
         return;
@@ -899,6 +926,66 @@ export default function BoraComerLanding() {
                 >
                   {message || 'Seu cadastro leva menos de 2 minutos.'}
                 </p>
+                {status === 'success' && provisionResult && (
+                  <div
+                    className="mt-4 space-y-4 rounded-xl border bg-[#FFF8F2] p-4 text-left text-sm shadow-sm"
+                    style={{ borderColor: tokens.border }}
+                  >
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#5C4A42]">
+                        Cardápio público
+                      </p>
+                      <a
+                        href={`https://${provisionResult.domain}.221menu.com`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 font-semibold text-[#E91120] underline-offset-2 hover:underline"
+                      >
+                        {provisionResult.domain}.221menu.com
+                      </a>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#5C4A42]">
+                        ID do restaurante
+                      </p>
+                      <code className="mt-1 block break-all rounded-lg bg-white/80 px-2 py-1.5 text-xs text-[#2A1E1A]">
+                        {provisionResult.restaurantId}
+                      </code>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#5C4A42]">
+                        Senha provisória (painel admin)
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <code className="rounded-lg bg-white/80 px-2 py-1.5 text-xs text-[#2A1E1A]">
+                          {provisionResult.temporaryPassword}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(provisionResult.temporaryPassword);
+                          }}
+                          className="rounded-lg border border-[#E9D7C4] bg-white px-2 py-1 text-xs font-medium text-[#2A1E1A] transition hover:bg-[#F5EFE7]"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                    <div className="border-t border-[#E9D7C4] pt-3">
+                      <Link
+                        to="/restaurant/auth"
+                        className="inline-flex items-center gap-2 font-semibold text-[#E91120] underline-offset-2 hover:underline"
+                      >
+                        Acessar o painel do restaurante
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                      <p className="mt-2 text-xs text-[#6B5A54]">
+                        Entre com o mesmo e-mail informado no cadastro e a senha provisória acima. Recomendamos
+                        alterar a senha após o primeiro acesso.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
             </div>

@@ -337,6 +337,27 @@ export const checkDomainExists = async (domain: string, excludeId?: string): Pro
   }
 };
 
+/** Verifica se já existe restaurante com o mesmo e-mail (normalizado ou valor exato). */
+export const checkRestaurantEmailTaken = async (email: string): Promise<boolean> => {
+  const trimmed = email.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  try {
+    const qLower = query(collection(db, 'restaurants'), where('email', '==', lower));
+    const snapLower = await getDocs(qLower);
+    if (!snapLower.empty) return true;
+    if (lower !== trimmed) {
+      const qExact = query(collection(db, 'restaurants'), where('email', '==', trimmed));
+      const snapExact = await getDocs(qExact);
+      if (!snapExact.empty) return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Erro ao verificar e-mail do restaurante:', error);
+    throw new Error('Falha ao verificar disponibilidade do e-mail');
+  }
+};
+
 // Buscar restaurantes por plano
 export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]> => {
   try {

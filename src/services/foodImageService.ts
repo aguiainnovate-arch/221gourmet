@@ -188,14 +188,14 @@ export async function fetchFeaturedProductImages(): Promise<FoodImage[]> {
     }
 
     if (interleaved.length >= 2) {
-      // Limita a 24 itens para o carrossel não ficar gigante
       return interleaved.slice(0, 24);
     }
+    if (interleaved.length === 1) {
+      const remote = await fetchFeaturedFoodImages();
+      return [...interleaved, ...remote].slice(0, 24);
+    }
 
-    // Sem produtos suficientes — recorre ao Unsplash / fallback estático
-    const remote = await fetchFeaturedFoodImages();
-    // Garante que itens reais (se existirem) apareçam primeiro
-    return [...interleaved, ...remote].slice(0, 24);
+    return fetchFeaturedFoodImages();
   } catch (e) {
     console.warn('Erro ao carregar produtos para carrossel:', e);
     return fetchFeaturedFoodImages();

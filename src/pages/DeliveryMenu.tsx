@@ -7,7 +7,7 @@ import { ArrowLeft, Plus, Minus, MapPin, Bike, Search, ChevronDown, ShoppingCart
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
-import { createDeliveryOrder } from '../services/deliveryService';
+import { createDeliveryOrder, updateDeliveryPixPayment } from '../services/deliveryService';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { saveDeliveryUser } from '../services/deliveryUserService';
 import { useLiveTranslations } from '../hooks/useLiveTranslations';
@@ -275,7 +275,29 @@ export default function DeliveryMenu() {
   );
 
   const handleOrderCreated = useCallback(
-    async ({ orderPayload }: { orderPayload: CreateDeliveryOrderData }) => {
+    async ({
+      orderPayload,
+      pixPhase,
+      orderId,
+    }: {
+      orderPayload: CreateDeliveryOrderData;
+      pixPhase?: 'awaiting' | 'paid';
+      orderId?: string;
+    }): Promise<string | void> => {
+      if (pixPhase === 'awaiting') {
+        const created = await createDeliveryOrder(orderPayload);
+        return created.id;
+      }
+
+      if (pixPhase === 'paid' && orderId) {
+        await updateDeliveryPixPayment(orderId, {
+          pixStatus: orderPayload.pixStatus ?? 'paid',
+          stripePaymentIntentId: orderPayload.stripePaymentIntentId,
+        });
+      } else {
+        await createDeliveryOrder(orderPayload);
+      }
+
       if (user) {
         try {
           const updatedUser = await saveDeliveryUser({
@@ -292,7 +314,6 @@ export default function DeliveryMenu() {
         }
       }
 
-      await createDeliveryOrder(orderPayload);
       setCheckoutOpen(false);
       setSelectedItems([]);
       alert(t('delivery.orderSuccess'));

@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
+import { normalizePhone } from '../utils/authInputUtils';
 import { addOrder } from './orderService';
 
 // Re-exportar os tipos para facilitar imports
@@ -125,6 +126,27 @@ export function subscribeDeliveryOrdersByPhone(
 }
 
 // Atualizar status do pedido
+export const updateDeliveryPixPayment = async (
+  orderId: string,
+  data: {
+    pixStatus?: string;
+    pixCopyPaste?: string;
+    pixQrCodeImage?: string;
+    stripePaymentIntentId?: string;
+  }
+): Promise<void> => {
+  try {
+    const orderRef = doc(db, 'deliveries', orderId);
+    await updateDoc(orderRef, {
+      ...stripUndefined(data),
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar pagamento PIX do pedido:', error);
+    throw new Error('Falha ao atualizar pagamento PIX');
+  }
+};
+
 export const updateDeliveryOrderStatus = async (orderId: string, status: DeliveryOrder['status']): Promise<void> => {
   try {
     const orderRef = doc(db, 'deliveries', orderId);
@@ -156,7 +178,7 @@ export const assignMotoboyToDeliveryOrder = async (
   }
 };
 
-// Cancelar/recusar pedido de delivery
+// Cancelar/recusar pedido de delivery (restaurante ou sistema)
 export const cancelDeliveryOrder = async (orderId: string, reason?: string): Promise<void> => {
   try {
     const orderRef = doc(db, 'deliveries', orderId);
@@ -169,6 +191,30 @@ export const cancelDeliveryOrder = async (orderId: string, reason?: string): Pro
     console.error('Erro ao cancelar pedido:', error);
     throw new Error('Falha ao cancelar pedido');
   }
+};
+
+/** Cliente cancela pedido ainda não confirmado pelo restaurante (status pending). */
+export const cancelDeliveryOrderByCustomer = async (
+  orderId: string,
+  customerPhone: string,
+  reason?: string
+): Promise<void> => {
+  const order = await getDeliveryOrderById(orderId);
+  if (!order) {
+    throw new Error('Pedido não encontrado.');
+  }
+  if (order.status !== 'pending') {
+    throw new Error('Só é possível cancelar pedidos que ainda não foram confirmados pelo restaurante.');
+  }
+  const phone = normalizePhone(customerPhone);
+  const orderPhone = normalizePhone(order.customerPhone);
+  if (phone !== orderPhone) {
+    throw new Error('Este pedido não pertence à sua conta.');
+  }
+  await cancelDeliveryOrder(
+    orderId,
+    reason?.trim() || 'Cancelado pelo cliente — restaurante não confirmou o pedido'
+  );
 };
 
 /**

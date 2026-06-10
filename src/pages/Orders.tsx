@@ -1,33 +1,26 @@
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     MapPin,
-    Phone,
     RefreshCw,
-    Receipt,
-    Search,
-    ChevronDown,
+    ClipboardList,
     ChevronUp,
     ChevronRight,
-    Filter,
     ShoppingBag,
     Copy,
     Check,
-    QrCode
+    QrCode,
+    UtensilsCrossed,
+    XCircle,
 } from 'lucide-react';
-import { getDeliveryOrdersByPhone, subscribeDeliveryOrdersByPhone } from '../services/deliveryService';
+import {
+    cancelDeliveryOrderByCustomer,
+    getDeliveryOrdersByPhone,
+    subscribeDeliveryOrdersByPhone,
+} from '../services/deliveryService';
 import type { DeliveryOrder, DeliveryOrderItem } from '../types/delivery';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
-
-const formatDate = (d: Date) =>
-    new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(d instanceof Date ? d : new Date(d));
 
 const formatDateShort = (d: Date) =>
     new Intl.DateTimeFormat('pt-BR', {
@@ -129,60 +122,79 @@ function truncate(str: string, max: number): string {
 const OrderCard = memo(({
     order,
     isExpanded,
-    onToggleExpansion
+    onToggleExpansion,
+    onCancelOrder,
+    cancelling,
 }: {
     order: DeliveryOrder;
     isExpanded: boolean;
     onToggleExpansion: (orderId: string) => void;
+    onCancelOrder: (orderId: string) => Promise<void>;
+    cancelling: boolean;
 }) => {
     const config = STATUS_CONFIG[order.status];
     const summary = getOrderSummary(order);
     const reference = getOrderReference(order);
     const progressPct = config.step > 0 ? (config.step / 5) * 100 : 0;
     const [copiedPix, setCopiedPix] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
     const pixQrImage = normalizePixQrImage(order.pixQrCodeImage);
+    const canCancel = order.status === 'pending';
 
     const handleCopyPix = async () => {
         if (!order.pixCopyPaste?.trim()) return;
         try {
-            await navigator.clipboard.writeText(order.pixCopyPaste);
-            setCopiedPix(true);
-            window.setTimeout(() => setCopiedPix(false), 1800);
+            const { copyToClipboard } = await import('../utils/copyToClipboard');
+            const ok = await copyToClipboard(order.pixCopyPaste);
+            if (ok) {
+                setCopiedPix(true);
+                window.setTimeout(() => setCopiedPix(false), 1800);
+            }
         } catch (err) {
             console.error('Erro ao copiar PIX:', err);
         }
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
+        <div
+            className="rounded-2xl shadow-sm overflow-hidden border"
+            style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}
+        >
             <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-bold text-gray-900 truncate">{order.restaurantName}</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">{reference}</p>
+                        <h3 className="text-base font-bold truncate" style={{ color: '#2A1E1A' }}>
+                            {order.restaurantName}
+                        </h3>
+                        <p className="text-xs mt-0.5" style={{ color: '#6B5A54' }}>{reference}</p>
                     </div>
-                    <span className={`shrink-0 px-2.5 py-1 text-xs font-semibold border rounded-lg ${config.badgeClass}`}>
+                    <span className={`shrink-0 px-2.5 py-1 text-[11px] font-bold border rounded-full ${config.badgeClass}`}>
                         {config.label}
                     </span>
                 </div>
 
-                <p className="text-xs text-gray-500 mt-1">Entrega · {formatDate(order.createdAt)}</p>
-
                 {config.step > 0 && config.step < 5 && (
-                    <div className="mt-2">
-                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div className="mt-3">
+                        <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: '#E9D7C4' }}>
                             <div
-                                className={`h-full ${config.progressClass} rounded-full transition-colors`}
+                                className={`h-full ${config.progressClass} rounded-full transition-all duration-500`}
                                 style={{ width: `${progressPct}%` }}
                             />
                         </div>
-                        <p className="text-xs text-gray-600 mt-1">{config.stepLabel}</p>
+                        <p className="text-[11px] mt-1.5 font-medium" style={{ color: '#6B5A54' }}>
+                            {config.stepLabel}
+                        </p>
                     </div>
+                )}
+                {canCancel && !confirmCancel && (
+                    <p className="text-[11px] mt-2 leading-snug" style={{ color: '#6B5A54' }}>
+                        O restaurante ainda não confirmou. Você pode cancelar se mudar de ideia.
+                    </p>
                 )}
             </div>
 
             <div className="px-4 pb-3">
-                <p className="text-sm text-gray-700 leading-snug">
+                <p className="text-sm leading-snug" style={{ color: '#2A1E1A' }}>
                     {order.items?.length ? (
                         <>
                             {summary}
@@ -204,21 +216,75 @@ const OrderCard = memo(({
                 )}
             </div>
 
-            <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/60 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-base font-bold text-gray-900">
-                    {formatCurrency(order.total + order.deliveryFee)}
-                </span>
-                <button
-                    onClick={() => onToggleExpansion(order.id)}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold"
-                >
-                    Ver detalhes
-                    <ChevronRight className="w-4 h-4" />
-                </button>
+            <div
+                className="border-t px-4 py-3 flex flex-col gap-2"
+                style={{ borderColor: '#E9D7C4', backgroundColor: 'rgba(255,255,255,0.45)' }}
+            >
+                {canCancel && confirmCancel && (
+                    <div
+                        className="rounded-xl border p-3"
+                        style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
+                    >
+                        <p className="text-sm font-semibold" style={{ color: '#991B1B' }}>
+                            Cancelar este pedido?
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
+                            O restaurante ainda não confirmou. O cancelamento é imediato.
+                        </p>
+                        <div className="flex gap-2 mt-3">
+                            <button
+                                type="button"
+                                disabled={cancelling}
+                                onClick={() => void onCancelOrder(order.id)}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm font-bold disabled:opacity-60 active:scale-[0.98]"
+                                style={{ backgroundColor: '#DC2626' }}
+                            >
+                                <XCircle className="w-4 h-4" />
+                                {cancelling ? 'Cancelando…' : 'Sim, cancelar'}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={cancelling}
+                                onClick={() => setConfirmCancel(false)}
+                                className="flex-1 px-3 py-2 rounded-xl border text-sm font-bold disabled:opacity-60"
+                                style={{ borderColor: '#E9D7C4', color: '#2A1E1A', backgroundColor: '#FFFFFF' }}
+                            >
+                                Voltar
+                            </button>
+                        </div>
+                    </div>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-lg font-bold tabular-nums" style={{ color: '#E91120' }}>
+                        {formatCurrency(order.total + order.deliveryFee)}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        {canCancel && !confirmCancel && (
+                            <button
+                                type="button"
+                                onClick={() => setConfirmCancel(true)}
+                                className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border text-sm font-bold active:scale-[0.98]"
+                                style={{ borderColor: '#DC2626', color: '#DC2626', backgroundColor: '#FFFFFF' }}
+                            >
+                                <XCircle className="w-4 h-4" />
+                                Cancelar
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => onToggleExpansion(order.id)}
+                            className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl text-white text-sm font-bold active:scale-[0.98] transition-transform"
+                            style={{ backgroundColor: '#E91120' }}
+                        >
+                            {isExpanded ? 'Fechar' : 'Detalhes'}
+                            <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {isExpanded && (
-                <div className="border-t border-gray-200 bg-gray-50 p-4">
+                <div className="border-t p-4" style={{ borderColor: '#E9D7C4', backgroundColor: '#FFF8F2' }}>
                     <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-semibold text-gray-900">Detalhes do pedido</h4>
                         <button
@@ -277,7 +343,13 @@ const OrderCard = memo(({
                         <p className="text-xs text-gray-500">
                             Pagamento: {paymentLabel[order.paymentMethod] || order.paymentMethod}
                         </p>
-                        {order.paymentMethod === 'pix' && (
+                        {order.status === 'cancelled' && order.cancellationReason?.trim() && (
+                            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2">
+                                Motivo: {order.cancellationReason}
+                            </p>
+                        )}
+                        {(order.paymentMethod === 'pix' ||
+                          (order.paymentMethod === 'stripe' && order.pixCopyPaste?.trim())) && (
                             <div className="mt-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50/60">
                                 <div className="flex items-center gap-1.5 mb-2 text-emerald-900">
                                     <QrCode className="w-4 h-4" />
@@ -322,41 +394,29 @@ const OrderCard = memo(({
 
 export default function Orders() {
     const navigate = useNavigate();
-    const location = useLocation();
-    const { user } = useDeliveryAuth();
+    const { user, isLoading: authLoading } = useDeliveryAuth();
     const [orders, setOrders] = useState<DeliveryOrder[]>([]);
     const [loading, setLoading] = useState(true);
-    const [customerPhone, setCustomerPhone] = useState('');
-    const [searchPhone, setSearchPhone] = useState('');
     const [selectedStatus, setSelectedStatus] = useState<string>('all');
-    const [showFilters, setShowFilters] = useState(false);
     const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-    const [autoRefresh, setAutoRefresh] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+    const [cancelError, setCancelError] = useState<string | null>(null);
 
-    // Telefone: state (após pedido) > usuário logado > localStorage
+    const customerPhone = user?.phone?.trim() ?? '';
+
     useEffect(() => {
-        const phoneFromState = (location.state as { phone?: string } | null)?.phone?.trim();
-        const savedPhone = localStorage.getItem('customerPhone');
-        const userPhone = user?.phone?.trim();
-        const phoneToUse = phoneFromState || userPhone || savedPhone;
-        if (phoneToUse) {
-            setCustomerPhone(phoneToUse);
-            setSearchPhone(phoneToUse);
-            if (phoneFromState) localStorage.setItem('customerPhone', phoneFromState);
-        } else if (user === null) {
-            setLoading(false);
+        if (authLoading) return;
+        if (!user) {
+            navigate('/delivery/auth?redirect=/delivery/orders', { replace: true });
         }
-    }, [location.state, user]);
+    }, [authLoading, user, navigate]);
 
-    // Encerrar loading quando não há telefone para buscar (não logado ou perfil sem telefone)
     useEffect(() => {
-        if (user === null && !customerPhone) setLoading(false);
-        if (user && !user.phone?.trim() && !customerPhone) setLoading(false);
-    }, [user, customerPhone]);
-
-    // Atualização em tempo real: escuta mudanças no Firestore (status, etc.)
-    useEffect(() => {
-        if (!customerPhone) return;
+        if (!customerPhone) {
+            setLoading(false);
+            return;
+        }
 
         setLoading(true);
         const unsubscribe = subscribeDeliveryOrdersByPhone(customerPhone, (ordersData) => {
@@ -367,23 +427,17 @@ export default function Orders() {
         return () => unsubscribe();
     }, [customerPhone]);
 
-    const loadOrders = async (phone: string) => {
+    const loadOrders = async () => {
+        if (!customerPhone) return;
         try {
-            setLoading(true);
-            const ordersData = await getDeliveryOrdersByPhone(phone);
+            setRefreshing(true);
+            const ordersData = await getDeliveryOrdersByPhone(customerPhone);
             setOrders(ordersData);
         } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
         } finally {
+            setRefreshing(false);
             setLoading(false);
-        }
-    };
-
-    const handleSearch = () => {
-        if (searchPhone.trim()) {
-            setCustomerPhone(searchPhone.trim());
-            localStorage.setItem('customerPhone', searchPhone.trim());
-            loadOrders(searchPhone.trim());
         }
     };
 
@@ -391,6 +445,21 @@ export default function Orders() {
     const toggleOrderExpansion = useCallback((orderId: string) => {
         setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
     }, []);
+
+    const handleCancelOrder = useCallback(async (orderId: string) => {
+        if (!customerPhone) return;
+        setCancelError(null);
+        setCancellingOrderId(orderId);
+        try {
+            await cancelDeliveryOrderByCustomer(orderId, customerPhone);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Não foi possível cancelar o pedido.';
+            setCancelError(message);
+            console.error('Erro ao cancelar pedido:', error);
+        } finally {
+            setCancellingOrderId(null);
+        }
+    }, [customerPhone]);
 
     const filteredOrders = orders.filter(order => {
         if (selectedStatus === 'all') return true;
@@ -407,205 +476,172 @@ export default function Orders() {
         { value: 'cancelled', label: 'Cancelados', count: orders.filter(o => o.status === 'cancelled').length }
     ];
 
-    if (!customerPhone) {
+    if (authLoading || !user) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white py-12">
-                    <div className="container mx-auto px-4">
-                        <div className="flex items-center space-x-4 mb-6">
-                            <button
-                                onClick={() => navigate('/delivery')}
-                                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                            >
-                                <ArrowLeft className="w-6 h-6" />
-                            </button>
-                            <div>
-                                <h1 className="text-3xl font-bold">Meus Pedidos</h1>
-                                <p className="text-red-100">Acompanhe seus pedidos de delivery</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Buscar por telefone */}
-                <div className="container mx-auto px-4 py-12">
-                    <div className="max-w-md mx-auto">
-                        <div className="bg-white rounded-2xl shadow-xl p-8">
-                            <div className="text-center mb-8">
-                                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Receipt className="w-10 h-10 text-red-600" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-2">Buscar Pedidos</h2>
-                                <p className="text-gray-600">Digite seu telefone para ver seus pedidos</p>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Número do telefone
-                                    </label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                        <input
-                                            type="tel"
-                                            placeholder="(11) 99999-9999"
-                                            value={searchPhone}
-                                            onChange={(e) => setSearchPhone(e.target.value)}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                        />
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={handleSearch}
-                                    disabled={!searchPhone.trim()}
-                                    className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-semibold py-3 px-4 rounded-xl transition-colors flex items-center justify-center space-x-2"
-                                >
-                                    <Search className="w-5 h-5" />
-                                    <span>Buscar Pedidos</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div
+                className="min-h-screen flex items-center justify-center"
+                style={{ backgroundColor: '#FFF8F2' }}
+            >
+                <div
+                    className="w-10 h-10 rounded-2xl border-2 animate-spin"
+                    style={{ borderColor: '#E9D7C4', borderTopColor: '#E91120' }}
+                />
             </div>
         );
     }
 
+    const ordersHeader = (
+        <header
+            className="shrink-0 border-b shadow-sm"
+            style={{
+                backgroundColor: '#FFF8F2',
+                borderColor: '#E9D7C4',
+                paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+            }}
+        >
+            <div className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/delivery')}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl border active:scale-95 transition-transform"
+                        style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
+                        aria-label="Voltar"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <ClipboardList className="w-5 h-5 shrink-0" style={{ color: '#E91120' }} />
+                            <h1 className="text-lg font-bold truncate" style={{ color: '#2A1E1A' }}>
+                                Meus Pedidos
+                            </h1>
+                        </div>
+                        <p className="text-xs mt-0.5 truncate" style={{ color: '#6B5A54' }}>
+                            Acompanhe status em tempo real
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void loadOrders()}
+                        disabled={refreshing || !customerPhone}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl border active:scale-95 transition-transform disabled:opacity-60"
+                        style={{ backgroundColor: '#FFFFFF', borderColor: '#E9D7C4', color: '#E91120' }}
+                        aria-label="Atualizar pedidos"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
+            </div>
+        </header>
+    );
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white py-8">
-                <div className="container mx-auto px-4">
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center space-x-4">
-                            <button
-                                onClick={() => navigate('/delivery')}
-                                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                            >
-                                <ArrowLeft className="w-6 h-6" />
-                            </button>
-                            <div>
-                                <h1 className="text-3xl font-bold">Meus Pedidos</h1>
-                                <p className="text-red-100">Acompanhe seus pedidos de delivery</p>
-                            </div>
-                        </div>
+        <div
+            className="font-sans flex flex-col"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: '#FFF8F2',
+                overflow: 'hidden',
+            }}
+        >
+            {ordersHeader}
 
-                        <div className="flex items-center space-x-3">
+            {/* Filtros horizontais — sempre visíveis */}
+            <div
+                className="shrink-0 border-b px-4 py-3 overflow-x-auto scrollbar-hide"
+                style={{ borderColor: '#E9D7C4', backgroundColor: '#FFF8F2' }}
+            >
+                <div className="flex gap-2 min-w-max">
+                    {statusOptions.map((option) => {
+                        const selected = selectedStatus === option.value;
+                        return (
                             <button
-                                onClick={() => setAutoRefresh(!autoRefresh)}
-                                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${autoRefresh ? 'bg-white/20' : 'bg-white/10'
-                                    }`}
+                                key={option.value}
+                                type="button"
+                                onClick={() => setSelectedStatus(option.value)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold whitespace-nowrap border-2 transition-all active:scale-[0.98]"
+                                style={
+                                    selected
+                                        ? { backgroundColor: '#E91120', borderColor: '#E91120', color: '#FFFFFF' }
+                                        : { backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }
+                                }
                             >
-                                <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
-                                <span className="text-sm font-medium">Auto</span>
-                            </button>
-                            <button
-                                onClick={() => loadOrders(customerPhone)}
-                                className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 hover:bg-white/30 transition-colors"
-                            >
-                                <RefreshCw className="w-4 h-4" />
-                                <span className="text-sm font-medium">Atualizar</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                                <Phone className="w-5 h-5" />
-                                <span className="font-medium">{customerPhone}</span>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setCustomerPhone('');
-                                    setSearchPhone('');
-                                    localStorage.removeItem('customerPhone');
-                                }}
-                                className="text-red-200 hover:text-white text-sm underline"
-                            >
-                                Trocar telefone
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Filtros */}
-            <div className="container mx-auto px-4 py-6">
-                <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Filtros</h3>
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
-                        >
-                            <Filter className="w-4 h-4" />
-                            <span className="text-sm font-medium">Filtros</span>
-                            {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                    </div>
-
-                    {showFilters && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                            {statusOptions.map((option) => (
-                                <button
-                                    key={option.value}
-                                    onClick={() => setSelectedStatus(option.value)}
-                                    className={`p-3 rounded-lg text-sm font-medium transition-colors ${selectedStatus === option.value
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
+                                <span>{option.label}</span>
+                                <span
+                                    className="min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] flex items-center justify-center font-bold"
+                                    style={{
+                                        backgroundColor: selected ? 'rgba(255,255,255,0.25)' : 'rgba(233,17,32,0.12)',
+                                        color: selected ? '#FFFFFF' : '#E91120',
+                                    }}
                                 >
-                                    <div className="text-center">
-                                        <div className="font-semibold">{option.count}</div>
-                                        <div className="text-xs">{option.label}</div>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                                    {option.count}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* Lista de Pedidos */}
-            <div className="container mx-auto px-4 pb-8">
+            {/* Lista */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 scrollbar-hide">
+                {cancelError && (
+                    <div
+                        className="mb-3 max-w-lg mx-auto rounded-xl border px-4 py-3 text-sm"
+                        style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#991B1B' }}
+                    >
+                        {cancelError}
+                    </div>
+                )}
                 {loading ? (
-                    <div className="text-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Carregando pedidos...</p>
+                    <div className="text-center py-16">
+                        <div
+                            className="w-12 h-12 rounded-2xl border-2 animate-spin mx-auto mb-4"
+                            style={{ borderColor: '#E9D7C4', borderTopColor: '#E91120' }}
+                        />
+                        <p className="text-sm font-medium" style={{ color: '#6B5A54' }}>
+                            Carregando pedidos…
+                        </p>
                     </div>
                 ) : filteredOrders.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-                        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Receipt className="w-10 h-10 text-gray-400" />
+                    <div
+                        className="rounded-2xl border p-10 text-center"
+                        style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}
+                    >
+                        <div
+                            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                            style={{ backgroundColor: '#E9D7C4' }}
+                        >
+                            <UtensilsCrossed className="w-8 h-8" style={{ color: '#6B5A54' }} />
                         </div>
-                        <h3 className="text-2xl font-semibold text-gray-900 mb-3">
-                            {selectedStatus === 'all' ? 'Nenhum pedido encontrado' : 'Nenhum pedido neste status'}
+                        <h3 className="text-lg font-bold mb-2" style={{ color: '#2A1E1A' }}>
+                            {selectedStatus === 'all' ? 'Nenhum pedido ainda' : 'Nada neste filtro'}
                         </h3>
-                        <p className="text-gray-500 text-lg mb-6">
+                        <p className="text-sm mb-6" style={{ color: '#6B5A54' }}>
                             {selectedStatus === 'all'
-                                ? 'Não encontramos pedidos para este telefone'
-                                : 'Não há pedidos com este status no momento'
-                            }
+                                ? 'Faça um pedido e ele aparecerá aqui automaticamente.'
+                                : 'Tente outro status ou volte para «Todos os pedidos».'}
                         </p>
                         <button
+                            type="button"
                             onClick={() => navigate('/delivery')}
-                            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
+                            className="px-5 py-2.5 rounded-xl text-white text-sm font-bold active:scale-[0.99]"
+                            style={{ backgroundColor: '#E91120' }}
                         >
-                            Fazer novo pedido
+                            Ver restaurantes
                         </button>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="space-y-3 max-w-lg mx-auto">
                         {filteredOrders.map((order) => (
                             <OrderCard
                                 key={order.id}
                                 order={order}
                                 isExpanded={expandedOrders[order.id] || false}
                                 onToggleExpansion={toggleOrderExpansion}
+                                onCancelOrder={handleCancelOrder}
+                                cancelling={cancellingOrderId === order.id}
                             />
                         ))}
                     </div>

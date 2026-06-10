@@ -1,13 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.recommendRestaurantsWithAI = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
-const params_1 = require("firebase-functions/params");
 const https_1 = require("firebase-functions/v2/https");
+const openai_1 = __importStar(require("openai"));
 const stripe_1 = __importDefault(require("stripe"));
 const stripeClient_1 = require("./stripeClient");
+const openaiSecret_1 = require("./openaiSecret");
 const stripeUtils_1 = require("./stripeUtils");
 const stripeRestaurantConnect_1 = require("./stripeRestaurantConnect");
 var extractMenuPdfText_1 = require("./extractMenuPdfText");
@@ -19,96 +43,195 @@ Object.defineProperty(exports, "createRestaurantStripeConnectOnboardingLink", { 
 Object.defineProperty(exports, "syncRestaurantStripeConnectStatus", { enumerable: true, get: function () { return stripeRestaurantConnect_2.syncRestaurantStripeConnectStatus; } });
 var recommendRestaurantsWithAI_1 = require("./recommendRestaurantsWithAI");
 Object.defineProperty(exports, "recommendRestaurantsWithAI", { enumerable: true, get: function () { return recommendRestaurantsWithAI_1.recommendRestaurantsWithAI; } });
-const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
-const MODEL = 'claude-3-haiku-20240307';
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const SYSTEM_PROMPT = `Você é um filtro de segurança e qualidade para cadastros de RESTAURANTES na plataforma brasileira "Bora Comer".
+const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';
+/** Modelo estável da API de moderação (omni-* pode retornar 400 em contas/regiões sem acesso). */
+const LEAD_MODERATION_MOD_MODEL = 'text-moderation-latest';
+const LEAD_MODERATION_SYSTEM = `Você é um filtro de segurança e qualidade para cadastros de RESTAURANTES na plataforma brasileira "Bora Comer".
 
-Analise o JSON com os dados do formulário e decida se parece um DONO DE RESTAURANTE de boa-fé querendo parceria comercial, ou se é brincadeira, spam, teste absurdo, conteúdo ofensivo ou dados sem sentido.
+Analise o JSON com os dados do formulário e decida se parece um DONO DE RESTAURANTE de boa-fé querendo parceria comercial, ou se é brincadeira, spam, má-fé, trollagem, teste absurdo, conteúdo ofensivo ou dados sem sentido.
 
 REJEITE (allowed: false) quando houver indícios claros de:
-- Nomes ou descrições de piada, trollagem, meme sem contexto de negócio ("Restaurante do 4chan", "asdfasdf", "teste teste teste", "aaa", só números repetidos)
+- Nomes ou descrições de piada, trollagem, meme sem contexto de negócio, sabotagem ou intenção de prejudicar a plataforma
+- Frases genéricas de insatisfação usadas como "nome" ou descrição do restaurante (ex.: só "não gostei", "péssimo", "ódio") sem qualquer dado de negócio
 - Texto gibberish, só emojis, lorem ipsum como único conteúdo relevante
-- Discurso de ódio, assédio, ameaças, conteúdo ilegal
-- Descrição vazia de sentido comercial ou óbvia mentira absurda
-- Dados claramente falsos de propósito
+- Discurso de ódio, assédio, ameaças, conteúdo ilegal ou discriminatório
+- Descrição vazia de sentido comercial ou mentira absurda e intencional
+- Dados claramente falsos de propósito ou cadastro claramente de teste para abuso
 
 ACEITE (allowed: true) quando:
 - Nome de restaurante e descrição fazem sentido como negócio de alimentação
 - Dados de contato e localização parecem plausíveis (erros de digitação leves são OK)
 - Pequenos negócios informais mas genuínos devem ser aceitos
 
-Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois:
+Responda SOMENTE com um único objeto JSON (sem markdown, sem texto fora do JSON) no formato:
 {"allowed":true}
 ou
-{"allowed":false,"user_message_pt":"mensagem educada em português do Brasil, até 2 frases."}`;
-function anthropicHttpToHttpsError(status, errBodyPreview) {
-    console.error('[moderateLead] Erro HTTP Anthropic:', status, errBodyPreview);
-    const transient = status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 529;
+{"allowed":false,"user_message_pt":"mensagem educada em português do Brasil, 1 a 2 frases, explicando de forma clara o motivo da recusa (ex.: dados parecem de teste, nome não descreve um restaurante, falta informação comercial mínima). Não cite OpenAI, IA nem modelo."}`;
+const MOD_CATEGORY_PT = {
+    sexual: 'conteúdo sexual inadequado para cadastro comercial',
+    hate: 'discurso de ódio',
+    'hate/threatening': 'discurso de ódio ou ameaças',
+    harassment: 'linguagem de assédio ou intimidação',
+    'harassment/threatening': 'assédio grave ou ameaças',
+    'self-harm': 'referências a automutilação ou suicídio',
+    'self-harm/intent': 'indícios de intenção de automutilação',
+    'self-harm/instructions': 'instruções relacionadas a automutilação',
+    violence: 'violência ou glorificação de violência',
+    'violence/graphic': 'descrições gráficas de violência',
+    illicit: 'conteúdo ilícito',
+    'illicit/violent': 'conteúdo ilícito ou extremamente violento',
+    'sexual/minors': 'conteúdo sexual envolvendo menores',
+};
+function collectLeadTextBlob(payload) {
+    const parts = [
+        payload.restaurantName,
+        payload.ownerName,
+        payload.description,
+        payload.address,
+        payload.cityState,
+        payload.cuisineType,
+        payload.openingHours,
+        payload.socialLink,
+        payload.email,
+        payload.phone,
+        payload.whatsapp,
+    ];
+    return parts
+        .map((s) => (typeof s === 'string' ? s.trim() : ''))
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 28000);
+}
+function stripAssistantJsonFence(content) {
+    let clean = content.trim();
+    if (clean.includes('```json')) {
+        clean = clean.replace(/```json\s*/gi, '').replace(/```/g, '');
+    }
+    else if (clean.includes('```')) {
+        clean = clean.replace(/```/g, '');
+    }
+    const jsonMatch = clean.match(/\{[\s\S]*\}/);
+    if (jsonMatch)
+        clean = jsonMatch[0];
+    return clean.trim();
+}
+function buildOpenAiModerationUserMessage(categories) {
+    if (!categories || typeof categories !== 'object') {
+        return 'O conteúdo informado não atende às diretrizes de segurança da plataforma. Revise nome, descrição e demais campos e tente novamente com dados adequados a um restaurante.';
+    }
+    const reasons = [];
+    for (const [key, flagged] of Object.entries(categories)) {
+        if (flagged !== true)
+            continue;
+        const pt = MOD_CATEGORY_PT[key];
+        if (pt)
+            reasons.push(pt);
+    }
+    if (reasons.length === 0) {
+        return 'O conteúdo informado não atende às diretrizes de uso da plataforma. Ajuste os textos para um cadastro comercial respeitoso e tente novamente.';
+    }
+    const list = reasons.slice(0, 4).join(', ');
+    return `Não foi possível aceitar o cadastro: identificamos ${list}. Corrija as informações para refletir um negócio de alimentação adequado e envie novamente.`;
+}
+function openAiHttpStatusToHttpsError(status, errBodyPreview) {
+    console.error('[moderateLead] Erro HTTP OpenAI:', status, errBodyPreview);
+    const transient = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
     if (transient) {
         return new https_1.HttpsError('unavailable', 'Não foi possível validar seu cadastro agora. Tente novamente em alguns instantes.');
     }
     if (status === 401 || status === 403) {
         return new https_1.HttpsError('failed-precondition', 'Validação automática indisponível. Tente mais tarde ou fale com nosso time comercial.');
     }
+    // 400/404: parâmetro ou modelo inválido — aparece nos logs; cliente recebe código mapeável
+    if (status === 400 || status === 404) {
+        return new https_1.HttpsError('failed-precondition', 'Validação automática indisponível no servidor (API OpenAI). Peça ao administrador para conferir logs da function moderateLead, chave OPENAI_API_KEY e faturamento na OpenAI.');
+    }
     return new https_1.HttpsError('internal', 'Não foi possível concluir a validação automática. Tente novamente em instantes.');
 }
-exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
-    var _a, _b;
+exports.moderateLead = (0, https_1.onCall)({ secrets: [openaiSecret_1.openaiApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
+    var _a, _b, _c, _d;
     const payload = request.data;
     if (!payload || typeof payload !== 'object') {
         throw new https_1.HttpsError('invalid-argument', 'Dados do formulário inválidos para validação.');
     }
-    const apiKey = anthropicApiKey.value();
+    const apiKey = openaiSecret_1.openaiApiKey.value();
     if (!apiKey) {
-        console.error('[moderateLead] Secret ANTHROPIC_API_KEY ausente ou vazia.');
+        console.error('[moderateLead] Secret OPENAI_API_KEY ausente ou vazia.');
         throw new https_1.HttpsError('failed-precondition', 'Validação automática não está disponível no momento. Tente mais tarde ou fale com nosso time comercial.');
     }
-    const userMessage = `Dados do formulário (JSON):\n${JSON.stringify(payload, null, 2)}`;
-    let res;
+    const client = new openai_1.default({ apiKey });
+    const textBlob = collectLeadTextBlob(payload);
+    if (textBlob.trim()) {
+        try {
+            const modResp = await client.moderations.create({
+                model: LEAD_MODERATION_MOD_MODEL,
+                input: textBlob,
+            });
+            const first = (_a = modResp.results) === null || _a === void 0 ? void 0 : _a[0];
+            if (first === null || first === void 0 ? void 0 : first.flagged) {
+                const msg = buildOpenAiModerationUserMessage(first.categories);
+                console.warn('[moderateLead] Bloqueio pela API de moderação OpenAI.');
+                return { allowed: false, userMessage: msg };
+            }
+        }
+        catch (e) {
+            console.warn('[moderateLead] Camada de moderação OpenAI falhou; seguindo com análise por chat:', e);
+        }
+    }
+    const userMessage = `Dados do formulário (JSON):\n${JSON.stringify(payload, null, 2)}\n\nResponda apenas um único objeto JSON com os campos "allowed" (boolean) e, se allowed for false, "user_message_pt" (string em português do Brasil).`;
+    let content;
     try {
-        res = await fetch(ANTHROPIC_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: MODEL,
-                max_tokens: 512,
-                system: SYSTEM_PROMPT,
-                messages: [{ role: 'user', content: userMessage }],
-            }),
+        const completion = await client.chat.completions.create({
+            model: LEAD_MODERATION_CHAT_MODEL,
+            temperature: 0.15,
+            max_completion_tokens: 1024,
+            response_format: { type: 'json_object' },
+            messages: [
+                { role: 'system', content: LEAD_MODERATION_SYSTEM },
+                { role: 'user', content: userMessage },
+            ],
         });
+        content = (_c = (_b = completion.choices[0]) === null || _b === void 0 ? void 0 : _b.message) === null || _c === void 0 ? void 0 : _c.content;
+        const fr = (_d = completion.choices[0]) === null || _d === void 0 ? void 0 : _d.finish_reason;
+        if (fr === 'length') {
+            console.warn('[moderateLead] Resposta OpenAI truncada (finish_reason=length).');
+        }
     }
     catch (e) {
-        console.error('[moderateLead] Falha de rede ao chamar Anthropic:', e);
+        if (e instanceof openai_1.APIError) {
+            const detail = typeof e.error === 'object' && e.error !== null
+                ? JSON.stringify(e.error).slice(0, 600)
+                : e.message;
+            console.error('[moderateLead] OpenAI APIError', {
+                status: e.status,
+                type: e.type,
+                code: e.code,
+                message: e.message,
+                errorBody: detail,
+            });
+            if (typeof e.status === 'number' && e.status > 0) {
+                throw openAiHttpStatusToHttpsError(e.status, detail);
+            }
+        }
+        else {
+            console.error('[moderateLead] Falha ao chamar chat OpenAI:', e);
+        }
+        const status = e && typeof e === 'object' && 'status' in e && typeof e.status === 'number'
+            ? e.status
+            : 0;
+        const body = e && typeof e === 'object' && 'message' in e && typeof e.message === 'string'
+            ? e.message
+            : String(e);
+        if (status > 0) {
+            throw openAiHttpStatusToHttpsError(status, body.slice(0, 400));
+        }
         throw new https_1.HttpsError('unavailable', 'Não foi possível validar seu cadastro agora. Tente novamente em alguns instantes.');
     }
-    if (!res.ok) {
-        const err = await res.text();
-        throw anthropicHttpToHttpsError(res.status, err.slice(0, 300));
-    }
-    let data;
-    try {
-        data = (await res.json());
-    }
-    catch (e) {
-        console.error('[moderateLead] Resposta Anthropic não é JSON válido:', e);
-        throw new https_1.HttpsError('internal', 'Não foi possível interpretar a validação automática. Tente novamente em instantes.');
-    }
-    const text = (_b = (_a = data.content) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.text;
-    if (!text || !String(text).trim()) {
-        console.warn('[moderateLead] Bloco de texto vazio na resposta da IA.');
+    if (!content || !String(content).trim()) {
+        console.warn('[moderateLead] Resposta OpenAI sem conteúdo.');
         throw new https_1.HttpsError('internal', 'Não foi possível concluir a validação automática. Tente novamente em instantes.');
     }
-    const cleaned = text
-        .trim()
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
+    const cleaned = stripAssistantJsonFence(String(content));
     let parsed;
     try {
         parsed = JSON.parse(cleaned);
@@ -128,7 +251,7 @@ exports.moderateLead = (0, https_1.onCall)({ secrets: [anthropicApiKey], region:
         allowed: false,
         userMessage: typeof parsed.user_message_pt === 'string' && parsed.user_message_pt.trim()
             ? parsed.user_message_pt.trim()
-            : 'Não conseguimos validar seu cadastro. Verifique se os dados correspondem a um restaurante real.',
+            : 'Não conseguimos validar seu cadastro. Envie o nome do restaurante, uma descrição do negócio e dados de contato coerentes com um estabelecimento real.',
     };
 });
 /** Cria PaymentIntent para checkout delivery. Aceita cartão salvo (off_session) ou fluxo interativo. */

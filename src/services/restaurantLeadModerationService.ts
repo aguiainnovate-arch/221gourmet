@@ -1,8 +1,8 @@
 /**
  * Moderação de leads de restaurante via Firebase Cloud Function.
  *
- * A chave da Anthropic (Claude) fica armazenada com segurança no servidor
- * (Firebase Functions secret), NUNCA exposta no bundle do cliente.
+ * Usa a API OpenAI no servidor (secret OPENAI_API_KEY nas Cloud Functions),
+ * NUNCA exposta no bundle do cliente.
  *
  * A função `moderateLead` é invocada via httpsCallable — sem chave no front.
  *
@@ -86,7 +86,7 @@ export async function moderateRestaurantLeadWithClaude(
 ): Promise<ModerateRestaurantLeadResult> {
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-  devLog(`${LOG} Início da verificação (Cloud Function → Claude)`, {
+  devLog(`${LOG} Início da verificação (Cloud Function → OpenAI)`, {
     restaurante: payload.restaurantName?.slice(0, 80) || '(vazio)',
   });
 
