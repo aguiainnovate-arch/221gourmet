@@ -21,6 +21,8 @@ import {
 } from '../services/deliveryService';
 import type { DeliveryOrder, DeliveryOrderItem } from '../types/delivery';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
+import DeliveryBottomNav from '../components/delivery/DeliveryBottomNav';
+import { useDeliveryBottomNav } from '../hooks/useDeliveryBottomNav';
 
 const formatDateShort = (d: Date) =>
     new Intl.DateTimeFormat('pt-BR', {
@@ -395,6 +397,7 @@ const OrderCard = memo(({
 export default function Orders() {
     const navigate = useNavigate();
     const { user, isLoading: authLoading } = useDeliveryAuth();
+    const handleBottomNav = useDeliveryBottomNav('orders');
     const [orders, setOrders] = useState<DeliveryOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -585,7 +588,7 @@ export default function Orders() {
             </div>
 
             {/* Lista */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 scrollbar-hide">
                 {cancelError && (
                     <div
                         className="mb-3 max-w-lg mx-auto rounded-xl border px-4 py-3 text-sm"
@@ -647,6 +650,8 @@ export default function Orders() {
                     </div>
                 )}
             </div>
+
+            <DeliveryBottomNav active="orders" onChange={handleBottomNav} />
         </div>
     );
 }

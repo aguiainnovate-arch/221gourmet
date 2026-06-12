@@ -82,7 +82,7 @@ Cinco restaurantes de exemplo, cada um com **conta (email/senha)**, **3 categori
 | Restaurante             | Email                  | Senha    |
 |-------------------------|------------------------|----------|
 | Cantina Bella Italia   
- | `  `| `Demo@101` |
+ | ` restaurante1@demo.com `| `Demo@101` |
 | Sabor do Nordeste   
     | `restaurante2@demo.com`| `Demo@102` |
 | Sushi Zen        

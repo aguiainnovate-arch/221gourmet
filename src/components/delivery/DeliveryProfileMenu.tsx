@@ -27,9 +27,11 @@ interface Props {
   user: DeliveryUser;
   onUpdateUser: (user: DeliveryUser) => void;
   onLogout: () => void;
+  /** Incrementar para abrir o menu externamente (ex.: aba Perfil). */
+  openTrigger?: number;
 }
 
-export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout }: Props) {
+export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout, openTrigger }: Props) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,6 +60,10 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout }: Pr
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
+
+  useEffect(() => {
+    if (openTrigger != null && openTrigger > 0) setOpen(true);
+  }, [openTrigger]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -112,7 +118,7 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout }: Pr
         aria-haspopup="dialog"
       >
         <User className="w-4 h-4 shrink-0" />
-        <span className="font-semibold text-xs truncate">{user.name.split(' ')[0]}</span>
+        <span className="font-semibold text-xs truncate">{t('delivery.clientLabel')}</span>
         <ChevronDown
           className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
         />
@@ -134,39 +140,39 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout }: Pr
 
           <div className="max-h-[min(70dvh,420px)] overflow-y-auto p-4 space-y-4">
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#6B5A54' }}>
+              <label className="text-[11px] font-bold uppercase tracking-wide text-black">
                 {t('delivery.fullName')}
               </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-sm"
+                className="w-full px-3 py-2 rounded-xl border text-sm text-black"
                 style={{ borderColor: '#E9D7C4', backgroundColor: '#FFFFFF' }}
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1" style={{ color: '#6B5A54' }}>
+              <label className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1 text-black">
                 <Mail className="w-3 h-3" /> E-mail
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-sm"
+                className="w-full px-3 py-2 rounded-xl border text-sm text-black"
                 style={{ borderColor: '#E9D7C4', backgroundColor: '#FFFFFF' }}
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1" style={{ color: '#6B5A54' }}>
+              <label className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1 text-black">
                 <Phone className="w-3 h-3" /> {t('delivery.phone')}
               </label>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-sm"
+                className="w-full px-3 py-2 rounded-xl border text-sm text-black"
                 style={{ borderColor: '#E9D7C4', backgroundColor: '#FFFFFF' }}
               />
               <p className="text-[10px]" style={{ color: '#6B5A54' }}>
@@ -175,7 +181,7 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout }: Pr
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1" style={{ color: '#6B5A54' }}>
+              <label className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1 text-black">
                 <MapPin className="w-3 h-3" /> {t('delivery.profileAddresses')}
               </label>
               <div className="space-y-1.5">
@@ -224,7 +230,7 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout }: Pr
                   value={newAddress}
                   onChange={(e) => setNewAddress(e.target.value)}
                   placeholder={t('delivery.addressPlaceholder')}
-                  className="flex-1 px-3 py-2 rounded-xl border text-xs"
+                  className="flex-1 px-3 py-2 rounded-xl border text-xs text-black placeholder:text-neutral-400"
                   style={{ borderColor: '#E9D7C4', backgroundColor: '#FFFFFF' }}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddAddress()}
                 />

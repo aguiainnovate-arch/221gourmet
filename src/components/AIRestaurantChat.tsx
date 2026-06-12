@@ -19,7 +19,7 @@ interface Message {
   restaurants?: RecommendedRestaurant[];
 }
 
-export default function AIRestaurantChat() {
+export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [greeting, setGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
 
@@ -189,6 +189,8 @@ export default function AIRestaurantChat() {
     '⚡ Entrega rápida'
   ];
 
+  const fabBottomStyle = fabBottom ?? 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))';
+
   return (
     <>
       {/* Floating Action Button — ancorado na viewport via fixed */}
@@ -198,7 +200,7 @@ export default function AIRestaurantChat() {
           isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={{
-          bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
+          bottom: fabBottomStyle,
           right: '1.25rem',
           backgroundColor: '#E91120',
         }}

@@ -1,25 +1,56 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Store, MapPin, Phone, ChevronRight, Utensils, Clock, Truck, Star, ClipboardList, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Store,
+  MapPin,
+  ChevronDown,
+  LayoutGrid,
+  Pizza,
+  Sandwich,
+  Leaf,
+  Users,
+  Search,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getRestaurants } from '../services/restaurantService';
 import { getRestaurantPermissions } from '../services/permissionService';
 import { fetchFeaturedProductImages, getDefaultFoodImages } from '../services/foodImageService';
+import type { FoodImage } from '../services/foodImageService';
 import type { Restaurant } from '../types/restaurant';
 import AIRestaurantChat from '../components/AIRestaurantChat';
 import LanguageSelector from '../components/LanguageSelector';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import DeliveryProfileMenu, { DeliveryProfileLoginButton } from '../components/delivery/DeliveryProfileMenu';
 import DeliveryLocationModal from '../components/delivery/DeliveryLocationModal';
+import DeliveryBottomNav, { type DeliveryNavTab } from '../components/delivery/DeliveryBottomNav';
+import DeliveryRestaurantCard from '../components/delivery/DeliveryRestaurantCard';
+import { useDeliveryBottomNav } from '../hooks/useDeliveryBottomNav';
 import {
   getDeliveryLocation,
   setDeliveryLocation,
   type DeliveryLocation,
 } from '../utils/deliveryLocationStorage';
+import {
+  getFavoriteRestaurantIds,
+  toggleFavoriteRestaurantId,
+} from '../utils/deliveryFavoritesStorage';
+
+const FALLBACK_COVERS = getDefaultFoodImages();
+
+function buildCoverMap(images: FoodImage[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const img of images) {
+    if (img.restaurantId && !map.has(img.restaurantId)) {
+      map.set(img.restaurantId, img.url);
+    }
+  }
+  return map;
+}
 
 export default function Delivery() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const carouselRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,82 +62,14 @@ export default function Delivery() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
-  const [showFilters, setShowFilters] = useState(false);
-  const [featuredImages, setFeaturedImages] = useState(getDefaultFoodImages());
-  const [carouselIndex, setCarouselIndex] = useState(0);
-
-  useEffect(() => {
-    loadRestaurants();
-  }, []);
-
-  useEffect(() => {
-    fetchFeaturedProductImages().then((imgs) => {
-      if (imgs.length > 0) setFeaturedImages(imgs);
-    });
-  }, []);
-
-  const loadRestaurants = async () => {
-    try {
-      setLoading(true);
-      setLoadError(null);
-      const data = await getRestaurants();
-      
-      // Filtrar apenas restaurantes ativos
-      const activeRestaurants = data.filter(r => r.active);
-      
-      // Verificar permissão de delivery e configurações para cada restaurante
-      const restaurantsWithPermissions = await Promise.all(
-        activeRestaurants.map(async (restaurant) => {
-          const permissions = await getRestaurantPermissions(restaurant.id);
-          const hasPermission = permissions.delivery;
-          // Se deliverySettings.enabled não está definido, usar true como padrão
-          const isEnabledByRestaurant = restaurant.deliverySettings?.enabled ?? true;
-          
-          return {
-            restaurant,
-            hasDeliveryPermission: hasPermission,
-            isEnabledByRestaurant
-          };
-        })
-      );
-      
-      // Filtrar restaurantes que têm permissão E estão habilitados pelo próprio restaurante
-      const allowedRestaurants = restaurantsWithPermissions
-        .filter(r => r.hasDeliveryPermission && r.isEnabledByRestaurant)
-        .map(r => r.restaurant);
-      
-      setRestaurants(allowedRestaurants);
-    } catch (error) {
-      console.error('Erro ao carregar restaurantes:', error);
-      setLoadError(t('delivery.loadRestaurantsError'));
-      setRestaurants([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredRestaurants = restaurants.filter(restaurant => {
-    const matchesSearch = restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      restaurant.address.toLowerCase().includes(searchTerm.toLowerCase());
-
-    if (!matchesSearch) return false;
-
-    switch (selectedCategory) {
-      case 'pizza':
-      case 'lanches':
-      case 'saudavel':
-        return true; // Filtrar por categoria quando implementado
-      default:
-        return true;
-    }
+  const [featuredImages, setFeaturedImages] = useState<FoodImage[]>(FALLBACK_COVERS);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => getFavoriteRestaurantIds());
+  const [navTab, setNavTab] = useState<DeliveryNavTab>(() => {
+    const fromState = (location.state as { navTab?: DeliveryNavTab } | null)?.navTab;
+    return fromState === 'favorites' ? 'favorites' : 'discover';
   });
-
-  const categories = [
-    { id: 'todos', label: t('delivery.categoryAll') },
-    { id: 'pizza', label: t('delivery.categoryPizza') },
-    { id: 'lanches', label: t('delivery.categorySandwiches') },
-    { id: 'saudavel', label: t('delivery.categoryHealthy') },
-  ];
+  const handleBottomNav = useDeliveryBottomNav(navTab);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   const CAROUSEL_ITEM_WIDTH = 280;
   const CAROUSEL_GAP = 16;
@@ -114,12 +77,10 @@ export default function Delivery() {
   const AUTO_ADVANCE_MS = 2000;
   const totalSlides = featuredImages.length;
 
-  // Manter índice válido quando a lista de imagens mudar (ex.: API retornou mais fotos)
   useEffect(() => {
     setCarouselIndex((prev) => (totalSlides <= 1 ? 0 : Math.min(prev, totalSlides - 1)));
   }, [totalSlides]);
 
-  // Avançar índice do carrossel a cada 2 segundos (em loop)
   useEffect(() => {
     if (loading || totalSlides <= 1) return;
     const id = setInterval(() => {
@@ -128,19 +89,17 @@ export default function Delivery() {
     return () => clearInterval(id);
   }, [loading, totalSlides]);
 
-  // Quando o índice muda (ex.: timer), rolar o carrossel até o slide – evita conflito com onScroll
   useEffect(() => {
     if (loading || !carouselRef.current) return;
     isProgrammaticScrollRef.current = true;
     const left = carouselIndex * CAROUSEL_STEP;
     carouselRef.current.scrollTo({ left, behavior: 'smooth' });
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       isProgrammaticScrollRef.current = false;
     }, 600);
-    return () => clearTimeout(t);
-  }, [carouselIndex, loading]);
+    return () => clearTimeout(timer);
+  }, [carouselIndex, loading, CAROUSEL_STEP]);
 
-  // Ao arrastar com o dedo: atualizar índice só depois que parar de arrastar (debounce), para não travar
   const handleCarouselScroll = () => {
     if (isProgrammaticScrollRef.current) return;
     if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
@@ -154,33 +113,145 @@ export default function Delivery() {
     }, 180);
   };
 
+  useEffect(() => {
+    const fromState = (location.state as { navTab?: DeliveryNavTab } | null)?.navTab;
+    if (fromState === 'favorites') setNavTab('favorites');
+  }, [location.state]);
+
+  useEffect(() => {
+    loadRestaurants();
+    fetchFeaturedProductImages().then((imgs) => {
+      if (imgs.length > 0) setFeaturedImages(imgs);
+    });
+  }, []);
+
+  const coverByRestaurant = useMemo(() => buildCoverMap(featuredImages), [featuredImages]);
+
+  const loadRestaurants = async () => {
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const data = await getRestaurants();
+      const activeRestaurants = data.filter((r) => r.active);
+      const restaurantsWithPermissions = await Promise.all(
+        activeRestaurants.map(async (restaurant) => {
+          const permissions = await getRestaurantPermissions(restaurant.id);
+          const hasPermission = permissions.delivery;
+          const isEnabledByRestaurant = restaurant.deliverySettings?.enabled ?? true;
+          return { restaurant, hasDeliveryPermission: hasPermission, isEnabledByRestaurant };
+        })
+      );
+      const allowedRestaurants = restaurantsWithPermissions
+        .filter((r) => r.hasDeliveryPermission && r.isEnabledByRestaurant)
+        .map((r) => r.restaurant);
+      setRestaurants(allowedRestaurants);
+    } catch (error) {
+      console.error('Erro ao carregar restaurantes:', error);
+      setLoadError(t('delivery.loadRestaurantsError'));
+      setRestaurants([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredRestaurants = useMemo(() => {
+    return restaurants.filter((restaurant) => {
+      if (navTab === 'favorites' && !favoriteIds.includes(restaurant.id)) return false;
+
+      const term = searchTerm.trim().toLowerCase();
+      const matchesSearch =
+        !term ||
+        restaurant.name.toLowerCase().includes(term) ||
+        restaurant.address.toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+
+      switch (selectedCategory) {
+        case 'pizza':
+        case 'lanches':
+        case 'saudavel':
+          return true;
+        default:
+          return true;
+      }
+    });
+  }, [restaurants, searchTerm, selectedCategory, navTab, favoriteIds]);
+
+  const categories = [
+    { id: 'todos', label: t('delivery.categoryAll'), icon: LayoutGrid },
+    { id: 'pizza', label: t('delivery.categoryPizza'), icon: Pizza },
+    { id: 'lanches', label: t('delivery.categorySandwiches'), icon: Sandwich },
+    { id: 'saudavel', label: t('delivery.categoryHealthy'), icon: Leaf },
+  ];
+
   const handleRestaurantClick = (restaurantId: string) => {
     navigate(`/delivery/${restaurantId}`);
   };
 
+  const handleToggleFavorite = useCallback((restaurantId: string) => {
+    setFavoriteIds(toggleFavoriteRestaurantId(restaurantId));
+  }, []);
+
+  const handleNavChange = (tab: DeliveryNavTab) => {
+    if (tab === 'orders' || tab === 'discover') {
+      handleBottomNav(tab);
+      if (tab === 'discover') setNavTab('discover');
+      return;
+    }
+    setNavTab(tab);
+    handleBottomNav(tab);
+  };
+
+  const getCoverUrl = (restaurant: Restaurant, index: number): string | undefined => {
+    return coverByRestaurant.get(restaurant.id) ?? FALLBACK_COVERS[index % FALLBACK_COVERS.length]?.url;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-sans" style={{ backgroundColor: '#FFF8F2' }}>
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto mb-5">
-            <div className="absolute inset-0 rounded-2xl animate-pulse" style={{ backgroundColor: 'rgba(233,17,32,0.15)' }} />
-            <div className="absolute inset-0 rounded-2xl border-2 border-[#E9D7C4] animate-spin" style={{ borderTopColor: '#E91120' }} />
-            <Utensils className="absolute inset-0 m-auto w-7 h-7" style={{ color: '#E91120' }} />
-          </div>
-          <p className="font-medium" style={{ color: '#6B5A54' }}>{t('delivery.loadingRestaurants')}</p>
+      <div className="min-h-screen flex flex-col items-center justify-center font-sans px-4" style={{ backgroundColor: '#FFF8F2' }}>
+        <img
+          src="/BoraComerlogo.png"
+          alt="Bora Comer"
+          className="h-20 w-auto max-w-[280px] object-contain mb-6"
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (!target.dataset.fallback) {
+              target.dataset.fallback = '1';
+              target.src = '/logoDelivery.jpeg';
+            }
+          }}
+        />
+        <div className="relative w-12 h-12 mx-auto mb-4">
+          <div className="absolute inset-0 rounded-2xl border-2 border-[#E9D7C4] animate-spin" style={{ borderTopColor: '#E91120' }} />
         </div>
+        <p className="font-medium text-sm" style={{ color: '#6B5A54' }}>{t('delivery.loadingRestaurants')}</p>
       </div>
     );
   }
 
+  const hasSearch = searchTerm.trim().length > 0;
+
+  const boraComerLogo = (
+    <img
+      src="/BoraComerlogo.png"
+      alt="Bora Comer - Pediu, chegou!"
+      className="w-[min(100%,26rem)] h-auto max-h-[8.25rem] sm:max-h-[9rem] object-contain object-center mx-auto block"
+      width={416}
+      height={107}
+      loading="eager"
+      decoding="async"
+      onError={(e) => {
+        const target = e.currentTarget;
+        if (!target.dataset.fallback) {
+          target.dataset.fallback = '1';
+          target.src = '/logoDelivery.jpeg';
+          target.alt = 'Bora Comer Delivery';
+        }
+      }}
+    />
+  );
+
   return (
-    /*
-     * CANVAS FIXO — estrutura de app nativo:
-     * • Root ocupa 100% da viewport sem overflow
-     * • Header + Busca + Categorias: fixos (não rolam)
-     * • Área de conteúdo: único elemento com scroll vertical
-     * • Chat FAB: ancorado na viewport via position fixed
-     */
     <div
       className="font-sans flex flex-col scrollbar-hide"
       style={{
@@ -192,359 +263,286 @@ export default function Delivery() {
         maxWidth: '100vw',
       }}
     >
-      {/* ── HEADER ── apenas ações: idioma, Meus pedidos, Entrar/Criar */}
+      {/* Header */}
       <header
-        className="shrink-0 relative shadow-sm border-b border-[#E9D7C4]"
-        style={{ backgroundColor: '#FFF8F2', color: '#2A1E1A', paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
+        className="shrink-0 border-b"
+        style={{
+          backgroundColor: '#FFF8F2',
+          borderColor: '#E9D7C4',
+          paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+        }}
       >
-        <div className="w-full px-4 sm:px-6 py-2.5">
-          <div className="flex items-center justify-between gap-2 min-h-0">
-            <div className="flex items-center shrink-0">
-              <LanguageSelector className="shrink-0" />
-            </div>
-            <div className="flex items-center gap-2 shrink-0 min-w-0">
-            <Link
-              to={user ? '/delivery/orders' : '/delivery/auth?redirect=/delivery/orders'}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all shrink-0 active:scale-[0.98] shadow-sm"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderColor: '#E91120',
-                color: '#E91120',
-              }}
-              aria-label={t('delivery.myOrders')}
-              title={t('delivery.myOrders')}
-            >
-              <ClipboardList className="w-4 h-4 shrink-0" strokeWidth={2.25} />
-              <span className="font-bold text-xs">{t('delivery.myOrdersShort')}</span>
-            </Link>
-            {user ? (
-              <DeliveryProfileMenu user={user} onUpdateUser={updateUser} onLogout={logout} />
-            ) : (
-              <DeliveryProfileLoginButton />
-            )}
+        <div className="w-full px-4 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <LanguageSelector className="shrink-0" />
+            <div className="flex items-center gap-2 shrink-0">
+              {user ? (
+                <DeliveryProfileMenu
+                  user={user}
+                  onUpdateUser={updateUser}
+                  onLogout={logout}
+                />
+              ) : (
+                <DeliveryProfileLoginButton />
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      {/* ── ÁREA SCROLLÁVEL ── logo + busca rolam; categorias ficam sticky abaixo do header; só os cards rolam por baixo */}
+      {/* Conteúdo scrollável */}
       <div
-        className="flex-1 overflow-y-auto scrollbar-hide w-full pb-24"
+        className="flex-1 overflow-y-auto scrollbar-hide w-full"
         style={{
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorX: 'none',
           touchAction: 'pan-y',
         }}
       >
-        {/* ── LOGO ── rola com o scroll */}
-        <div className="shrink-0 flex justify-center items-start pt-0 pb-0 px-2 -mb-1">
-          <img
-            src="/BoraComerlogo.png"
-            alt="Bora Comer - Pediu, chegou!"
-            className="h-[14.4rem] sm:h-[17.28rem] w-auto max-w-[720px] sm:max-w-[1008px] object-contain object-center"
-            width={734}
-            height={188}
-            loading="eager"
-            decoding="async"
-            onError={(e) => {
-              const target = e.currentTarget;
-              if (!target.dataset.fallback) {
-                target.dataset.fallback = '1';
-                target.src = '/logoDelivery.jpeg';
-                target.alt = 'Bora Comer Delivery';
-              }
-            }}
-          />
-        </div>
-
-        {/* ── BUSCA ── rola com o scroll */}
-        <div className="shrink-0 px-4 pt-0 pb-1 w-full -mt-[10px]">
-          <div className="mx-auto w-full max-w-[416px] relative flex items-center rounded-xl border min-h-[60px] overflow-hidden" style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}>
-            <span className="absolute left-4 flex items-center justify-center pointer-events-none" style={{ color: '#6B5A54' }} aria-hidden>
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </span>
-            <input
-              type="text"
-              name="text"
-              placeholder={t('delivery.searchInputPlaceholder')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full min-h-[60px] pl-12 pr-12 py-3 text-base border-0 bg-transparent focus:outline-none focus:ring-0 placeholder:text-[#6B5A54]"
-              style={{ color: '#2A1E1A', caretColor: '#E91120' }}
-            />
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              title={t('delivery.filters')}
-              aria-label={t('delivery.filters')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg transition-colors hover:opacity-80"
-              style={{ color: '#6B5A54' }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8.16 6.65H15.83C16.47 6.65 16.99 7.17 16.99 7.81V9.09C16.99 9.56 16.7 10.14 16.41 10.43L13.91 12.64C13.56 12.93 13.33 13.51 13.33 13.98V16.48C13.33 16.83 13.1 17.29 12.81 17.47L12 17.98C11.24 18.45 10.2 17.92 10.2 16.99V13.91C10.2 13.5 9.97 12.98 9.73 12.69L7.52 10.36C7.23 10.08 7 9.55 7 9.2V7.87C7 7.17 7.52 6.65 8.16 6.65Z" />
-              </svg>
-            </button>
+        <div className="px-4 pt-0 pb-4 max-w-lg mx-auto w-full">
+          {/* Logo — ocupa o espaço em branco sem empurrar o carrossel */}
+          <div className="flex justify-center items-center leading-none -mb-1 -mt-0.5 min-h-[5.5rem] sm:min-h-[6rem]">
+            {boraComerLogo}
           </div>
-        </div>
 
-        {/* ── TÍTULO + CATEGORIAS ── sticky: duas linhas no mobile evitam sobreposição dos chips */}
-        <div
-          className="sticky top-0 z-10 w-full pt-3 pb-2"
-          style={{ backgroundColor: '#FFF8F2' }}
-        >
-          <div className="w-full px-4 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between gap-2 min-w-0 w-full">
-              <h2 className="text-base font-bold shrink-0" style={{ color: '#2A1E1A' }}>
-                {searchTerm ? t('delivery.searchResults') : t('delivery.nearbyRestaurants')}
-              </h2>
-              {!searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setLocationModalOpen(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold min-w-0 max-w-[58%] truncate active:scale-[0.98] transition-transform shrink"
-                  style={{ backgroundColor: '#FFFFFF', borderColor: '#E91120', color: '#E91120' }}
-                  title={t('delivery.changeLocation')}
-                >
-                  <MapPin className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{userLocation.label}</span>
-                  <ChevronDown className="w-3 h-3 shrink-0 opacity-70" />
-                </button>
-              )}
+          {/* Carrossel de destaques — acima dos tipos */}
+          {navTab !== 'favorites' && (
+            <div className="relative -mt-0.5 -mx-4 w-[calc(100%+2rem)]">
+              <div
+                ref={carouselRef}
+                onScroll={handleCarouselScroll}
+                className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-1 scrollbar-hide pl-4 pr-4"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-x' }}
+                role="region"
+                aria-label={t('delivery.highlightsOfTheDay')}
+              >
+                {featuredImages.map((img, i) => {
+                  const isClickable = !!(img.productId && img.restaurantId);
+                  const handleClick = () => {
+                    if (!isClickable) return;
+                    navigate(`/delivery/${img.restaurantId}`, {
+                      state: { openProductId: img.productId },
+                    });
+                  };
+                  const priceLabel =
+                    typeof img.price === 'number'
+                      ? new Intl.NumberFormat(
+                          i18n.language.startsWith('pt') ? 'pt-BR' : 'en-US',
+                          { style: 'currency', currency: 'BRL' }
+                        ).format(img.price)
+                      : null;
+                  return (
+                    <div
+                      key={`${i}-${img.url}`}
+                      role={isClickable ? 'button' : undefined}
+                      tabIndex={isClickable ? 0 : undefined}
+                      onClick={handleClick}
+                      onKeyDown={(e) => {
+                        if (!isClickable) return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleClick();
+                        }
+                      }}
+                      aria-label={
+                        isClickable
+                          ? t('delivery.openProduct', {
+                              name: img.productName ?? img.alt,
+                              defaultValue: `Abrir ${img.productName ?? img.alt}`,
+                            })
+                          : undefined
+                      }
+                      className={`relative shrink-0 rounded-2xl overflow-hidden snap-center shadow-md border border-[#E9D7C4] ${
+                        isClickable
+                          ? 'cursor-pointer transition-transform active:scale-[0.98] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#E91120]/60'
+                          : ''
+                      }`}
+                      style={{
+                        width: 'calc(75vw)',
+                        maxWidth: '280px',
+                        height: '160px',
+                        backgroundColor: '#FAF0DB',
+                      }}
+                    >
+                      <img
+                        src={img.url}
+                        alt={img.alt}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                          const fallback = target.nextElementSibling as HTMLElement;
+                          if (fallback) {
+                            fallback.classList.remove('hidden');
+                            fallback.classList.add('flex');
+                          }
+                        }}
+                      />
+                      <div
+                        className="absolute inset-0 hidden flex-col items-center justify-center text-sm"
+                        style={{ backgroundColor: '#FAF0DB', color: '#6B5A54' }}
+                        aria-hidden
+                      >
+                        <span>{img.alt}</span>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent pointer-events-none" />
+                      {isClickable && (
+                        <div className="absolute inset-x-0 bottom-0 p-3 text-white pointer-events-none">
+                          <div className="flex items-end justify-between gap-2">
+                            <p className="font-semibold text-sm leading-tight line-clamp-2 drop-shadow">
+                              {img.productName ?? img.alt}
+                            </p>
+                            {priceLabel && (
+                              <span
+                                className="shrink-0 text-xs font-bold px-2 py-1 rounded-full text-white tabular-nums shadow"
+                                style={{ backgroundColor: '#E91120' }}
+                              >
+                                {priceLabel}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="flex items-center gap-2 min-w-0 w-full">
-              <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+          )}
+
+          {/* Categorias */}
+          {navTab !== 'favorites' && (
+            <div className="mt-3 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2 min-w-max pb-1">
                 {categories.map((cat) => {
                   const active = selectedCategory === cat.id;
+                  const Icon = cat.icon;
                   return (
                     <button
                       key={cat.id}
+                      type="button"
                       onClick={() => setSelectedCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${active ? 'text-white shadow-md' : 'border'}`}
-                      style={active ? { backgroundColor: '#E91120' } : { backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all shrink-0 ${
+                        active ? 'text-white shadow-md' : 'border'
+                      }`}
+                      style={
+                        active
+                          ? { backgroundColor: '#E91120' }
+                          : { backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }
+                      }
                     >
+                      <Icon className="w-3.5 h-3.5" />
                       {cat.label}
                     </button>
                   );
                 })}
-              </div>
-              <span className="text-xs font-medium tabular-nums shrink-0" style={{ color: '#6B5A54' }}>
-                {filteredRestaurants.length}{' '}
-                {filteredRestaurants.length === 1
-                  ? t('delivery.restaurantSingular')
-                  : t('delivery.restaurantPlural')}
-              </span>
-            </div>
-          </div>
-        </div>
-        {/* Carrossel de destaques — full width, padding só nas laterais do scroll */}
-        <div className="relative mb-6 mt-2 w-full">
-          <div
-            ref={carouselRef}
-            onScroll={handleCarouselScroll}
-            className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 scrollbar-hide w-full pl-4 pr-4"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-x' }}
-            role="region"
-            aria-label={t('delivery.highlightsOfTheDay')}
-          >
-            {featuredImages.map((img, i) => {
-              const isClickable = !!(img.productId && img.restaurantId);
-              const handleClick = () => {
-                if (!isClickable) return;
-                navigate(`/delivery/${img.restaurantId}`, {
-                  state: { openProductId: img.productId },
-                });
-              };
-              const priceLabel =
-                typeof img.price === 'number'
-                  ? new Intl.NumberFormat(
-                      i18n.language.startsWith('pt') ? 'pt-BR' : 'en-US',
-                      { style: 'currency', currency: 'BRL' }
-                    ).format(img.price)
-                  : null;
-              return (
-                <div
-                  key={`${i}-${img.url}`}
-                  role={isClickable ? 'button' : undefined}
-                  tabIndex={isClickable ? 0 : undefined}
-                  onClick={handleClick}
-                  onKeyDown={(e) => {
-                    if (!isClickable) return;
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleClick();
-                    }
-                  }}
-                  aria-label={
-                    isClickable
-                      ? t('delivery.openProduct', {
-                          name: img.productName ?? img.alt,
-                          defaultValue: `Abrir ${img.productName ?? img.alt}`,
-                        })
-                      : undefined
-                  }
-                  className={`relative shrink-0 rounded-2xl overflow-hidden snap-center shadow-lg border border-[#E9D7C4] ${
-                    isClickable
-                      ? 'cursor-pointer transition-transform active:scale-[0.98] hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E91120]/60'
-                      : ''
-                  }`}
-                  style={{
-                    width: 'calc(75vw)',
-                    maxWidth: '280px',
-                    height: '160px',
-                    backgroundColor: '#FAF0DB',
-                  }}
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-3.5 py-2 rounded-full text-xs font-bold border shrink-0"
+                  style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4', color: '#2A1E1A' }}
                 >
-                  <img
-                    src={img.url}
-                    alt={img.alt}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      target.style.display = 'none';
-                      const fallback = target.nextElementSibling as HTMLElement;
-                      if (fallback) {
-                        fallback.classList.remove('hidden');
-                        fallback.classList.add('flex');
-                      }
-                    }}
-                  />
-                  <div
-                    className="absolute inset-0 hidden flex-col items-center justify-center text-sm"
-                    style={{ backgroundColor: '#FAF0DB', color: '#6B5A54' }}
-                    aria-hidden
-                  >
-                    <span>{img.alt}</span>
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent pointer-events-none" />
-                  {isClickable && (
-                    <div className="absolute inset-x-0 bottom-0 p-3 text-white pointer-events-none">
-                      <div className="flex items-end justify-between gap-2">
-                        <p className="font-semibold text-sm leading-tight line-clamp-2 drop-shadow">
-                          {img.productName ?? img.alt}
-                        </p>
-                        {priceLabel && (
-                          <span
-                            className="shrink-0 text-xs font-bold px-2 py-1 rounded-full text-white tabular-nums shadow"
-                            style={{ backgroundColor: '#E91120' }}
-                          >
-                            {priceLabel}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Lista de restaurantes */}
-        <div className="w-full px-4">
-        {filteredRestaurants.length === 0 ? (
-          <div className="rounded-2xl border shadow-sm p-10 text-center" style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ backgroundColor: '#E9D7C4' }}>
-              <Store className="w-8 h-8" style={{ color: '#6B5A54' }} />
+                  {t('delivery.categoryMore')}
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2" style={{ color: '#2A1E1A' }}>
-              {loadError
-                ? t('delivery.loadRestaurantsErrorTitle')
-                : searchTerm
-                  ? t('delivery.noRestaurantsFound')
-                  : t('delivery.noRestaurantsAvailable')}
-            </h3>
-            <p className="text-sm max-w-sm mx-auto" style={{ color: '#6B5A54' }}>
-              {loadError
-                ? loadError
-                : searchTerm
-                  ? t('delivery.tryOtherTerms')
-                  : t('delivery.comingSoon')}
-            </p>
-            {loadError && (
+          )}
+
+          {/* Busca + localização */}
+          {navTab !== 'favorites' && (
+            <div className="mt-3 flex items-stretch gap-2">
+              <div
+                className="relative flex flex-1 min-w-0 items-center rounded-2xl border min-h-[48px] overflow-hidden shadow-sm"
+                style={{ backgroundColor: '#FFFFFF', borderColor: '#E9D7C4' }}
+              >
+                <Search className="absolute left-3.5 w-[18px] h-[18px] pointer-events-none" style={{ color: '#6B5A54' }} />
+                <input
+                  type="search"
+                  placeholder={t('delivery.searchInputPlaceholder')}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full min-h-[48px] pl-10 pr-3 py-2.5 text-sm border-0 bg-transparent focus:outline-none placeholder:text-[#6B5A54]"
+                  style={{ color: '#2A1E1A', caretColor: '#E91120' }}
+                />
+              </div>
               <button
                 type="button"
-                onClick={loadRestaurants}
-                className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{ backgroundColor: '#E91120' }}
+                onClick={() => setLocationModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-2 rounded-2xl border text-[11px] font-bold max-w-[42%] truncate active:scale-[0.98] shrink-0 shadow-sm min-h-[48px]"
+                style={{ backgroundColor: '#FFFFFF', borderColor: '#E91120', color: '#E91120' }}
+                title={t('delivery.changeLocation')}
               >
-                {t('delivery.retryLoadRestaurants')}
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{userLocation.label}</span>
+                <ChevronDown className="w-3 h-3 shrink-0 opacity-70" />
               </button>
-            )}
+            </div>
+          )}
+
+          {/* Contador */}
+          <div className="flex items-center gap-1.5 mt-3 mb-4">
+            <Users className="w-4 h-4" style={{ color: '#6B5A54' }} />
+            <span className="text-xs font-semibold" style={{ color: '#6B5A54' }}>
+              {t('delivery.establishmentsFound', { count: filteredRestaurants.length })}
+            </span>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredRestaurants.map((restaurant) => (
-              <button
-                type="button"
-                key={restaurant.id}
-                onClick={() => handleRestaurantClick(restaurant.id)}
-                className="w-full text-left rounded-2xl border shadow-sm transition-all duration-200 overflow-hidden group focus:outline-none hover:border-[#E91120]/60"
-                style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}
-              >
-                <div className="p-4 flex items-start gap-3">
-                  <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-md ring-2 ring-white/20"
-                    style={{ backgroundColor: restaurant.theme?.primaryColor || '#E91120' }}
-                  >
-                    {restaurant.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-base mb-0.5 truncate" style={{ color: '#2A1E1A' }}>
-                      {restaurant.name}
-                    </h3>
-                    <p className="text-xs flex flex-wrap items-center gap-x-2 gap-y-0 mb-2" style={{ color: '#6B5A54' }}>
-                      <span className="inline-flex items-center gap-0.5">
-                        <Star className="w-3 h-3 text-[#F9CF4A] fill-[#F9CF4A]" />
-                        4,5
-                      </span>
-                      <span>·</span>
-                      <span className="inline-flex items-center gap-0.5">
-                        <Clock className="w-3 h-3" />
-                        {t('delivery.deliveryTime', { min: 25, max: 35 })}
-                      </span>
-                      <span>·</span>
-                      <span className="inline-flex items-center gap-0.5">
-                        <Truck className="w-3 h-3" />
-                        {t('delivery.deliveryFeeValue', { value: '3,50' })}
-                      </span>
-                    </p>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium text-white" style={{ backgroundColor: '#E91120' }}>
-                        {t('delivery.open')}
-                      </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(249,207,74,0.3)', color: '#2A1E1A' }}>
-                        {t('delivery.fastDelivery')}
-                      </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium" style={{ backgroundColor: '#F9CF4A', color: '#2A1E1A' }}>
-                        10% OFF
-                      </span>
-                    </div>
-                    <p className="text-xs flex items-center gap-1 truncate" style={{ color: '#6B5A54' }}>
-                      <MapPin className="w-3 h-3 shrink-0" />
-                      {restaurant.address}
-                    </p>
-                    <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: '#6B5A54' }}>
-                      <Phone className="w-3 h-3 shrink-0" />
-                      {restaurant.phone}
-                    </p>
-                  </div>
-                  <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors group-hover:bg-[#E91120]/15" style={{ backgroundColor: '#E9D7C4', color: '#6B5A54' }}>
-                    <ChevronRight className="w-4 h-4 group-hover:opacity-80" style={{ color: '#E91120' }} />
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+
+          {/* Lista */}
+          {filteredRestaurants.length === 0 ? (
+            <div className="rounded-3xl border shadow-sm p-10 text-center" style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ backgroundColor: '#E9D7C4' }}>
+                <Store className="w-8 h-8" style={{ color: '#6B5A54' }} />
+              </div>
+              <h3 className="text-lg font-bold mb-2" style={{ color: '#2A1E1A' }}>
+                {loadError
+                  ? t('delivery.loadRestaurantsErrorTitle')
+                  : navTab === 'favorites'
+                    ? t('delivery.noFavoritesYet')
+                    : hasSearch
+                      ? t('delivery.noRestaurantsFound')
+                      : t('delivery.noRestaurantsAvailable')}
+              </h3>
+              <p className="text-sm max-w-sm mx-auto" style={{ color: '#6B5A54' }}>
+                {loadError
+                  ? loadError
+                  : navTab === 'favorites'
+                    ? t('delivery.noFavoritesHint')
+                    : hasSearch
+                      ? t('delivery.tryOtherTerms')
+                      : t('delivery.comingSoon')}
+              </p>
+              {loadError && (
+                <button
+                  type="button"
+                  onClick={loadRestaurants}
+                  className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                  style={{ backgroundColor: '#E91120' }}
+                >
+                  {t('delivery.retryLoadRestaurants')}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3.5 pb-28">
+              {filteredRestaurants.map((restaurant, index) => (
+                <DeliveryRestaurantCard
+                  key={restaurant.id}
+                  restaurant={restaurant}
+                  coverUrl={getCoverUrl(restaurant, index)}
+                  isFavorite={favoriteIds.includes(restaurant.id)}
+                  onToggleFavorite={() => handleToggleFavorite(restaurant.id)}
+                  onClick={() => handleRestaurantClick(restaurant.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── CHAT ── ancorado na viewport, sempre visível */}
-      <AIRestaurantChat />
+      <DeliveryBottomNav active={navTab} onChange={handleNavChange} />
+
+      <AIRestaurantChat fabBottom="calc(5.25rem + env(safe-area-inset-bottom, 0px))" />
 
       <DeliveryLocationModal
         open={locationModalOpen}
@@ -558,4 +556,3 @@ export default function Delivery() {
     </div>
   );
 }
-
