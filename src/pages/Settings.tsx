@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
+import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut, Menu } from 'lucide-react';
 import {
@@ -63,6 +64,7 @@ import VisaoSalao from '../components/mesas/VisaoSalao';
 import EditorSalao from '../components/mesas/EditorSalao';
 import HistoricoAuditoria from '../components/mesas/HistoricoAuditoria';
 import DetalheMesaModal from '../components/mesas/DetalheMesaModal';
+import SidebarLogoutButton from '../components/SidebarLogoutButton';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
@@ -1980,8 +1982,13 @@ export default function Settings() {
     </button>
   );
 
+  const mesaSubTabButtonClass = (active: boolean) =>
+    `px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center justify-center whitespace-nowrap min-h-[2.5rem] box-border transition-[background-color,color] duration-150 ${
+      active ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
+    }`;
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-100">
       {/* Toast: personalização salva */}
       {personalizationToast && (
         <div
@@ -2032,7 +2039,7 @@ export default function Settings() {
 
       {/* Header — safe-area para não ficar sob a barra de status (Capacitor/mobile) */}
       <div
-        className="bg-white border-b p-3 sm:p-4 sticky top-0 z-30"
+        className="bg-white border-b p-3 sm:p-4 shrink-0 z-30"
         style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))' }}
       >
         <div className="flex justify-between items-center gap-2">
@@ -2072,15 +2079,6 @@ export default function Settings() {
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">Ir para Cozinha</span>
             </Link>
-            <button
-              type="button"
-              onClick={() => { logout(); navigate('/restaurant/auth', { replace: true }); }}
-              className="p-2 sm:px-4 sm:py-2 rounded-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-medium text-sm"
-              title="Sair"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Sair</span>
-            </button>
           </div>
         </div>
       </div>
@@ -2094,16 +2092,16 @@ export default function Settings() {
         />
       )}
 
-      <div className="flex">
-        {/* Sidebar: drawer no mobile, fixo no desktop */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Sidebar: drawer no mobile, altura fixa abaixo da navbar no desktop */}
         <aside
           className={`
-            fixed md:static inset-y-0 left-0 z-50 w-64 bg-white border-r min-h-screen
+            fixed md:relative inset-y-0 left-0 z-50 w-64 shrink-0 bg-white border-r flex flex-col md:h-full
             transform transition-transform duration-200 ease-out md:transform-none
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           `}
         >
-          <div className="p-4 flex items-center justify-between md:justify-start border-b md:border-b-0">
+          <div className="p-4 flex items-center justify-between md:justify-start border-b md:border-b-0 shrink-0">
             <h2 className="text-lg font-semibold text-black">Configurações</h2>
             <button
               type="button"
@@ -2114,7 +2112,7 @@ export default function Settings() {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <nav className="p-4 space-y-1">
+          <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
             {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas')}
             {navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
             {navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
@@ -2122,30 +2120,41 @@ export default function Settings() {
             {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha', deliveryPendingCount)}
             {navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
           </nav>
+          <div className="p-4 border-t border-gray-200 shrink-0">
+            <SidebarLogoutButton
+              onConfirm={() => {
+                logout();
+                navigate('/restaurant/auth', { replace: true });
+              }}
+            />
+          </div>
         </aside>
 
         {/* Conteúdo Principal */}
-        <div className="flex-1 p-4 sm:p-6 md:p-8 min-w-0">
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
           {activeTab === 'mesas' && (
             <div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold text-black">Gerenciar Mesas</h2>
                 <div className="flex gap-2 flex-wrap">
                   <button
+                    type="button"
                     onClick={() => { setMesasSubTab('salao'); setSelectedMesaDetail(null); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'salao' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
+                    className={mesaSubTabButtonClass(mesasSubTab === 'salao')}
                   >
                     Visão do Salão
                   </button>
                   <button
+                    type="button"
                     onClick={() => { setMesasSubTab('editor'); loadAreas(); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'editor' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
+                    className={mesaSubTabButtonClass(mesasSubTab === 'editor')}
                   >
                     Editor de Salão
                   </button>
                   <button
+                    type="button"
                     onClick={() => { setMesasSubTab('historico'); loadAuditEvents(); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${mesasSubTab === 'historico' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
+                    className={mesaSubTabButtonClass(mesasSubTab === 'historico')}
                   >
                     Histórico e Auditoria
                   </button>
@@ -2835,7 +2844,7 @@ export default function Settings() {
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value as 'today' | 'week' | 'month' | 'all')}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                   >
                     <option value="today">Hoje</option>
                     <option value="week">Última Semana</option>
@@ -3956,8 +3965,7 @@ export default function Settings() {
               Informe a senha deste restaurante (mesma usada para entrar em Configurações).
             </p>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Senha</label>
-            <input
-              type="password"
+            <PasswordInput
               autoComplete="current-password"
               value={stripeModalPassword}
               onChange={(e) => setStripeModalPassword(e.target.value)}

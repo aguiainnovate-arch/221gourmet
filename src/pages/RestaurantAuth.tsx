@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Utensils, ArrowLeft } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
+import PasswordInput from '../components/PasswordInput';
 
 export default function RestaurantAuth() {
   const navigate = useNavigate();
@@ -131,18 +132,15 @@ export default function RestaurantAuth() {
               <label className="block text-xs font-semibold text-black mb-1">
                 Senha *
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
-                  placeholder="Digite sua senha"
-                  required
-                  autoComplete="current-password"
-                />
-              </div>
+              <PasswordInput
+                leftIcon={<Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
+                placeholder="Digite sua senha"
+                required
+                autoComplete="current-password"
+              />
             </div>
 
             <button

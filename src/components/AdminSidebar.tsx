@@ -1,10 +1,13 @@
 
+import SidebarLogoutButton from './SidebarLogoutButton';
+
 interface AdminSidebarProps {
   activeSection: string;
   onSectionChange: (section: string) => void;
+  onLogout: () => void;
 }
 
-export default function AdminSidebar({ activeSection, onSectionChange }: AdminSidebarProps) {
+export default function AdminSidebar({ activeSection, onSectionChange, onLogout }: AdminSidebarProps) {
   const menuItems = [
     {
       id: 'dashboard',
@@ -82,8 +85,8 @@ export default function AdminSidebar({ activeSection, onSectionChange }: AdminSi
   ];
 
   return (
-    <div className="fixed left-0 top-0 w-64 bg-white shadow-lg h-screen overflow-y-auto">
-      <div className="p-6">
+    <div className="fixed left-0 top-0 w-64 bg-white shadow-lg h-screen flex flex-col">
+      <div className="p-6 flex-1 overflow-y-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-8">
           Painel Admin
         </h2>
@@ -108,6 +111,10 @@ export default function AdminSidebar({ activeSection, onSectionChange }: AdminSi
             </button>
           ))}
         </nav>
+      </div>
+
+      <div className="p-4 border-t border-gray-200 shrink-0">
+        <SidebarLogoutButton onConfirm={onLogout} />
       </div>
     </div>
   );

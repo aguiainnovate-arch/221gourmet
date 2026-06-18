@@ -6,6 +6,7 @@ import { getOrdersByRestaurant, getOrdersByTable, updateOrderStatus } from '../.
 import { updateTable } from '../../services/tableService';
 import { logTableEvent } from '../../services/tableAuditService';
 import type { FirestoreOrder } from '../../services/orderService';
+import ModalOverlay from '../ModalOverlay';
 
 const STATUS_LABEL: Record<FirestoreOrder['status'], string> = {
   novo: 'Na fila',
@@ -153,15 +154,16 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <ModalOverlay>
         <div className="bg-white rounded-xl shadow-xl p-8 text-gray-900">Carregando...</div>
-      </div>
+      </ModalOverlay>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto text-gray-900">
+    <>
+      <ModalOverlay>
+        <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto text-gray-900">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h3 className="text-xl font-semibold text-gray-900">Mesa {mesa.numero}</h3>
           <div className="flex items-center gap-1">
@@ -333,10 +335,11 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
             )}
           </div>
         </div>
-      </div>
+        </div>
+      </ModalOverlay>
 
       {adjustmentModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4">
+        <ModalOverlay zIndexClass="z-[110]">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm text-gray-900">
             <h4 className="font-semibold mb-3 text-black">Registrar ajuste</h4>
             <input
@@ -358,8 +361,8 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
               <button onClick={handleAddAjuste} className="flex-1 py-2 rounded-lg bg-amber-500 text-white">Salvar</button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
-    </div>
+    </>
   );
 }

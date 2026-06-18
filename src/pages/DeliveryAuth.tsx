@@ -13,6 +13,7 @@ import {
   normalizePhone
 } from '../utils/authInputUtils';
 import LanguageSelector from '../components/LanguageSelector';
+import PasswordInput from '../components/PasswordInput';
 
 type Step = 'email' | 'restaurant_password' | 'delivery_register';
 
@@ -322,19 +323,16 @@ export default function DeliveryAuth() {
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>Senha</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
-                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
-                    placeholder="Sua senha"
-                    required
-                    autoComplete="current-password"
-                  />
-                </div>
+                <PasswordInput
+                  leftIcon={<Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                  style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
+                  placeholder="Sua senha"
+                  required
+                  autoComplete="current-password"
+                />
               </div>
               <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <button

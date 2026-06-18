@@ -54,6 +54,7 @@ export default function Owner() {
       <AdminSidebar
         activeSection={activeSection}
         onSectionChange={setActiveSection}
+        onLogout={logout}
       />
 
       <div className="ml-64 flex flex-col min-h-screen">
@@ -71,12 +72,6 @@ export default function Owner() {
                   Gerar Link
                 </button>
               )}
-              <button
-                onClick={logout}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Sair
-              </button>
             </div>
           </div>
         </div>

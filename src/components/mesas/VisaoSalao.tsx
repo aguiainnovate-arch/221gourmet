@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Eye, User, DoorOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, User, DoorOpen, Table2 } from 'lucide-react';
 import type { Table } from '../../services/tableService';
 import { canOpenTable } from '../../services/tableService';
 import type { Area } from '../../services/areaService';
+import ModalOverlay from '../ModalOverlay';
 
 const STATUS_LABEL: Record<string, string> = {
   livre: 'Livre',
@@ -43,6 +44,13 @@ export default function VisaoSalao({
   const [openModalMesa, setOpenModalMesa] = useState<Table | null>(null);
   const [responsavelInput, setResponsavelInput] = useState('');
   const [observacaoInput, setObservacaoInput] = useState('');
+  const [responsavelToast, setResponsavelToast] = useState<{ mesaId: string; nome: string } | null>(null);
+
+  useEffect(() => {
+    if (!responsavelToast) return;
+    const timer = setTimeout(() => setResponsavelToast(null), 1000);
+    return () => clearTimeout(timer);
+  }, [responsavelToast]);
 
   const filtered = mesas.filter((m) => {
     if (filterArea !== 'todos' && (m.areaId ?? '') !== filterArea) return false;
@@ -105,7 +113,10 @@ export default function VisaoSalao({
             className="bg-white rounded-lg shadow border border-gray-100 p-4 flex flex-col"
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-semibold text-black">Mesa {mesa.numero}</span>
+              <span className="font-semibold text-black flex items-center gap-1.5">
+                <Table2 className="w-4 h-4 text-amber-600 shrink-0" />
+                Mesa {mesa.numero}
+              </span>
               <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLOR[mesa.status] ?? 'bg-gray-100'}`}>
                 {STATUS_LABEL[mesa.status] ?? mesa.status}
               </span>
@@ -138,16 +149,27 @@ export default function VisaoSalao({
                     <Eye className="w-3.5 h-3.5" />
                     Ver detalhe
                   </button>
-                  <button
-                    onClick={() => {
-                      const r = window.prompt('Nome do responsável:', mesa.responsavel ?? '');
-                      if (r !== null && r.trim()) onAtribuirResponsavel(mesa, r.trim());
-                    }}
-                    className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-100 text-black text-sm hover:bg-gray-200"
-                  >
-                    <User className="w-3.5 h-3.5" />
-                    Responsável
-                  </button>
+                  <div className="inline-flex items-center">
+                    <button
+                      onClick={() => {
+                        const r = window.prompt('Nome do responsável:', mesa.responsavel ?? '');
+                        if (r !== null && r.trim()) {
+                          const nome = r.trim();
+                          onAtribuirResponsavel(mesa, nome);
+                          setResponsavelToast({ mesaId: mesa.id, nome });
+                        }
+                      }}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-100 text-black text-sm hover:bg-gray-200"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      Responsável
+                    </button>
+                    {responsavelToast?.mesaId === mesa.id && (
+                      <span className="ml-2 text-sm font-medium text-green-600 whitespace-nowrap">
+                        {responsavelToast.nome}
+                      </span>
+                    )}
+                  </div>
                 </>
               )}
               {mesa.status === 'fechada' && (
@@ -165,7 +187,13 @@ export default function VisaoSalao({
       </div>
 
       {openModalMesa && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <ModalOverlay
+          onBackdropClick={() => {
+            setOpenModalMesa(null);
+            setResponsavelInput('');
+            setObservacaoInput('');
+          }}
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold mb-2 text-black">Abrir mesa {openModalMesa.numero}</h3>
             <div className="space-y-2 mb-4">
@@ -210,7 +238,7 @@ export default function VisaoSalao({
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );

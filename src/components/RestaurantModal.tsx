@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import bcrypt from 'bcryptjs';
 import { addRestaurant, updateRestaurant, checkDomainExists, type Restaurant, type CreateRestaurantData, type UpdateRestaurantData } from '../services/restaurantService';
 import { getActivePlans, getPlans, type Plan } from '../services/planService';
+import PasswordInput from './PasswordInput';
 
 interface RestaurantModalProps {
   isOpen: boolean;
@@ -263,8 +264,7 @@ export default function RestaurantModal({ isOpen, onClose, onSuccess, restaurant
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Senha {restaurant ? '(opcional)' : '*'}
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${

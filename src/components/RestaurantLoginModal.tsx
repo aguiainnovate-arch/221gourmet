@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Mail, Lock } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
+import PasswordInput from './PasswordInput';
 
 interface RestaurantLoginModalProps {
   isOpen: boolean;
@@ -98,8 +99,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
                 <Lock className="w-4 h-4 inline mr-2" />
                 Senha
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"

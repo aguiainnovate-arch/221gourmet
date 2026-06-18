@@ -13,6 +13,7 @@ import {
   MessageSquare,
   AlertTriangle
 } from 'lucide-react';
+import PasswordInput from '../../components/PasswordInput';
 import { 
   initializeOpenAI, 
   testOpenAIConnection,
@@ -237,8 +238,7 @@ export default function AIConfiguration() {
                   <Key className="w-4 h-4 inline mr-1" />
                   Chave da API OpenAI
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="sk-..."
