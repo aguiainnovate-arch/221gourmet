@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, User, DoorOpen } from 'lucide-react';
 import type { Table } from '../../services/tableService';
+import { canOpenTable } from '../../services/tableService';
 import type { Area } from '../../services/areaService';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -119,13 +120,13 @@ export default function VisaoSalao({
               </p>
             )}
             <div className="mt-auto flex flex-wrap gap-2">
-              {mesa.status === 'livre' && (
+              {canOpenTable(mesa.status) && (
                 <button
                   onClick={() => setOpenModalMesa(mesa)}
                   className="flex items-center gap-1 px-2 py-1.5 rounded bg-amber-500 text-white text-sm hover:bg-amber-600"
                 >
                   <DoorOpen className="w-3.5 h-3.5" />
-                  Abrir mesa
+                  {mesa.status === 'fechada' ? 'Reabrir mesa' : 'Abrir mesa'}
                 </button>
               )}
               {(mesa.status === 'ocupada' || mesa.status === 'em_fechamento') && (

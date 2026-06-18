@@ -88,6 +88,9 @@ export const applyCustomColors = (primaryColor: string, secondaryColor: string) 
       --secondary-700: ${secondaryVariations['700']};
       --secondary-800: ${secondaryVariations['800']};
       --secondary-900: ${secondaryVariations['900']};
+
+      --menu-bg: ${secondaryColor};
+      --menu-text: ${primaryVariations['900']};
     }
     
     /* Sobrescreve as cores do Tailwind */
@@ -175,8 +178,47 @@ export const applyCustomColors = (primaryColor: string, secondaryColor: string) 
     .shadow-primary { 
       --tw-shadow-color: var(--primary-200) !important; 
     }
+
+    .menu-page {
+      background-color: var(--menu-bg) !important;
+      color: var(--menu-text) !important;
+    }
+
+    .menu-category-filters-stuck {
+      background-color: color-mix(in srgb, var(--menu-bg) 92%, transparent) !important;
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
   `;
   
   // Adiciona ao head do documento
   document.head.appendChild(style);
+};
+
+/** Variáveis CSS para aplicar diretamente no container `.menu-page`. */
+export const buildMenuThemeVars = (
+  primaryColor: string,
+  secondaryColor: string
+): Record<string, string> => {
+  const primaryVariations = generateColorVariations(primaryColor);
+  const secondaryVariations = generateColorVariations(secondaryColor);
+
+  return {
+    '--menu-bg': secondaryColor,
+    '--menu-text': primaryVariations['900'],
+    '--primary-50': primaryVariations['50'],
+    '--primary-100': primaryVariations['100'],
+    '--primary-200': primaryVariations['200'],
+    '--primary-300': primaryVariations['300'],
+    '--primary-400': primaryVariations['400'],
+    '--primary-500': primaryVariations['500'],
+    '--primary-600': primaryVariations['600'],
+    '--primary-700': primaryVariations['700'],
+    '--primary-800': primaryVariations['800'],
+    '--primary-900': primaryVariations['900'],
+    '--secondary-50': secondaryVariations['50'],
+    '--secondary-100': secondaryVariations['100'],
+    '--secondary-200': secondaryVariations['200'],
+  };
 };

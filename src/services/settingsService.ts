@@ -8,6 +8,7 @@ import {
   type DocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { getRestaurantById } from './restaurantService';
 
 export interface RestaurantSettings {
   id: string;
@@ -19,13 +20,13 @@ export interface RestaurantSettings {
   updatedAt: Date;
 }
 
-const SETTINGS_DOC_ID = 'restaurant-config';
+/** Documento legado (configuração global única — fallback). */
+const LEGACY_SETTINGS_DOC_ID = 'restaurant-config';
 
-// Configurações padrão
 const DEFAULT_SETTINGS: Omit<RestaurantSettings, 'id' | 'updatedAt'> = {
   restaurantName: 'Noctis',
-  primaryColor: '#92400e', // amber-800
-  secondaryColor: '#fffbeb', // amber-50
+  primaryColor: '#4B0082',
+  secondaryColor: '#F7F4FC',
   bannerUrl: '',
   audioUrl: '',
 };
@@ -38,122 +39,129 @@ function docToSettings(docSnap: DocumentSnapshot): RestaurantSettings | null {
   const data = docSnap.data();
   return {
     id: docSnap.id,
-    restaurantName: data.restaurantName,
-    primaryColor: data.primaryColor,
-    secondaryColor: data.secondaryColor,
+    restaurantName: data.restaurantName ?? DEFAULT_SETTINGS.restaurantName,
+    primaryColor: data.primaryColor ?? DEFAULT_SETTINGS.primaryColor,
+    secondaryColor: data.secondaryColor ?? DEFAULT_SETTINGS.secondaryColor,
     bannerUrl: data.bannerUrl || '',
     audioUrl: data.audioUrl || '',
     updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
   };
 }
 
-// Buscar configurações do restaurante (tenta rede, depois cache, depois padrão)
-export const getRestaurantSettings = async (): Promise<RestaurantSettings> => {
-  const settingsRef = doc(db, 'settings', SETTINGS_DOC_ID);
-  const defaultResult: RestaurantSettings = {
-    id: SETTINGS_DOC_ID,
+function defaultForRestaurant(restaurantId: string): RestaurantSettings {
+  return {
+    id: restaurantId,
     ...DEFAULT_SETTINGS,
     updatedAt: new Date(),
   };
+}
 
-  // 1) Tentar do servidor (evita falso "client is offline" no primeiro carregamento)
+async function readSettingsDoc(docId: string, fromServer: boolean): Promise<RestaurantSettings | null> {
+  const settingsRef = doc(db, 'settings', docId);
+  const docSnap = fromServer ? await getDocFromServer(settingsRef) : await getDoc(settingsRef);
+  return docToSettings(docSnap);
+}
+
+async function loadFromRestaurantTheme(restaurantId: string): Promise<RestaurantSettings | null> {
   try {
-    const docSnap = await getDocFromServer(settingsRef);
-    const parsed = docToSettings(docSnap);
-    if (parsed) return parsed;
-    return await createDefaultSettings();
+    const restaurant = await getRestaurantById(restaurantId);
+    if (!restaurant) return null;
+    return {
+      id: restaurantId,
+      restaurantName: restaurant.name,
+      primaryColor: restaurant.theme?.primaryColor ?? DEFAULT_SETTINGS.primaryColor,
+      secondaryColor: restaurant.theme?.secondaryColor ?? DEFAULT_SETTINGS.secondaryColor,
+      bannerUrl: '',
+      audioUrl: '',
+      updatedAt: restaurant.updatedAt ?? new Date(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveSettings(restaurantId: string, fromServer: boolean): Promise<RestaurantSettings> {
+  const perRestaurant = await readSettingsDoc(restaurantId, fromServer);
+  if (perRestaurant) return perRestaurant;
+
+  const legacy = await readSettingsDoc(LEGACY_SETTINGS_DOC_ID, fromServer);
+  if (legacy) {
+    return { ...legacy, id: restaurantId };
+  }
+
+  const fromTheme = await loadFromRestaurantTheme(restaurantId);
+  if (fromTheme) return fromTheme;
+
+  return defaultForRestaurant(restaurantId);
+}
+
+export const getRestaurantSettings = async (restaurantId: string): Promise<RestaurantSettings> => {
+  try {
+    return await resolveSettings(restaurantId, true);
   } catch (serverErr) {
     if (!isOfflineError(serverErr)) {
       console.error('Erro ao buscar configurações (servidor):', serverErr);
     }
   }
 
-  // 2) Tentar do cache (útil quando realmente offline)
   try {
-    const docSnap = await getDoc(settingsRef);
-    const parsed = docToSettings(docSnap);
-    if (parsed) return parsed;
+    return await resolveSettings(restaurantId, false);
   } catch (cacheErr) {
     if (!isOfflineError(cacheErr)) {
       console.error('Erro ao buscar configurações (cache):', cacheErr);
     }
   }
 
-  return defaultResult;
+  return defaultForRestaurant(restaurantId);
 };
 
-// Criar configurações padrão
-const createDefaultSettings = async (): Promise<RestaurantSettings> => {
-  try {
-    const settingsRef = doc(db, 'settings', SETTINGS_DOC_ID);
-    const newSettings = {
-      ...DEFAULT_SETTINGS,
-      updatedAt: Timestamp.now()
-    };
-    
-    await setDoc(settingsRef, newSettings);
-    
-    return {
-      id: SETTINGS_DOC_ID,
-      ...DEFAULT_SETTINGS,
-      updatedAt: new Date()
-    };
-  } catch (error) {
-    console.error('Erro ao criar configurações padrão:', error);
-    throw new Error('Falha ao criar configurações padrão');
-  }
-};
-
-// Atualizar configurações do restaurante
 export const updateRestaurantSettings = async (
+  restaurantId: string,
   settings: Partial<Omit<RestaurantSettings, 'id' | 'updatedAt'>>
 ): Promise<void> => {
   try {
-    const settingsRef = doc(db, 'settings', SETTINGS_DOC_ID);
-    await setDoc(settingsRef, {
-      ...settings,
-      updatedAt: Timestamp.now()
-    }, { merge: true });
+    const settingsRef = doc(db, 'settings', restaurantId);
+    await setDoc(
+      settingsRef,
+      {
+        ...settings,
+        restaurantId,
+        updatedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
   } catch (error) {
     console.error('Erro ao atualizar configurações:', error);
     throw new Error('Falha ao atualizar configurações');
   }
 };
 
-// Escutar mudanças nas configurações em tempo real
 export const subscribeToSettings = (
+  restaurantId: string,
   callback: (settings: RestaurantSettings) => void
 ): (() => void) => {
-  const settingsRef = doc(db, 'settings', SETTINGS_DOC_ID);
-  
-  return onSnapshot(settingsRef, (doc) => {
-    if (doc.exists()) {
-      const data = doc.data();
-      callback({
-        id: doc.id,
-        restaurantName: data.restaurantName,
-        primaryColor: data.primaryColor,
-        secondaryColor: data.secondaryColor,
-        bannerUrl: data.bannerUrl || '',
-        audioUrl: data.audioUrl || '',
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date()
-      });
-    } else {
-      // Se não existir, usar configurações padrão
-      callback({
-        id: SETTINGS_DOC_ID,
-        ...DEFAULT_SETTINGS,
-        updatedAt: new Date()
-      });
+  const settingsRef = doc(db, 'settings', restaurantId);
+
+  return onSnapshot(
+    settingsRef,
+    async (snapshot) => {
+      if (snapshot.exists()) {
+        const parsed = docToSettings(snapshot);
+        if (parsed) {
+          callback(parsed);
+          return;
+        }
+      }
+
+      const fallback = await getRestaurantSettings(restaurantId);
+      callback(fallback);
+    },
+    async (error) => {
+      if (!isOfflineError(error)) {
+        console.error('Erro ao escutar configurações:', error);
+      }
+      const fallback = await getRestaurantSettings(restaurantId);
+      callback(fallback);
     }
-  }, (error) => {
-    if (!isOfflineError(error)) {
-      console.error('Erro ao escutar configurações:', error);
-    }
-    callback({
-      id: SETTINGS_DOC_ID,
-      ...DEFAULT_SETTINGS,
-      updatedAt: new Date(),
-    });
-  });
+  );
 };

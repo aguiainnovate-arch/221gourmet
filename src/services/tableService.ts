@@ -14,6 +14,10 @@ import { db } from '../../firebase';
 
 export type TableStatus = 'livre' | 'ocupada' | 'em_fechamento' | 'fechada' | 'bloqueada';
 
+/** Mesas disponíveis para nova sessão (abertura). */
+export const canOpenTable = (status: TableStatus): boolean =>
+  status === 'livre' || status === 'fechada';
+
 export interface Table {
   id: string;
   restaurantId: string;

@@ -26,7 +26,8 @@
     "cap:run:ios": "npm run cap:sync && npx cap run ios",
     "cap:splash": "npm run cap:assets:android",
     "cap:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",
-    "cap:apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease"
+    "cap:apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease",
+    "cap:aab": "npm run cap:sync && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",

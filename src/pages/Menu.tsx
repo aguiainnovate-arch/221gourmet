@@ -2,20 +2,23 @@ import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react';
 import { getTables } from '../services/tableService';
 import { getOrdersByRestaurant } from '../services/orderService';
 import type { FirestoreOrder } from '../services/orderService';
 import { useRestaurantData } from '../hooks/useRestaurantData';
-import { applyCustomColors } from '../utils/colorUtils';
-import LanguageSelector from '../components/LanguageSelector';
+import { applyCustomColors, buildMenuThemeVars } from '../utils/colorUtils';
+import MenuHeader from '../components/menu/MenuHeader';
+import MenuOrdersSection from '../components/menu/MenuOrdersSection';
+import MenuCategoryFilters from '../components/menu/MenuCategoryFilters';
+import MenuCategorySectionHeader from '../components/menu/MenuCategorySectionHeader';
+import MenuProductCard from '../components/menu/MenuProductCard';
 import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import LoadingAnimation from '../components/LoadingAnimation';
-import { ChevronDown, ChevronRight, Plus, Minus, X, Clock, Tag, Eye, Check, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X, Tag, Check, Eye } from 'lucide-react';
 import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { OrderItem } from '../services/statisticsService';
-import ProductImage from '../components/ProductImage';
 import ImageModal from '../components/ImageModal';
 
 interface SelectedItem {
@@ -46,7 +49,6 @@ export default function Menu() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<ExpandedItem[]>([]);
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [imageModal, setImageModal] = useState<{ isOpen: boolean; src: string; alt: string }>({
     isOpen: false,
@@ -104,12 +106,16 @@ export default function Menu() {
     return () => clearInterval(interval);
   }, [carregarMeusPedidos, restaurantId, mesaInfo?.id]);
 
-  // Aplicar cores personalizadas
+  // Aplicar cores personalizadas do restaurante no cardápio
+  const menuThemeStyle = useMemo(() => {
+    if (!settings?.primaryColor || !settings?.secondaryColor) return undefined;
+    return buildMenuThemeVars(settings.primaryColor, settings.secondaryColor) as CSSProperties;
+  }, [settings?.primaryColor, settings?.secondaryColor]);
+
   useEffect(() => {
-    if (settings) {
-      applyCustomColors(settings.primaryColor, settings.secondaryColor);
-    }
-  }, [settings]);
+    if (!settings?.primaryColor || !settings?.secondaryColor) return;
+    applyCustomColors(settings.primaryColor, settings.secondaryColor);
+  }, [settings?.primaryColor, settings?.secondaryColor]);
 
   // Reproduzir áudio de boas-vindas e controlar animação
   useEffect(() => {
@@ -251,10 +257,8 @@ export default function Menu() {
   const handleProductClick = (product: Product) => {
     if (expandedProduct === product.id) {
       setExpandedProduct(null);
-      setExpandedImage(null);
     } else {
       setExpandedProduct(product.id);
-      setExpandedImage(product.id);
       // Inicializa o item expandido se não existir
       if (!expandedItems.find(item => item.productId === product.id)) {
         const existingSelected = selectedItems.find(item => item.product.id === product.id);
@@ -313,7 +317,6 @@ export default function Menu() {
     }
     
     setExpandedProduct(null);
-    setExpandedImage(null);
   };
 
   const handleRemoveFromOrder = (productId: string) => {
@@ -409,7 +412,7 @@ export default function Menu() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
+      <div className="menu-page min-h-screen flex items-center justify-center" style={menuThemeStyle}>
         <div className="text-xl text-primary-800">{t('menu.loading')}</div>
       </div>
     );
@@ -417,7 +420,7 @@ export default function Menu() {
 
   if (!mesaInfo) {
     return (
-      <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
+      <div className="menu-page min-h-screen flex items-center justify-center" style={menuThemeStyle}>
         <div className="text-xl text-red-600">{t('menu.tableNotFound')}</div>
       </div>
     );
@@ -440,24 +443,13 @@ export default function Menu() {
   // Tela de Confirmação do Pedido
   if (showConfirmation) {
     return (
-      <div className="min-h-screen bg-secondary-50">
-        {/* Header */}
-        <div className="bg-primary-900 text-primary-100 py-6 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center">
-              <div className="flex-1"></div>
-              <div className="text-center">
-                <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || 'Noctis'}</h1>
-                <p className="text-primary-200 text-lg">{t('menu.table', { number: mesaInfo.numero })}</p>
-              </div>
-              <div className="flex-1 flex justify-end">
-                <LanguageSelector />
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="menu-page min-h-screen animate-fadeInUp" style={menuThemeStyle}>
+        <MenuHeader
+          restaurantName={settings?.restaurantName || 'Noctis'}
+          tableLabel={t('menu.table', { number: mesaInfo.numero })}
+        />
 
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="max-w-lg mx-auto px-4 py-6">
           {/* Botão Voltar */}
           <div className="mb-6">
             <button
@@ -549,349 +541,151 @@ export default function Menu() {
 
   // Tela Normal do Menu
   return (
-    <div className="min-h-screen bg-secondary-50 animate-fadeInUp">
-      {/* Header */}
-      <div className="bg-primary-900 text-primary-100 py-6 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center">
-            <div className="flex-1"></div>
-            <div className="text-center">
-              <h1 className="text-4xl font-serif font-bold mb-2">{settings?.restaurantName || 'Noctis'}</h1>
-              <p className="text-primary-200 text-lg">{t('menu.table', { number: mesaInfo.numero })}</p>
-            </div>
-            <div className="flex-1 flex justify-end">
-              <LanguageSelector />
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="menu-page min-h-screen animate-fadeInUp pb-8" style={menuThemeStyle}>
+      <MenuHeader
+        restaurantName={settings?.restaurantName || 'Noctis'}
+        tableLabel={t('menu.table', { number: mesaInfo.numero })}
+      />
 
       {!mesaAbertaParaPedidos && (
-        <div className="bg-amber-100 border-b border-amber-200 text-amber-900 px-4 py-3 text-center text-sm">
-          Esta mesa não está aberta para pedidos no momento. Avise o garçom para abrir a mesa no painel.
-        </div>
-      )}
-
-      {/* Seus pedidos — status para o cliente acompanhar */}
-      {meusPedidos.length > 0 && (
-        <div className="bg-primary-100/80 border-b border-primary-200 px-4 py-4">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-lg font-semibold text-primary-900 mb-3 flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Seus pedidos
-            </h2>
-            <ul className="space-y-2">
-              {meusPedidos.map((o) => (
-                <li
-                  key={o.id}
-                  className={`flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border ${
-                    o.status === 'novo'
-                      ? 'bg-amber-50 border-amber-200'
-                      : o.status === 'preparando'
-                        ? 'bg-blue-50 border-blue-200'
-                        : 'bg-green-50 border-green-200'
-                  }`}
-                >
-                  <span className="text-primary-800 text-sm">{o.itens?.join(' · ') ?? o.timestamp}</span>
-                  <span
-                    className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
-                      o.status === 'novo'
-                        ? 'bg-amber-200 text-amber-900'
-                        : o.status === 'preparando'
-                          ? 'bg-blue-200 text-blue-900'
-                          : 'bg-green-200 text-green-900'
-                    }`}
-                  >
-                    {o.status === 'novo' ? 'Na fila' : o.status === 'preparando' ? 'Em preparo' : 'Pronto'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-primary-600 mt-2">Atualizado automaticamente a cada 5 minutos.</p>
+        <div className="px-4 -mt-1 mb-4 max-w-lg mx-auto">
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-center text-sm">
+            Esta mesa não está aberta para pedidos no momento. Avise o garçom para abrir a mesa no painel.
           </div>
         </div>
       )}
+
+      <MenuOrdersSection orders={meusPedidos} />
 
       {settings?.bannerUrl && (
-        <div className="bg-secondary-50 py-8 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div 
-              className="w-full h-32 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-300"
-              onClick={(e) => handleImageClick(e, settings.bannerUrl!, 'Banner do restaurante')}
-            >
-              <img 
-                src={settings.bannerUrl} 
-                alt="Banner do restaurante" 
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-              />
-            </div>
+        <div className="px-4 mb-6 max-w-lg mx-auto">
+          <div
+            className="w-full h-28 rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(75,0,130,0.1)] cursor-pointer"
+            onClick={(e) => handleImageClick(e, settings.bannerUrl!, 'Banner do restaurante')}
+          >
+            <img
+              src={settings.bannerUrl}
+              alt="Banner do restaurante"
+              className="w-full h-full object-cover"
+            />
           </div>
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Barra de Categorias */}
-        <div className="mb-8">
-          <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
-            <button
-              onClick={() => setSelectedCategory('todos')}
-              className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
-                selectedCategory === 'todos'
-                  ? 'bg-primary-800 text-primary-100 shadow-lg'
-                  : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
-              }`}
-            >
-              {t('menu.all')}
-            </button>
-            {categories.map((category) => {
-              const displayName = displayCategories.find(c => c.id === category.id)?.name ?? category.name;
-              return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.name)}
-                className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all ${
-                  selectedCategory === category.name
-                    ? 'bg-primary-800 text-primary-100 shadow-lg'
-                    : 'bg-secondary-200 text-primary-800 hover:bg-secondary-300'
-                }`}
-              >
-                {displayName}
-              </button>
-            );})}
-          </div>
-        </div>
+      <div className="max-w-lg mx-auto px-4">
+        <MenuCategoryFilters
+          selectedCategory={selectedCategory}
+          allLabel={t('menu.all')}
+          categories={categories.map((category) => ({
+            id: category.id,
+            name: category.name,
+            displayName: displayCategories.find((c) => c.id === category.id)?.name ?? category.name,
+          }))}
+          onSelect={setSelectedCategory}
+        />
 
-        {/* Lista de Produtos */}
-        {false ? (
-          <div className="text-center py-12">
-            <div className="text-primary-700 text-lg">{t('menu.loadingMenu')}</div>
-          </div>
-        ) : groupedProducts.length === 0 || groupedProducts.every(group => group.products.length === 0) ? (
+        {groupedProducts.length === 0 || groupedProducts.every((group) => group.products.length === 0) ? (
           <div className="text-center py-12">
             <div className="text-primary-700 text-lg">
-              {selectedCategory === 'todos' 
+              {selectedCategory === 'todos'
                 ? t('menu.noProducts')
-                : t('menu.noProductsCategory', { category: selectedCategory })
-              }
+                : t('menu.noProductsCategory', { category: selectedCategory })}
             </div>
           </div>
         ) : (
           <div className="space-y-8 mb-8">
-            {groupedProducts.map((group) => (
-              <div key={group.category} className="space-y-4">
-                {/* Cabeçalho da Categoria */}
-                <div className="border-b-2 border-primary-200 pb-2">
-                  <h2 className="text-2xl font-serif font-bold text-primary-900">
-                    {(() => {
-                      const origCat = categories.find(c => c.name === group.category);
-                      return origCat ? (displayCategories.find(dc => dc.id === origCat.id)?.name ?? group.category) : group.category;
-                    })()}
-                  </h2>
-                </div>
-                
-                {/* Produtos da Categoria */}
-                <div className="space-y-4">
-                  {group.products.map((product) => {
-                    const expandedItem = expandedItems.find(item => item.productId === product.id);
-                    const selectedItem = selectedItems.find(item => item.product.id === product.id);
-                    const isImageExpanded = expandedImage === product.id;
-                    
-                    return (
-                      <div key={product.id} className="bg-white rounded-xl shadow-lg border border-secondary-200 overflow-hidden hover:shadow-xl transition-all duration-200">
-                        {/* Item Principal */}
-                        <div 
-                          className="p-6 hover:bg-secondary-50 transition-colors cursor-pointer"
-                          onClick={() => handleProductClick(product)}
-                        >
-                          <div className={`flex gap-4 ${isImageExpanded ? 'flex-col' : ''}`}>
-                            {/* Imagem do Produto */}
-                            <div className={`flex-shrink-0 ${isImageExpanded ? 'w-full' : ''}`}>
-                              <div 
-                                className={`${isImageExpanded ? 'w-full h-48 image-expanded' : 'w-24 h-24'} bg-secondary-200 rounded-lg flex items-center justify-center overflow-hidden image-expand-transition ${isImageExpanded ? 'cursor-pointer hover:shadow-lg transition-shadow duration-300' : ''}`}
-                                onClick={(e) => {
-                                  if (isImageExpanded && product.image) {
-                                    handleImageClick(e, product.image!, product.name);
-                                  }
-                                }}
-                              >
-                                {product.image ? (
-                                  <ProductImage 
-                                    src={product.image} 
-                                    alt={product.name}
-                                    className={`w-full h-full transition-transform duration-300 ${isImageExpanded ? 'hover:scale-105' : ''}`}
-                                    containerClassName={isImageExpanded ? 'w-full h-48' : 'w-24 h-24'}
-                                    onClick={(e) => {
-                                      if (isImageExpanded) {
-                                        handleImageClick(e, product.image!, product.name);
-                                      }
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="text-center text-secondary-500">
-                                    <p className="text-xs">Imagem</p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Conteúdo do Produto */}
-                            <div className={`flex-1 ${isImageExpanded ? 'mt-4' : ''}`}>
-                              <div className="flex justify-between items-start mb-3">
-                                <h3 className="text-xl font-serif font-semibold text-primary-900">
-                                  {product.name}
-                                </h3>
-                                <span className="text-lg font-bold text-primary-800 ml-4">
-                                  R$ {product.price.toFixed(2)}
-                                </span>
-                              </div>
-                              <p className="text-primary-700 text-sm leading-relaxed mb-3">
-                                {product.description}
-                              </p>
-                              <div className="flex items-center gap-4 text-xs text-primary-600">
-                                {product.preparationTime !== undefined && product.preparationTime !== null && product.preparationTime > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock size={12} />
-                                    {product.preparationTime} {t('menu.min')}
-                                  </span>
-                                )}
-                                {product.category && (
-                                  <span className="bg-secondary-200 px-2 py-1 rounded-full flex items-center gap-1">
-                                    <Tag size={12} />
-                                    {(() => {
-                                      const origCat = categories.find(c => c.name === product.category);
-                                      return origCat ? (displayCategories.find(dc => dc.id === origCat.id)?.name ?? product.category) : product.category;
-                                    })()}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div className="ml-4">
-                              {expandedProduct === product.id ? (
-                                <ChevronDown size={20} className="text-primary-600" />
-                              ) : (
-                                <ChevronRight size={20} className="text-primary-600" />
-                              )}
-                            </div>
-                          </div>
-                        </div>
+            {groupedProducts.map((group) => {
+              const origCat = categories.find((c) => c.name === group.category);
+              const sectionTitle = origCat
+                ? (displayCategories.find((dc) => dc.id === origCat.id)?.name ?? group.category)
+                : group.category;
 
-                        {/* Seção Expandida */}
-                        {expandedProduct === product.id && expandedItem && (
-                          <div className="bg-gradient-to-r from-secondary-50 to-secondary-100 px-6 py-6 border-t-2 border-secondary-200">
-                            <div className="space-y-5">
-                              <div>
-                                <label className="block text-sm font-medium text-primary-800 mb-3">
-                                  {t('menu.quantity')}
-                                </label>
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (expandedItem.quantity > 1) {
-                                        updateExpandedItem(product.id, { quantity: expandedItem.quantity - 1 });
-                                      }
-                                    }}
-                                    className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
-                                  >
-                                    <Minus size={18} />
-                                  </button>
-                                  <span className="text-xl font-semibold text-primary-900 min-w-[3rem] text-center">
-                                    {expandedItem.quantity}
-                                  </span>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      updateExpandedItem(product.id, { quantity: expandedItem.quantity + 1 });
-                                    }}
-                                    className="w-10 h-10 bg-secondary-300 text-primary-800 rounded-full flex items-center justify-center hover:bg-secondary-400 transition-colors shadow-sm"
-                                  >
-                                    <Plus size={18} />
-                                  </button>
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <label className="block text-sm font-medium text-primary-800 mb-3">
-                                  {t('menu.observations')}
-                                </label>
-                                <textarea
-                                  placeholder={t('menu.observationsPlaceholder')}
-                                  value={expandedItem.observations}
-                                  onChange={(e) => {
-                                    updateExpandedItem(product.id, { observations: e.target.value });
-                                  }}
-                                  className="w-full p-4 border-2 border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none shadow-sm"
-                                  rows={3}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              </div>
+              return (
+                <section key={group.category}>
+                  <MenuCategorySectionHeader
+                    title={sectionTitle}
+                    onViewAll={
+                      selectedCategory === 'todos'
+                        ? () => setSelectedCategory(group.category)
+                        : undefined
+                    }
+                  />
 
-                              <div className="flex gap-4 pt-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAddToOrder(product);
-                                  }}
-                                  className="flex-1 bg-primary-800 text-primary-100 py-3 px-6 rounded-lg font-medium hover:bg-primary-900 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                                >
-                                  <Plus size={18} />
-                                  {t('menu.addToOrder')}
-                                </button>
-                                {selectedItem && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRemoveFromOrder(product.id);
-                                    }}
-                                    className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg"
-                                  >
-                                    <X size={18} />
-                                    {t('menu.remove')}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+                  <div className="space-y-3">
+                    {group.products.map((product) => {
+                      const expandedItem = expandedItems.find((item) => item.productId === product.id);
+                      const selectedItem = selectedItems.find((item) => item.product.id === product.id);
+
+                      return (
+                        <MenuProductCard
+                          key={product.id}
+                          product={product}
+                          isExpanded={expandedProduct === product.id}
+                          expandedItem={expandedItem}
+                          isSelected={!!selectedItem}
+                          quantityLabel={t('menu.quantity')}
+                          observationsLabel={t('menu.observations')}
+                          observationsPlaceholder={t('menu.observationsPlaceholder')}
+                          addToOrderLabel={t('menu.addToOrder')}
+                          removeLabel={t('menu.remove')}
+                          minLabel={t('menu.min')}
+                          onCardClick={() => handleProductClick(product)}
+                          onAddClick={(e) => {
+                            e.stopPropagation();
+                            handleProductClick(product);
+                          }}
+                          onImageClick={handleImageClick}
+                          onQuantityChange={(quantity) => updateExpandedItem(product.id, { quantity })}
+                          onObservationsChange={(observations) =>
+                            updateExpandedItem(product.id, { observations })
+                          }
+                          onConfirmAdd={(e) => {
+                            e.stopPropagation();
+                            handleAddToOrder(product);
+                          }}
+                          onRemove={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFromOrder(product.id);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
 
-        {/* Botão de Ver Pedido */}
-        <div className="bg-primary-900 rounded-lg shadow-lg p-6">
-          <button
-            onClick={handleVerPedido}
-            disabled={selectedItems.length === 0}
-            className={`w-full py-4 px-6 rounded-lg text-xl font-serif font-semibold transition-all duration-200 border-2 flex items-center justify-center gap-2 ${
-              selectedItems.length === 0
-                ? 'bg-gray-400 text-gray-200 border-gray-300 cursor-not-allowed'
-                : 'bg-primary-800 text-primary-100 border-primary-600 hover:bg-primary-900 hover:border-primary-700 hover:shadow-xl'
-            }`}
-          >
-            <Eye size={24} />
-            {selectedItems.length === 0 
-              ? t('menu.selectAtLeastOne')
-              : t('menu.viewOrderWithItems', { count: totalItems })
-            }
-          </button>
-          
-          {selectedItems.length > 0 && (
-            <div className="mt-4 text-center text-primary-200">
-              <p className="text-lg font-medium">
-                {t('menu.total')} <span className="text-white font-bold">R$ {totalPrice.toFixed(2)}</span>
+        <div className="sticky bottom-4 z-20">
+          <div className="rounded-2xl bg-primary-900 p-4 shadow-[0_8px_32px_rgba(75,0,130,0.35)]">
+            <button
+              onClick={handleVerPedido}
+              disabled={selectedItems.length === 0}
+              className={`w-full py-4 px-6 rounded-xl text-base font-serif font-bold transition-all duration-200 flex items-center justify-center gap-2 ${
+                selectedItems.length === 0
+                  ? 'bg-white/20 text-white/50 cursor-not-allowed'
+                  : 'bg-white text-primary-900 hover:bg-primary-50 active:scale-[0.98] shadow-md'
+              }`}
+            >
+              <Eye size={22} />
+              {selectedItems.length === 0
+                ? t('menu.selectAtLeastOne')
+                : t('menu.viewOrderWithItems', { count: totalItems })}
+            </button>
+
+            {selectedItems.length > 0 && (
+              <p className="mt-3 text-center text-sm text-white/80">
+                {t('menu.total')}{' '}
+                <span className="font-bold text-white">
+                  R$ {totalPrice.toFixed(2).replace('.', ',')}
+                </span>
               </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-      
-      {/* Image Modal */}
+
       <ImageModal
         isOpen={imageModal.isOpen}
         onClose={closeImageModal}

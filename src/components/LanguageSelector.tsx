@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Globe } from 'lucide-react';
+import { Globe, ChevronDown } from 'lucide-react';
 import brasilFlag from '../assets/brasilflag.svg';
 import francaFlag from '../assets/francaflag.svg';
 import usaFlag from '../assets/usaflag.svg';
 
 interface LanguageSelectorProps {
   className?: string;
-  /** Estilo do botão: 'light' (fundo escuro, texto claro) ou 'dark' (fundo claro, texto escuro) */
-  variant?: 'light' | 'dark';
+  /** Estilo do botão: 'light', 'dark' ou 'header' (pill com bandeira + código + seta) */
+  variant?: 'light' | 'dark' | 'header';
   /** Versão compacta (ex.: app nativo Capacitor) — padding e ícone menores */
   compact?: boolean;
 }
@@ -106,10 +106,19 @@ export default function LanguageSelector({ className = '', variant = 'light', co
 
   const currentFlag = languages.find(lang => lang.code === currentLang)?.flag;
 
+  const langCodeShort: Record<(typeof LANGUAGE_CODES)[number], string> = {
+    'pt-BR': 'PT',
+    'en-US': 'EN',
+    'fr-FR': 'FR',
+  };
+
   const sizeClass = compact ? 'gap-1.5 px-2 py-1.5 rounded-md' : 'gap-2 px-3 py-2 rounded-lg';
-  const buttonClass = variant === 'dark'
-    ? `flex items-center bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors border border-gray-200 ${sizeClass}`
-    : `flex items-center bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-colors ${sizeClass}`;
+  const buttonClass =
+    variant === 'header'
+      ? 'flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-3 py-2 text-white backdrop-blur-sm hover:bg-white/20 transition-colors'
+      : variant === 'dark'
+        ? `flex items-center bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors border border-gray-200 ${sizeClass}`
+        : `flex items-center bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-colors ${sizeClass}`;
 
   const dropdownContent = isOpen ? (
     <div
@@ -150,10 +159,24 @@ export default function LanguageSelector({ className = '', variant = 'light', co
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <Globe size={compact ? 14 : 16} />
-        <span className={compact ? 'text-xs' : 'text-sm'}>
-          {currentFlag ? <img src={currentFlag} alt="" className={compact ? 'w-4 h-4' : 'w-5 h-5'} /> : '🌐'}
-        </span>
+        {variant === 'header' ? (
+          <>
+            {currentFlag ? (
+              <img src={currentFlag} alt="" className="h-4 w-4 rounded-sm object-cover" />
+            ) : (
+              <Globe size={16} />
+            )}
+            <span className="text-sm font-semibold">{langCodeShort[currentLang]}</span>
+            <ChevronDown className="h-4 w-4 opacity-80" />
+          </>
+        ) : (
+          <>
+            <Globe size={compact ? 14 : 16} />
+            <span className={compact ? 'text-xs' : 'text-sm'}>
+              {currentFlag ? <img src={currentFlag} alt="" className={compact ? 'w-4 h-4' : 'w-5 h-5'} /> : '🌐'}
+            </span>
+          </>
+        )}
       </button>
 
       {dropdownContent && createPortal(dropdownContent, document.body)}

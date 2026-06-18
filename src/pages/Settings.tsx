@@ -10,6 +10,7 @@ import {
   updateTable,
   deleteTable,
   generateTableUrl,
+  canOpenTable,
   type Table
 } from '../services/tableService';
 import {
@@ -655,6 +656,14 @@ export default function Settings() {
     }
   }, [settings]);
 
+  // Pré-visualização das cores enquanto edita a personalização
+  useEffect(() => {
+    if (!personalizationForm.primaryColor || !personalizationForm.secondaryColor) return;
+    import('../utils/colorUtils').then(({ applyCustomColors }) => {
+      applyCustomColors(personalizationForm.primaryColor, personalizationForm.secondaryColor);
+    });
+  }, [personalizationForm.primaryColor, personalizationForm.secondaryColor]);
+
   const loadTables = async () => {
     if (!restaurantId) return;
     try {
@@ -749,7 +758,7 @@ export default function Settings() {
   };
 
   const handleOpenMesa = async (mesa: Table, responsavel?: string, observacao?: string) => {
-    if (!restaurantId || mesa.status !== 'livre') return;
+    if (!restaurantId || !canOpenTable(mesa.status)) return;
     try {
       await openSession(restaurantId, mesa.id, mesa.numero, 'gerente', responsavel ?? null);
       await updateTable(mesa.id, { status: 'ocupada', responsavel: responsavel ?? null, observacao: observacao ?? null });
@@ -1409,6 +1418,11 @@ export default function Settings() {
       return;
     }
 
+    if (!restaurantId) {
+      alert('Restaurante não identificado.');
+      return;
+    }
+
     try {
       await updateSettings({
         restaurantName: personalizationForm.restaurantName.trim(),
@@ -1417,6 +1431,17 @@ export default function Settings() {
         bannerUrl: personalizationForm.bannerUrl,
         audioUrl: personalizationForm.audioUrl
       });
+
+      const { updateRestaurant, getRestaurantById } = await import('../services/restaurantService');
+      const currentRestaurant = await getRestaurantById(restaurantId);
+      await updateRestaurant(restaurantId, {
+        theme: {
+          primaryColor: personalizationForm.primaryColor,
+          secondaryColor: personalizationForm.secondaryColor,
+          logo: currentRestaurant?.theme?.logo,
+        },
+      });
+
       alert('Configurações salvas com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
@@ -2096,6 +2121,7 @@ export default function Settings() {
                   onClose={() => setSelectedMesaDetail(null)}
                   restaurantId={restaurantId ?? ''}
                   onMesaUpdated={loadTables}
+                  onOpenMesa={handleOpenMesa}
                 />
               )}
             </div>
@@ -2536,7 +2562,7 @@ export default function Settings() {
                           />
                         </div>
                         <p className="text-sm text-black mt-1">
-                          Cor principal para headers, botões e destaques
+                          Cor principal do header, filtros ativos, preços e botões do cardápio
                         </p>
                       </div>
 
@@ -2561,7 +2587,7 @@ export default function Settings() {
                           />
                         </div>
                         <p className="text-sm text-black mt-1">
-                          Cor de fundo e elementos secundários
+                          Cor de fundo da página do cardápio digital (área principal)
                         </p>
                       </div>
                     </div>

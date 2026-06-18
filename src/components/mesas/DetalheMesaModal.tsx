@@ -18,9 +18,10 @@ interface DetalheMesaModalProps {
   onClose: () => void;
   restaurantId: string;
   onMesaUpdated: () => void;
+  onOpenMesa?: (mesa: Table, responsavel?: string, observacao?: string) => void;
 }
 
-export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUpdated }: DetalheMesaModalProps) {
+export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUpdated, onOpenMesa }: DetalheMesaModalProps) {
   const [session, setSession] = useState<TableSession | null>(null);
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +95,7 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
         await closeSession(session.id, total, 'gerente');
         await logTableEvent(restaurantId, mesa.id, 'mesa_fechada', 'gerente', { mesaNumero: mesa.numero, detalhe: `Total R$ ${total}` });
       }
-      await updateTable(mesa.id, { status: 'fechada' });
+      await updateTable(mesa.id, { status: 'livre', responsavel: null, observacao: null });
       onMesaUpdated();
       onClose();
     } catch (e) {
@@ -153,46 +154,50 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-xl p-8">Carregando...</div>
+        <div className="bg-white rounded-xl shadow-xl p-8 text-gray-900">Carregando...</div>
       </div>
     );
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h3 className="text-xl font-semibold">Mesa {mesa.numero}</h3>
+      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto text-gray-900">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <h3 className="text-xl font-semibold text-gray-900">Mesa {mesa.numero}</h3>
           <div className="flex items-center gap-1">
             <button
               onClick={() => loadOrdersAndSession()}
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-700"
               title="Atualizar pedidos"
             >
               <RefreshCw className="w-5 h-5" />
             </button>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-700">
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
         <div className="p-6 space-y-4">
           {mesa.responsavel && (
-            <p className="text-sm text-gray-600"><strong>Responsável:</strong> {mesa.responsavel}</p>
+            <p className="text-sm text-gray-700">
+              <strong className="text-gray-900">Responsável:</strong> {mesa.responsavel}
+            </p>
           )}
           {mesa.observacao && (
-            <p className="text-sm text-gray-600"><strong>Observação:</strong> {mesa.observacao}</p>
+            <p className="text-sm text-gray-700">
+              <strong className="text-gray-900">Observação:</strong> {mesa.observacao}
+            </p>
           )}
 
           {session && (
             <div className="text-sm text-gray-600">
-              <Clock className="w-4 h-4 inline mr-1" />
+              <Clock className="w-4 h-4 inline mr-1 text-gray-500" />
               Sessão aberta em {new Date(session.abertaEm).toLocaleString('pt-BR')}
             </div>
           )}
 
           <div>
-            <h4 className="font-medium mb-2">Pedidos nesta mesa</h4>
+            <h4 className="font-semibold mb-2 text-gray-900">Pedidos nesta mesa</h4>
             {orders.length === 0 ? (
               <p className="text-sm text-gray-500">
                 Nenhum pedido ainda. Pedidos feitos pelo QR/cardápio desta mesa aparecem aqui. Use o ícone de atualizar para recarregar.
@@ -269,8 +274,8 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
 
           {session?.ajustes && session.ajustes.length > 0 && (
             <div>
-              <h4 className="font-medium mb-2">Ajustes</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
+              <h4 className="font-semibold mb-2 text-gray-900">Ajustes</h4>
+              <ul className="space-y-1 text-sm text-gray-700">
                 {session.ajustes.map((a, i) => (
                   <li key={i}>R$ {a.valor} – {a.motivo}</li>
                 ))}
@@ -306,20 +311,33 @@ export default function DetalheMesaModal({ mesa, onClose, restaurantId, onMesaUp
               </>
             )}
             {mesa.status === 'fechada' && (
-              <button
-                onClick={handleVoltarLivre}
-                className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm hover:bg-green-600"
-              >
-                Voltar para livre
-              </button>
+              <>
+                {onOpenMesa && (
+                  <button
+                    onClick={() => {
+                      onOpenMesa(mesa);
+                      onClose();
+                    }}
+                    className="px-4 py-2 rounded-lg bg-amber-500 text-white text-sm hover:bg-amber-600"
+                  >
+                    Reabrir mesa
+                  </button>
+                )}
+                <button
+                  onClick={handleVoltarLivre}
+                  className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm hover:bg-green-600"
+                >
+                  Voltar para livre
+                </button>
+              </>
             )}
           </div>
         </div>
       </div>
 
       {adjustmentModal && (
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 p-4">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm text-gray-900">
             <h4 className="font-semibold mb-3 text-black">Registrar ajuste</h4>
             <input
               type="text"
