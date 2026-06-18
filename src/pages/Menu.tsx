@@ -1,6 +1,5 @@
 import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
-import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react';
 import { getTables } from '../services/tableService';
@@ -8,6 +7,11 @@ import { getOrdersByRestaurant } from '../services/orderService';
 import type { FirestoreOrder } from '../services/orderService';
 import { useRestaurantData } from '../hooks/useRestaurantData';
 import { applyCustomColors, buildMenuThemeVars } from '../utils/colorUtils';
+import {
+  getRestaurantSettings,
+  subscribeToSettings,
+  type RestaurantSettings,
+} from '../services/settingsService';
 import MenuHeader from '../components/menu/MenuHeader';
 import MenuOrdersSection from '../components/menu/MenuOrdersSection';
 import MenuCategoryFilters from '../components/menu/MenuCategoryFilters';
@@ -36,9 +40,9 @@ interface ExpandedItem {
 export default function Menu() {
   const { mesaId } = useParams<{ mesaId: string }>();
   const { addOrder, setRestaurantId } = useOrders();
-  const { settings } = useSettings();
   const { t, i18n } = useTranslation();
   const { products, categories, restaurantId } = useRestaurantData();
+  const [menuSettings, setMenuSettings] = useState<RestaurantSettings | null>(null);
   const { products: displayProducts, categories: displayCategories } = useLiveTranslations(
     products,
     categories,
@@ -58,6 +62,26 @@ export default function Menu() {
   const [loading, setLoading] = useState(true);
   const [showLoadingAnimation, setShowLoadingAnimation] = useState(true);
   const [meusPedidos, setMeusPedidos] = useState<FirestoreOrder[]>([]);
+
+  // Configurações do restaurante da URL do QR (independente do SettingsProvider global)
+  useEffect(() => {
+    if (!restaurantId) return;
+
+    let cancelled = false;
+
+    getRestaurantSettings(restaurantId).then((loaded) => {
+      if (!cancelled) setMenuSettings(loaded);
+    });
+
+    const unsubscribe = subscribeToSettings(restaurantId, (loaded) => {
+      if (!cancelled) setMenuSettings(loaded);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [restaurantId]);
 
   // Sincroniza o contexto de pedidos com o restaurante da URL (quando abre pelo QR)
   useEffect(() => {
@@ -108,18 +132,18 @@ export default function Menu() {
 
   // Aplicar cores personalizadas do restaurante no cardápio
   const menuThemeStyle = useMemo(() => {
-    if (!settings?.primaryColor || !settings?.secondaryColor) return undefined;
-    return buildMenuThemeVars(settings.primaryColor, settings.secondaryColor) as CSSProperties;
-  }, [settings?.primaryColor, settings?.secondaryColor]);
+    if (!menuSettings?.primaryColor || !menuSettings?.secondaryColor) return undefined;
+    return buildMenuThemeVars(menuSettings.primaryColor, menuSettings.secondaryColor) as CSSProperties;
+  }, [menuSettings?.primaryColor, menuSettings?.secondaryColor]);
 
   useEffect(() => {
-    if (!settings?.primaryColor || !settings?.secondaryColor) return;
-    applyCustomColors(settings.primaryColor, settings.secondaryColor);
-  }, [settings?.primaryColor, settings?.secondaryColor]);
+    if (!menuSettings?.primaryColor || !menuSettings?.secondaryColor) return;
+    applyCustomColors(menuSettings.primaryColor, menuSettings.secondaryColor);
+  }, [menuSettings?.primaryColor, menuSettings?.secondaryColor]);
 
   // Reproduzir áudio de boas-vindas e controlar animação
   useEffect(() => {
-    if (settings?.audioUrl && mesaInfo && showLoadingAnimation) {
+    if (menuSettings?.audioUrl && mesaInfo && showLoadingAnimation) {
       // Criar um botão invisível para simular interação do usuário
       const createInvisibleButton = () => {
         const button = document.createElement('button');
@@ -138,7 +162,7 @@ export default function Menu() {
       // Aguardar um pouco para garantir que a página carregou completamente
       const timer = setTimeout(() => {
         try {
-          const audio = new Audio(settings.audioUrl);
+          const audio = new Audio(menuSettings.audioUrl);
           audio.volume = 0.7; // Volume moderado
           audio.preload = 'auto';
           
@@ -179,7 +203,7 @@ export default function Menu() {
                   try {
                     // Tentativa 4: Usar Web Audio API
                     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-                    const response = await fetch(settings.audioUrl!);
+                    const response = await fetch(menuSettings.audioUrl!);
                     const arrayBuffer = await response.arrayBuffer();
                     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                     const source = audioContext.createBufferSource();
@@ -234,7 +258,7 @@ export default function Menu() {
       }, 1000);
 
       return () => clearTimeout(timer);
-    } else if (!settings?.audioUrl && mesaInfo) {
+    } else if (!menuSettings?.audioUrl && mesaInfo) {
       // Se não há áudio, esconder animação após tempo menor
       const timer = setTimeout(() => {
         setShowLoadingAnimation(false);
@@ -242,17 +266,17 @@ export default function Menu() {
       
       return () => clearTimeout(timer);
     }
-  }, [settings?.audioUrl, mesaInfo, showLoadingAnimation]);
+  }, [menuSettings?.audioUrl, mesaInfo, showLoadingAnimation]);
 
 
   // Atualizar título da aba do navegador
   useEffect(() => {
-    if (settings?.restaurantName) {
-      document.title = `${settings.restaurantName} - Mesa ${mesaInfo?.numero || ''}`;
+    if (menuSettings?.restaurantName) {
+      document.title = `${menuSettings.restaurantName} - Mesa ${mesaInfo?.numero || ''}`;
     } else {
       document.title = 'Noctis - Menu';
     }
-  }, [settings?.restaurantName, mesaInfo?.numero]);
+  }, [menuSettings?.restaurantName, mesaInfo?.numero]);
 
   const handleProductClick = (product: Product) => {
     if (expandedProduct === product.id) {
@@ -427,14 +451,14 @@ export default function Menu() {
   }
 
   // Mostrar animação de carregamento se necessário
-  if (showLoadingAnimation && settings) {
+  if (showLoadingAnimation && menuSettings) {
     return (
       <LoadingAnimation
-        restaurantName={settings.restaurantName}
-        bannerUrl={settings.bannerUrl}
-        primaryColor={settings.primaryColor}
-        secondaryColor={settings.secondaryColor}
-        audioUrl={settings.audioUrl}
+        restaurantName={menuSettings.restaurantName}
+        bannerUrl={menuSettings.bannerUrl}
+        primaryColor={menuSettings.primaryColor}
+        secondaryColor={menuSettings.secondaryColor}
+        audioUrl={menuSettings.audioUrl}
         onAnimationComplete={handleAnimationComplete}
       />
     );
@@ -445,7 +469,7 @@ export default function Menu() {
     return (
       <div className="menu-page min-h-screen animate-fadeInUp" style={menuThemeStyle}>
         <MenuHeader
-          restaurantName={settings?.restaurantName || 'Noctis'}
+          restaurantName={menuSettings?.restaurantName || 'Noctis'}
           tableLabel={t('menu.table', { number: mesaInfo.numero })}
         />
 
@@ -543,7 +567,7 @@ export default function Menu() {
   return (
     <div className="menu-page min-h-screen animate-fadeInUp pb-8" style={menuThemeStyle}>
       <MenuHeader
-        restaurantName={settings?.restaurantName || 'Noctis'}
+        restaurantName={menuSettings?.restaurantName || 'Noctis'}
         tableLabel={t('menu.table', { number: mesaInfo.numero })}
       />
 
@@ -557,14 +581,14 @@ export default function Menu() {
 
       <MenuOrdersSection orders={meusPedidos} />
 
-      {settings?.bannerUrl && (
+      {menuSettings?.bannerUrl && (
         <div className="px-4 mb-6 max-w-lg mx-auto">
           <div
             className="w-full h-28 rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(75,0,130,0.1)] cursor-pointer"
-            onClick={(e) => handleImageClick(e, settings.bannerUrl!, 'Banner do restaurante')}
+            onClick={(e) => handleImageClick(e, menuSettings.bannerUrl!, 'Banner do restaurante')}
           >
             <img
-              src={settings.bannerUrl}
+              src={menuSettings.bannerUrl}
               alt="Banner do restaurante"
               className="w-full h-full object-cover"
             />

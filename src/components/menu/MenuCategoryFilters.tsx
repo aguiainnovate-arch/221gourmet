@@ -31,7 +31,13 @@ export default function MenuCategoryFilters({
 
   return (
     <div className="mb-7">
-      {sticky && <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />}
+      {sticky && (
+        <div
+          ref={sentinelRef}
+          className="h-px w-full -mb-px invisible pointer-events-none"
+          aria-hidden="true"
+        />
+      )}
 
       <div
         className={

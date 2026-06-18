@@ -135,6 +135,12 @@ export default function Settings() {
     palette: string[];
   } | null>(null);
   const [isExtractingColors, setIsExtractingColors] = useState(false);
+  const [isSavingPersonalization, setIsSavingPersonalization] = useState(false);
+  const [personalizationToast, setPersonalizationToast] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const lastSettingsSyncRef = useRef<number | null>(null);
 
   // Estados para relatórios
   const [statistics, setStatistics] = useState<GeneralStats | null>(null);
@@ -643,17 +649,26 @@ export default function Settings() {
     }
   };
 
-  // Carregar configurações no formulário
+  // Carregar configurações no formulário (só quando os dados do servidor mudam)
   useEffect(() => {
-    if (settings) {
-      setPersonalizationForm({
-        restaurantName: settings.restaurantName,
-        primaryColor: settings.primaryColor,
-        secondaryColor: settings.secondaryColor,
-        bannerUrl: settings.bannerUrl || '',
-        audioUrl: settings.audioUrl || ''
-      });
-    }
+    lastSettingsSyncRef.current = null;
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (!settings) return;
+
+    const syncKey =
+      settings.updatedAt instanceof Date ? settings.updatedAt.getTime() : 0;
+    if (lastSettingsSyncRef.current === syncKey) return;
+
+    lastSettingsSyncRef.current = syncKey;
+    setPersonalizationForm({
+      restaurantName: settings.restaurantName,
+      primaryColor: settings.primaryColor,
+      secondaryColor: settings.secondaryColor,
+      bannerUrl: settings.bannerUrl || '',
+      audioUrl: settings.audioUrl || '',
+    });
   }, [settings]);
 
   // Pré-visualização das cores enquanto edita a personalização
@@ -663,6 +678,13 @@ export default function Settings() {
       applyCustomColors(personalizationForm.primaryColor, personalizationForm.secondaryColor);
     });
   }, [personalizationForm.primaryColor, personalizationForm.secondaryColor]);
+
+  // Auto-esconder toast de personalização após 4s
+  useEffect(() => {
+    if (!personalizationToast) return;
+    const t = setTimeout(() => setPersonalizationToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [personalizationToast]);
 
   const loadTables = async () => {
     if (!restaurantId) return;
@@ -1418,12 +1440,19 @@ export default function Settings() {
       return;
     }
 
+    if (!personalizationForm.primaryColor || !personalizationForm.secondaryColor) {
+      alert('Por favor, defina as cores primária e secundária');
+      return;
+    }
+
     if (!restaurantId) {
       alert('Restaurante não identificado.');
       return;
     }
 
     try {
+      setIsSavingPersonalization(true);
+
       await updateSettings({
         restaurantName: personalizationForm.restaurantName.trim(),
         primaryColor: personalizationForm.primaryColor,
@@ -1434,18 +1463,44 @@ export default function Settings() {
 
       const { updateRestaurant, getRestaurantById } = await import('../services/restaurantService');
       const currentRestaurant = await getRestaurantById(restaurantId);
+
+      const theme: {
+        primaryColor: string;
+        secondaryColor: string;
+        logo?: string;
+      } = {
+        primaryColor: personalizationForm.primaryColor,
+        secondaryColor: personalizationForm.secondaryColor,
+      };
+
+      if (currentRestaurant?.theme?.logo) {
+        theme.logo = currentRestaurant.theme.logo;
+      }
+
       await updateRestaurant(restaurantId, {
-        theme: {
-          primaryColor: personalizationForm.primaryColor,
-          secondaryColor: personalizationForm.secondaryColor,
-          logo: currentRestaurant?.theme?.logo,
-        },
+        name: personalizationForm.restaurantName.trim(),
+        theme,
       });
 
-      alert('Configurações salvas com sucesso!');
+      const { applyCustomColors } = await import('../utils/colorUtils');
+      applyCustomColors(
+        personalizationForm.primaryColor,
+        personalizationForm.secondaryColor
+      );
+
+      setRestaurantDisplayName(personalizationForm.restaurantName.trim());
+      setPersonalizationToast({
+        type: 'success',
+        message: 'Configurações salvas! As cores já estão aplicadas no cardápio.',
+      });
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações. Tente novamente.');
+      setPersonalizationToast({
+        type: 'error',
+        message: 'Não foi possível salvar. Tente novamente.',
+      });
+    } finally {
+      setIsSavingPersonalization(false);
     }
   };
 
@@ -1927,6 +1982,36 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Toast: personalização salva */}
+      {personalizationToast && (
+        <div
+          className={`fixed top-4 right-4 z-[100] max-w-sm animate-in fade-in slide-in-from-top-2 rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 ${
+            personalizationToast.type === 'success'
+              ? 'bg-green-600 text-white'
+              : 'bg-red-600 text-white'
+          }`}
+          role="alert"
+        >
+          {personalizationToast.type === 'success' ? (
+            <CheckCircle className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="font-medium">{personalizationToast.message}</span>
+          <button
+            onClick={() => setPersonalizationToast(null)}
+            className={`p-1 rounded ${
+              personalizationToast.type === 'success'
+                ? 'hover:bg-green-700'
+                : 'hover:bg-red-700'
+            }`}
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Toast: novo pedido de delivery */}
       {deliveryToast && (
         <div
@@ -2427,10 +2512,11 @@ export default function Settings() {
                 <h2 className="text-2xl font-bold">Personalização</h2>
                 <button
                   onClick={savePersonalization}
-                  className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600"
+                  disabled={isSavingPersonalization}
+                  className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600 disabled:bg-green-300 disabled:cursor-not-allowed"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Salvar Configurações</span>
+                  <span>{isSavingPersonalization ? 'Salvando...' : 'Salvar Configurações'}</span>
                 </button>
               </div>
 
@@ -2549,7 +2635,7 @@ export default function Settings() {
                         <div className="flex items-center space-x-3">
                           <input
                             type="color"
-                            value={personalizationForm.primaryColor}
+                            value={personalizationForm.primaryColor || '#4B0082'}
                             onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
                             className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
                           />
@@ -2574,7 +2660,7 @@ export default function Settings() {
                         <div className="flex items-center space-x-3">
                           <input
                             type="color"
-                            value={personalizationForm.secondaryColor}
+                            value={personalizationForm.secondaryColor || '#F7F4FC'}
                             onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                             className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
                           />
@@ -2724,9 +2810,10 @@ export default function Settings() {
                     </label>
                     <div className="max-h-[500px] overflow-y-auto bg-gray-100 p-4 rounded-lg">
                       <MenuPreview
+                        key={`${personalizationForm.primaryColor}-${personalizationForm.secondaryColor}-${personalizationForm.bannerUrl}`}
                         restaurantName={personalizationForm.restaurantName || 'Nome do Restaurante'}
-                        primaryColor={personalizationForm.primaryColor || '#1e3a8a'}
-                        secondaryColor={personalizationForm.secondaryColor || '#f3f4f6'}
+                        primaryColor={personalizationForm.primaryColor || '#4B0082'}
+                        secondaryColor={personalizationForm.secondaryColor || '#F7F4FC'}
                         bannerUrl={personalizationForm.bannerUrl}
                         className="shadow-xl"
                       />

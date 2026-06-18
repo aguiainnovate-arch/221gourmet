@@ -22,11 +22,17 @@ export default function MenuHeader({ restaurantName, tableLabel }: MenuHeaderPro
         </div>
       </div>
 
-      <div className="menu-header-wave pointer-events-none absolute bottom-0 left-0 right-0" aria-hidden="true">
-        <svg viewBox="0 0 1440 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-8 sm:h-10">
+      <div className="menu-header-wave pointer-events-none absolute bottom-0 left-0 right-0 leading-none" aria-hidden="true">
+        <svg
+          viewBox="0 0 1440 49"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="block w-full h-8 sm:h-10"
+          preserveAspectRatio="none"
+        >
           <path
-            d="M0 24C240 48 480 0 720 24C960 48 1200 0 1440 24V48H0V24Z"
-            className="fill-menu-bg"
+            d="M0 24C240 48 480 0 720 24C960 48 1200 0 1440 24V49H0V24Z"
+            style={{ fill: 'var(--menu-bg, #f7f4fc)' }}
           />
         </svg>
       </div>

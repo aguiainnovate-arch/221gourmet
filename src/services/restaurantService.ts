@@ -17,6 +17,21 @@ import type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
 
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefined(v)) as unknown as T;
+  }
+  if (value && typeof value === 'object' && value.constructor === Object) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) continue;
+      out[k] = stripUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 // Adicionar novo restaurante
 export const addRestaurant = async (restaurantData: CreateRestaurantData): Promise<Restaurant> => {
   try {
@@ -271,10 +286,10 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
 export const updateRestaurant = async (id: string, updates: UpdateRestaurantData | CreateRestaurantData): Promise<void> => {
   try {
     const restaurantRef = doc(db, 'restaurants', id);
-    await updateDoc(restaurantRef, {
+    await updateDoc(restaurantRef, stripUndefined({
       ...updates,
       updatedAt: Timestamp.now()
-    });
+    }));
 
     // Se o planId foi alterado, aplicar as permissões do novo plano
     if (updates.planId) {

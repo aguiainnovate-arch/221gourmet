@@ -63,6 +63,15 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const updateSettings = async (newSettings: Partial<Omit<RestaurantSettings, 'id' | 'updatedAt'>>) => {
     try {
       await updateRestaurantSettings(restaurantId, newSettings);
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...newSettings,
+              updatedAt: new Date(),
+            }
+          : prev
+      );
     } catch (error) {
       console.error('Erro ao atualizar configurações:', error);
       throw error;
