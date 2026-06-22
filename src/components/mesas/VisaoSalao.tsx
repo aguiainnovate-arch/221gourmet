@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Eye, User, DoorOpen, Table2 } from 'lucide-react';
 import type { Table } from '../../services/tableService';
 import { canOpenTable } from '../../services/tableService';
 import type { Area } from '../../services/areaService';
 import ModalOverlay from '../ModalOverlay';
+import FilterDropdown, { type FilterOption } from './FilterDropdown';
 
 const STATUS_LABEL: Record<string, string> = {
   livre: 'Livre',
@@ -19,6 +20,14 @@ const STATUS_COLOR: Record<string, string> = {
   em_fechamento: 'bg-orange-100 text-orange-800',
   fechada: 'bg-gray-100 text-gray-800',
   bloqueada: 'bg-red-100 text-red-800'
+};
+
+const STATUS_DOT: Record<string, string> = {
+  livre: 'bg-green-500',
+  ocupada: 'bg-amber-500',
+  em_fechamento: 'bg-orange-500',
+  fechada: 'bg-gray-400',
+  bloqueada: 'bg-red-500'
 };
 
 interface VisaoSalaoProps {
@@ -58,6 +67,27 @@ export default function VisaoSalao({
     return true;
   });
 
+  const areaOptions = useMemo<FilterOption[]>(
+    () => [
+      { value: 'todos', label: 'Todas' },
+      ...areas.map((a) => ({ value: a.id, label: a.nome })),
+      { value: '', label: 'Sem área' },
+    ],
+    [areas]
+  );
+
+  const statusOptions = useMemo<FilterOption[]>(
+    () => [
+      { value: 'todos', label: 'Todos' },
+      ...Object.entries(STATUS_LABEL).map(([k, v]) => ({
+        value: k,
+        label: v,
+        dotClass: STATUS_DOT[k],
+      })),
+    ],
+    []
+  );
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow p-8 text-center text-black">
@@ -76,34 +106,26 @@ export default function VisaoSalao({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-sm font-medium text-black">Área:</span>
-        <select
+      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
+        <FilterDropdown
+          label="Área"
           value={filterArea}
-          onChange={(e) => setFilterArea(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-black"
-        >
-          <option value="todos">Todas</option>
-          {areas.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.nome}
-            </option>
-          ))}
-          <option value="">Sem área</option>
-        </select>
-        <span className="text-sm font-medium text-black ml-2">Status:</span>
-        <select
+          onChange={setFilterArea}
+          options={areaOptions}
+          minWidth="10.5rem"
+        />
+        <FilterDropdown
+          label="Status"
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-black"
-        >
-          <option value="todos">Todos</option>
-          {Object.entries(STATUS_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
+          onChange={setFilterStatus}
+          options={statusOptions}
+          minWidth="11.5rem"
+        />
+        {filtered.length !== mesas.length && (
+          <p className="pb-2 text-xs text-gray-500">
+            Exibindo {filtered.length} de {mesas.length} mesas
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

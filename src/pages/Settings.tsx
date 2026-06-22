@@ -4,7 +4,7 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, LogOut, Menu } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu } from 'lucide-react';
 import {
   addTable,
   getTables,
@@ -84,6 +84,7 @@ export default function Settings() {
   const [mesas, setMesas] = useState<Table[]>([]);
   const [novaMesa, setNovaMesa] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [mesaToast, setMesaToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [mesasSubTab, setMesasSubTab] = useState<'salao' | 'editor' | 'historico'>('salao');
   const [areas, setAreas] = useState<Area[]>([]);
   const [maxTables, setMaxTables] = useState<number>(999);
@@ -688,6 +689,13 @@ export default function Settings() {
     return () => clearTimeout(t);
   }, [personalizationToast]);
 
+  // Auto-esconder toast de mesa após 4s
+  useEffect(() => {
+    if (!mesaToast) return;
+    const t = setTimeout(() => setMesaToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [mesaToast]);
+
   const loadTables = async () => {
     if (!restaurantId) return;
     try {
@@ -761,13 +769,14 @@ export default function Settings() {
     }
 
     try {
-      const novaMesaObj = await addTable(restaurantId, novaMesa.trim());
+      const numero = novaMesa.trim();
+      const novaMesaObj = await addTable(restaurantId, numero);
       setMesas(prev => [...prev, novaMesaObj]);
       setNovaMesa('');
       setShowAddModal(false);
-      alert(`Mesa ${novaMesa} adicionada com sucesso!`);
+      setMesaToast({ type: 'success', message: `Mesa ${numero} adicionada com sucesso!` });
     } catch (error) {
-      alert('Erro ao adicionar mesa. Tente novamente.');
+      setMesaToast({ type: 'error', message: 'Erro ao adicionar mesa. Tente novamente.' });
     }
   };
 
@@ -1989,6 +1998,34 @@ export default function Settings() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-100">
+      {/* Toast: mesa criada */}
+      {mesaToast && (
+        <div
+          className={`fixed top-4 right-4 z-[100] max-w-sm rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 ${
+            mesaToast.type === 'success'
+              ? 'bg-amber-500 text-white'
+              : 'bg-red-600 text-white'
+          }`}
+          role="alert"
+        >
+          {mesaToast.type === 'success' ? (
+            <CheckCircle className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="font-medium">{mesaToast.message}</span>
+          <button
+            onClick={() => setMesaToast(null)}
+            className={`p-1 rounded ${
+              mesaToast.type === 'success' ? 'hover:bg-amber-600' : 'hover:bg-red-700'
+            }`}
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Toast: personalização salva */}
       {personalizationToast && (
         <div
