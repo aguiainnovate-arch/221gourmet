@@ -2200,6 +2200,7 @@ export default function Settings() {
 
               {mesasSubTab === 'salao' && (
                 <VisaoSalao
+                  restaurantId={restaurantId ?? ''}
                   mesas={mesas}
                   areas={areas}
                   loading={loading}
