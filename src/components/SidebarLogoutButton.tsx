@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LogOut } from 'lucide-react';
+
+const INTERACTIVE_SELECTOR =
+  'button, a, input, select, textarea, label, [role="button"], [role="link"]';
 
 interface SidebarLogoutButtonProps {
   onConfirm: () => void;
@@ -7,11 +10,29 @@ interface SidebarLogoutButtonProps {
 
 export default function SidebarLogoutButton({ onConfirm }: SidebarLogoutButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showConfirm) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (confirmRef.current?.contains(target)) return;
+      if (target.closest(INTERACTIVE_SELECTOR)) return;
+      setShowConfirm(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [showConfirm]);
 
   return (
     <div>
       {showConfirm && (
-        <div className="mb-3 p-3 bg-white border border-gray-200 rounded-lg shadow-md">
+        <div
+          ref={confirmRef}
+          className="mb-3 p-3 bg-white border border-gray-200 rounded-lg shadow-md"
+        >
           <p className="text-sm font-medium text-black mb-3">Deseja mesmo sair?</p>
           <div className="flex gap-2">
             <button
@@ -36,7 +57,7 @@ export default function SidebarLogoutButton({ onConfirm }: SidebarLogoutButtonPr
       )}
       <button
         type="button"
-        onClick={() => setShowConfirm(true)}
+        onClick={() => setShowConfirm((prev) => !prev)}
         className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#8B0000] hover:bg-[#6B0000] text-white font-medium transition-colors"
         title="Sair"
       >

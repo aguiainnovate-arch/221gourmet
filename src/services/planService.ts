@@ -145,7 +145,7 @@ export const getPlanById = async (planId: string): Promise<Plan | null> => {
   }
 };
 
-/** Retorna o limite de mesas do plano do restaurante (para validação no Editor de Salão). */
+/** Retorna o limite de mesas do plano do restaurante (para validação na Visão do Salão). */
 export const getMaxTablesForRestaurant = async (restaurantId: string): Promise<number> => {
   const { getRestaurantById } = await import('./restaurantService');
   const restaurant = await getRestaurantById(restaurantId);

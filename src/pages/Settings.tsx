@@ -6,7 +6,6 @@ import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu } from 'lucide-react';
 import {
-  addTable,
   getTables,
   updateTable,
   deleteTable,
@@ -61,7 +60,6 @@ import { db } from '../../firebase';
 import qrcode from 'qrcode';
 import AdvancedTranslations from '../components/AdvancedTranslations';
 import VisaoSalao from '../components/mesas/VisaoSalao';
-import EditorSalao from '../components/mesas/EditorSalao';
 import HistoricoAuditoria from '../components/mesas/HistoricoAuditoria';
 import DetalheMesaModal from '../components/mesas/DetalheMesaModal';
 import SidebarLogoutButton from '../components/SidebarLogoutButton';
@@ -82,10 +80,8 @@ export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mesas, setMesas] = useState<Table[]>([]);
-  const [novaMesa, setNovaMesa] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
   const [mesaToast, setMesaToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [mesasSubTab, setMesasSubTab] = useState<'salao' | 'editor' | 'historico'>('salao');
+  const [mesasSubTab, setMesasSubTab] = useState<'salao' | 'historico'>('salao');
   const [areas, setAreas] = useState<Area[]>([]);
   const [maxTables, setMaxTables] = useState<number>(999);
   const [selectedMesaDetail, setSelectedMesaDetail] = useState<Table | null>(null);
@@ -323,9 +319,10 @@ export default function Settings() {
     }
   };
 
-  // Carregar mesas do Firestore
+  // Carregar mesas e áreas do Firestore
   useEffect(() => {
     loadTables();
+    loadAreas();
   }, [restaurantId]);
 
   // Carregar produtos do Firestore
@@ -697,7 +694,10 @@ export default function Settings() {
   }, [mesaToast]);
 
   const loadTables = async () => {
-    if (!restaurantId) return;
+    if (!restaurantId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [tablesData, max] = await Promise.all([
@@ -757,30 +757,13 @@ export default function Settings() {
     }
   };
 
-  const adicionarMesa = async () => {
-    if (!restaurantId || !novaMesa.trim()) {
-      alert('Por favor, digite um número de mesa');
-      return;
-    }
-
-    if (mesas.find(m => m.numero === novaMesa)) {
-      alert('Mesa já existe!');
-      return;
-    }
-
-    try {
-      const numero = novaMesa.trim();
-      const novaMesaObj = await addTable(restaurantId, numero);
-      setMesas(prev => [...prev, novaMesaObj]);
-      setNovaMesa('');
-      setShowAddModal(false);
-      setMesaToast({ type: 'success', message: `Mesa ${numero} adicionada com sucesso!` });
-    } catch (error) {
-      setMesaToast({ type: 'error', message: 'Erro ao adicionar mesa. Tente novamente.' });
-    }
-  };
 
   const removerMesa = async (id: string) => {
+    const mesa = mesas.find((m) => m.id === id);
+    if (!mesa) return;
+    if (!window.confirm(`Remover a mesa ${mesa.numero}? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
     try {
       await deleteTable(id);
       setMesas((prev) => prev.filter((m) => m.id !== id));
@@ -2183,13 +2166,6 @@ export default function Settings() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setMesasSubTab('editor'); loadAreas(); }}
-                    className={mesaSubTabButtonClass(mesasSubTab === 'editor')}
-                  >
-                    Editor de Salão
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => { setMesasSubTab('historico'); loadAuditEvents(); }}
                     className={mesaSubTabButtonClass(mesasSubTab === 'historico')}
                   >
@@ -2203,34 +2179,29 @@ export default function Settings() {
                   restaurantId={restaurantId ?? ''}
                   mesas={mesas}
                   areas={areas}
+                  maxTables={maxTables}
                   loading={loading}
                   onOpenMesa={handleOpenMesa}
                   onVerDetalhe={setSelectedMesaDetail}
                   onAtribuirResponsavel={handleAtribuirResponsavel}
-                  generateTableUrl={(numero) => generateTableUrl(restaurantId ?? '', numero)}
-                />
-              )}
-
-              {mesasSubTab === 'editor' && (
-                <EditorSalao
-                  restaurantId={restaurantId ?? ''}
-                  mesas={mesas}
-                  areas={areas}
-                  maxTables={maxTables}
-                  loading={loading}
-                  loadTables={loadTables}
-                  loadAreas={loadAreas}
-                  onAddTable={adicionarMesa}
                   onRemoveTable={removerMesa}
                   onAddArea={handleAddArea}
                   onRemoveArea={handleRemoveArea}
-                  onVerDetalhe={setSelectedMesaDetail}
                   visualizarQRCode={visualizarQRCode}
                   baixarQRCode={baixarQRCode}
-                  generateTableUrl={(numero) => generateTableUrl(restaurantId ?? '', numero)}
-                  setShowAddModal={setShowAddModal}
-                  novaMesa={novaMesa}
-                  setNovaMesa={setNovaMesa}
+                  onMesaCreated={(mesa) => {
+                    setMesas((prev) => [...prev, mesa]);
+                    setMesaToast({
+                      type: 'success',
+                      message: `Mesa ${mesa.numero} adicionada com sucesso!`,
+                    });
+                  }}
+                  onMesaCreateError={() => {
+                    setMesaToast({
+                      type: 'error',
+                      message: 'Erro ao adicionar mesa. Tente novamente.',
+                    });
+                  }}
                 />
               )}
 
@@ -4034,63 +4005,6 @@ export default function Settings() {
               >
                 {stripeModalBusy ? 'Aguarde…' : stripeModalAction === 'onboard' ? 'Continuar' : 'Sincronizar'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal para Adicionar Mesa */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Adicionar Nova Mesa</h3>
-              <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNovaMesa('');
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-black mb-2">
-                  Número da Mesa
-                </label>
-                <input
-                  type="text"
-                  value={novaMesa}
-                  onChange={(e) => setNovaMesa(e.target.value)}
-                  placeholder="Ex: 15"
-                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                  onKeyPress={(e) => e.key === 'Enter' && adicionarMesa()}
-                  autoFocus
-                />
-              </div>
-              <div className="flex space-x-2 justify-end">
-                <button
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setNovaMesa('');
-                  }}
-                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={adicionarMesa}
-                  disabled={!novaMesa.trim()}
-                  className={`px-4 py-2 rounded ${novaMesa.trim()
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                >
-                  Adicionar
-                </button>
-              </div>
             </div>
           </div>
         </div>
