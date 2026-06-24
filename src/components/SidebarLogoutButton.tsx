@@ -6,9 +6,10 @@ const INTERACTIVE_SELECTOR =
 
 interface SidebarLogoutButtonProps {
   onConfirm: () => void;
+  collapsed?: boolean;
 }
 
-export default function SidebarLogoutButton({ onConfirm }: SidebarLogoutButtonProps) {
+export default function SidebarLogoutButton({ onConfirm, collapsed = false }: SidebarLogoutButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const confirmRef = useRef<HTMLDivElement>(null);
 
@@ -27,11 +28,15 @@ export default function SidebarLogoutButton({ onConfirm }: SidebarLogoutButtonPr
   }, [showConfirm]);
 
   return (
-    <div>
+    <div className={collapsed ? 'relative' : undefined}>
       {showConfirm && (
         <div
           ref={confirmRef}
-          className="mb-3 p-3 bg-white border border-gray-200 rounded-lg shadow-md"
+          className={`p-3 bg-white border border-gray-200 rounded-lg shadow-md z-50 ${
+            collapsed
+              ? 'absolute left-full top-1/2 -translate-y-1/2 ml-2 w-48'
+              : 'mb-3'
+          }`}
         >
           <p className="text-sm font-medium text-black mb-3">Deseja mesmo sair?</p>
           <div className="flex gap-2">
@@ -58,11 +63,19 @@ export default function SidebarLogoutButton({ onConfirm }: SidebarLogoutButtonPr
       <button
         type="button"
         onClick={() => setShowConfirm((prev) => !prev)}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#8B0000] hover:bg-[#6B0000] text-white font-medium transition-colors"
+        className={`w-full flex items-center rounded-lg bg-[#8B0000] hover:bg-[#6B0000] text-white font-medium transition-colors ${
+          collapsed ? 'justify-center p-3' : 'justify-center gap-2 px-4 py-3'
+        }`}
         title="Sair"
       >
-        <LogOut className="w-5 h-5" />
-        Sair
+        <LogOut className="w-5 h-5 shrink-0" />
+        <span
+          className={`overflow-hidden whitespace-nowrap transition-all duration-200 ${
+            collapsed ? 'max-w-0 opacity-0 delay-0' : 'max-w-[4rem] opacity-100 delay-150'
+          }`}
+        >
+          Sair
+        </span>
       </button>
     </div>
   );

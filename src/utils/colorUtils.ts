@@ -1,6 +1,17 @@
 /**
  * Converte uma cor hex para variações de tons
  */
+export const normalizeHexColor = (value: string): string | null => {
+  const clean = value.trim().replace(/^#/, '');
+  if (/^[0-9A-Fa-f]{6}$/.test(clean)) return `#${clean.toLowerCase()}`;
+  if (/^[0-9A-Fa-f]{3}$/.test(clean)) {
+    return `#${clean.split('').map((c) => c + c).join('').toLowerCase()}`;
+  }
+  return null;
+};
+
+export const isValidHexColor = (value: string): boolean => normalizeHexColor(value) !== null;
+
 export const generateColorVariations = (hexColor: string) => {
   // Remove o # se existir
   const hex = hexColor.replace('#', '');

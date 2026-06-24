@@ -256,8 +256,8 @@ function MesaItem({
         </p>
       )}
       {isActive && (
-        <p className="flex items-center gap-1.5">
-          <UtensilsCrossed className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        <p className={`flex items-center gap-1.5 ${!orderSummary ? 'text-black' : ''}`}>
+          <UtensilsCrossed className={`w-3.5 h-3.5 shrink-0 ${!orderSummary ? 'text-gray-700' : 'text-gray-400'}`} />
           {orderSummary ?? 'Nenhum pedido'}
           {ctx && ctx.readyCount > 0 && (
             <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">

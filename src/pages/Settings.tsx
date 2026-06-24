@@ -4,7 +4,7 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   getTables,
   updateTable,
@@ -68,6 +68,21 @@ import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import ProductImage from '../components/ProductImage';
 import MenuPreview from '../components/MenuPreview';
+import ThemeColorsPanel from '../components/ThemeColorsPanel';
+import {
+  PanelPage,
+  PanelPageHeader,
+  PanelCard,
+  PanelCardHeader,
+  PanelButton,
+  PanelTabGroup,
+  PanelTab,
+  PanelEmptyState,
+  PanelStatCard,
+  panelInputClass,
+  panelLabelClass,
+  panelSelectClass,
+} from '../components/panel';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
@@ -78,6 +93,7 @@ export default function Settings() {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mesas, setMesas] = useState<Table[]>([]);
   const [mesaToast, setMesaToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -1226,7 +1242,10 @@ export default function Settings() {
         secondaryColor: colors.secondaryColor
       }));
 
-      alert('Cores extraídas com sucesso! As cores foram aplicadas automaticamente.');
+      setPersonalizationToast({
+        type: 'success',
+        message: 'Cores extraídas do banner e aplicadas automaticamente.',
+      });
     } catch (error) {
       console.error('Erro ao extrair cores:', error);
       alert('Erro ao extrair cores. Verifique se a imagem é válida e tente novamente.');
@@ -1962,25 +1981,47 @@ export default function Settings() {
     <button
       key={tab}
       onClick={() => { setActiveTab(tab); closeSidebar(); }}
-      className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 ${activeTab === tab ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+      title={sidebarCollapsed ? label : undefined}
+      className={`w-full text-left p-3 rounded-lg flex items-center transition-colors duration-200 ${
+        sidebarCollapsed ? 'md:justify-center md:px-2' : 'space-x-3'
+      } ${
+        activeTab === tab
+          ? 'bg-blue-50 text-blue-700 border border-blue-100'
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
+      }`}
     >
-      {icon}
-      <span className="flex-1">{label}</span>
-      {badge !== undefined && badge > 0 && (
-        <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
+      <span className="relative shrink-0">
+        {icon}
+        {badge !== undefined && badge > 0 && sidebarCollapsed && (
+          <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[1rem] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </span>
+      <span
+        className={`flex-1 overflow-hidden whitespace-nowrap transition-all duration-200 ${
+          sidebarCollapsed
+            ? 'md:max-w-0 md:opacity-0 md:delay-0'
+            : 'max-w-[12rem] opacity-100 delay-150'
+        }`}
+      >
+        {label}
+      </span>
+      {badge !== undefined && badge > 0 && !sidebarCollapsed && (
+        <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold shrink-0">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
     </button>
   );
 
-  const mesaSubTabButtonClass = (active: boolean) =>
-    `px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center justify-center whitespace-nowrap min-h-[2.5rem] box-border transition-[background-color,color] duration-150 ${
-      active ? 'bg-amber-500 text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
-    }`;
+  const mesaPendentesCount = orders.filter((o) => o.orderType === 'mesa' && o.status === 'novo').length;
+  const deliveryPendentesCount = deliveryOrders.filter(
+    (o) => o.status === 'pending' || o.status === 'confirmed'
+  ).length;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gray-100">
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
       {/* Toast: mesa criada */}
       {mesaToast && (
         <div
@@ -2059,41 +2100,44 @@ export default function Settings() {
 
       {/* Header — safe-area para não ficar sob a barra de status (Capacitor/mobile) */}
       <div
-        className="bg-white border-b p-3 sm:p-4 shrink-0 z-30"
+        className="bg-white border-b border-gray-200 p-3 sm:px-6 sm:py-4 shrink-0 z-30"
         style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))' }}
       >
-        <div className="flex justify-between items-center gap-2">
+        <div className="flex justify-between items-center gap-2 max-w-[1600px] mx-auto w-full">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={openSidebar}
-              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 shrink-0"
+              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 shrink-0"
               aria-label="Abrir menu"
             >
               <Menu className="w-6 h-6" />
             </button>
-            <SettingsIcon className="w-7 h-7 sm:w-8 sm:h-8 text-gray-600 shrink-0 hidden sm:block" />
+            <div className="hidden sm:flex p-2 rounded-xl bg-gray-100 text-gray-600 shrink-0">
+              <SettingsIcon className="w-5 h-5" />
+            </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight truncate">
                 {restaurantDisplayName || 'Gerenciamento'}
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">
-                {restaurantDisplayName ? 'Painel de gerenciamento' : ''}
+                Painel de gerenciamento
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <button
+            <PanelButton
+              variant="secondary"
               onClick={testFirestoreConnection}
-              className="bg-yellow-500 text-white p-2 sm:px-4 sm:py-2 rounded-lg flex items-center gap-1.5 hover:bg-yellow-600 text-sm"
+              icon={<SettingsIcon className="w-4 h-4" />}
+              className="p-2 sm:px-4"
               title="Testar Conexão"
             >
-              <SettingsIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Testar Conexão</span>
-            </button>
+            </PanelButton>
             <Link
               to="/settings?tab=cozinha"
-              className="p-2 sm:px-4 sm:py-2 bg-gray-500 text-white rounded-lg flex items-center gap-1.5 hover:bg-gray-600 text-sm"
+              className="inline-flex items-center gap-1.5 p-2 sm:px-4 sm:py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
               title="Ir para Cozinha"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -2116,23 +2160,52 @@ export default function Settings() {
         {/* Sidebar: drawer no mobile, altura fixa abaixo da navbar no desktop */}
         <aside
           className={`
-            fixed md:relative inset-y-0 left-0 z-50 w-64 shrink-0 bg-white border-r flex flex-col md:h-full
-            transform transition-transform duration-200 ease-out md:transform-none
+            fixed md:relative inset-y-0 left-0 z-50 shrink-0 bg-white border-r flex flex-col md:h-full
+            w-64 ${sidebarCollapsed ? 'md:w-[4.5rem]' : 'md:w-64'}
+            transform transition-[width,transform] duration-300 ease-in-out md:delay-75
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           `}
         >
-          <div className="p-4 flex items-center justify-between md:justify-start border-b md:border-b-0 shrink-0">
-            <h2 className="text-lg font-semibold text-black">Configurações</h2>
-            <button
-              type="button"
-              onClick={closeSidebar}
-              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100"
-              aria-label="Fechar menu"
+          <div
+            className={`p-4 flex items-center border-b md:border-b-0 shrink-0 w-full ${
+              sidebarCollapsed ? 'md:justify-center md:px-2 md:py-3' : 'justify-between'
+            }`}
+          >
+            <h2
+              className={`text-lg font-semibold text-black overflow-hidden whitespace-nowrap transition-all duration-200 ${
+                sidebarCollapsed ? 'md:max-w-0 md:opacity-0 md:delay-0' : 'max-w-full opacity-100 delay-150'
+              }`}
             >
-              <X className="w-5 h-5" />
-            </button>
+              Configurações
+            </h2>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((prev) => !prev)}
+                className="hidden md:flex p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+                aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight className="w-5 h-5" />
+                ) : (
+                  <ChevronLeft className="w-5 h-5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={closeSidebar}
+                className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+                aria-label="Fechar menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-          <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+          <nav
+            className={`p-4 space-y-1 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-300 ease-in-out ${
+              sidebarCollapsed ? 'md:px-2' : ''
+            }`}
+          >
             {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas')}
             {navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
             {navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
@@ -2140,8 +2213,13 @@ export default function Settings() {
             {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha', deliveryPendingCount)}
             {navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
           </nav>
-          <div className="p-4 border-t border-gray-200 shrink-0">
+          <div
+            className={`p-4 border-t border-gray-200 shrink-0 transition-[padding] duration-300 ease-in-out ${
+              sidebarCollapsed ? 'md:px-2' : ''
+            }`}
+          >
             <SidebarLogoutButton
+              collapsed={sidebarCollapsed}
               onConfirm={() => {
                 logout();
                 navigate('/restaurant/auth', { replace: true });
@@ -2151,28 +2229,31 @@ export default function Settings() {
         </aside>
 
         {/* Conteúdo Principal */}
-        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
+          <div className="max-w-[1600px] mx-auto w-full">
           {activeTab === 'mesas' && (
-            <div>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-black">Gerenciar Mesas</h2>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => { setMesasSubTab('salao'); setSelectedMesaDetail(null); }}
-                    className={mesaSubTabButtonClass(mesasSubTab === 'salao')}
-                  >
-                    Visão do Salão
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setMesasSubTab('historico'); loadAuditEvents(); }}
-                    className={mesaSubTabButtonClass(mesasSubTab === 'historico')}
-                  >
-                    Histórico e Auditoria
-                  </button>
-                </div>
-              </div>
+            <PanelPage>
+              <PanelPageHeader
+                title="Gerenciar Mesas"
+                description="Organize o salão, acompanhe mesas abertas e consulte o histórico de operações."
+                icon={<TableIcon className="w-5 h-5" />}
+                tabs={
+                  <PanelTabGroup>
+                    <PanelTab
+                      active={mesasSubTab === 'salao'}
+                      onClick={() => { setMesasSubTab('salao'); setSelectedMesaDetail(null); }}
+                    >
+                      Visão do Salão
+                    </PanelTab>
+                    <PanelTab
+                      active={mesasSubTab === 'historico'}
+                      onClick={() => { setMesasSubTab('historico'); loadAuditEvents(); }}
+                    >
+                      Histórico e Auditoria
+                    </PanelTab>
+                  </PanelTabGroup>
+                }
+              />
 
               {mesasSubTab === 'salao' && (
                 <VisaoSalao
@@ -2227,91 +2308,88 @@ export default function Settings() {
                   onOpenMesa={handleOpenMesa}
                 />
               )}
-            </div>
+            </PanelPage>
           )}
 
           {activeTab === 'cardapio' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Gerenciar Cardápio</h2>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setShowCSVModal(true)}
-                    className="bg-blue-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-blue-600"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Importar CSV</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPdfExtractModal(true);
-                      setPdfExtractError(null);
-                      setPdfExtractedText('');
-                      setPdfExtractMeta(null);
-                      setPdfClaudeResult(null);
-                    }}
-                    className="bg-slate-600 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-slate-700"
-                    title="Envia o PDF para o servidor e extrai o texto (PDF com texto selecionável)"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Extrair PDF</span>
-                  </button>
-                  <div className="relative group">
-                    <button
-                      onClick={() => hasImageMenuTransfer ? setShowImageImportModal(true) : null}
-                      disabled={!hasImageMenuTransfer}
-                      className={`px-6 py-2 rounded-lg flex items-center space-x-2 font-semibold transition-all transform ${hasImageMenuTransfer
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        }`}
-                      title={!hasImageMenuTransfer ? 'Você não possui permissão para importar cardápio por imagem' : 'Importar cardápio a partir de uma foto usando IA'}
+            <PanelPage>
+              <PanelPageHeader
+                title="Gerenciar Cardápio"
+                description="Cadastre produtos, organize categorias e importe itens em lote."
+                icon={<Utensils className="w-5 h-5" />}
+                actions={
+                  <>
+                    <PanelButton
+                      variant="secondary"
+                      onClick={() => setShowCSVModal(true)}
+                      icon={<Upload className="w-4 h-4" />}
                     >
-                      <Sparkles className="w-5 h-5" />
-                      <span>Importar por Imagem</span>
-                      {hasImageMenuTransfer && <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-bold">IA</span>}
-                    </button>
-                    {!hasImageMenuTransfer && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                        Você não possui permissão para esta funcionalidade
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => openProductModal()}
-                    className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Adicionar Produto</span>
-                  </button>
-                </div>
-              </div>
+                      Importar CSV
+                    </PanelButton>
+                    <PanelButton
+                      variant="secondary"
+                      onClick={() => {
+                        setShowPdfExtractModal(true);
+                        setPdfExtractError(null);
+                        setPdfExtractedText('');
+                        setPdfExtractMeta(null);
+                        setPdfClaudeResult(null);
+                      }}
+                      icon={<FileText className="w-4 h-4" />}
+                      title="Envia o PDF para o servidor e extrai o texto (PDF com texto selecionável)"
+                    >
+                      Extrair PDF
+                    </PanelButton>
+                    <div className="relative group">
+                      <PanelButton
+                        variant={hasImageMenuTransfer ? 'primary' : 'secondary'}
+                        onClick={() => hasImageMenuTransfer && setShowImageImportModal(true)}
+                        disabled={!hasImageMenuTransfer}
+                        icon={<Sparkles className="w-4 h-4" />}
+                        title={
+                          !hasImageMenuTransfer
+                            ? 'Você não possui permissão para importar cardápio por imagem'
+                            : 'Importar cardápio a partir de uma foto usando IA'
+                        }
+                      >
+                        Importar por Imagem
+                      </PanelButton>
+                      {!hasImageMenuTransfer && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                          Você não possui permissão para esta funcionalidade
+                        </div>
+                      )}
+                    </div>
+                    <PanelButton onClick={() => openProductModal()} icon={<Plus className="w-4 h-4" />}>
+                      Adicionar Produto
+                    </PanelButton>
+                  </>
+                }
+              />
 
               {/* Filtros */}
-              <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <PanelCard>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* Busca */}
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">Buscar</label>
+                    <label className={panelLabelClass}>Buscar</label>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Nome ou descrição..."
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
+                        className={`${panelInputClass} pl-10`}
                       />
                     </div>
                   </div>
 
-                  {/* Filtro por categoria */}
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">Categoria</label>
+                    <label className={panelLabelClass}>Categoria</label>
                     <select
                       value={filterCategory}
                       onChange={(e) => setFilterCategory(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
+                      className={panelSelectClass}
                     >
                       <option value="all">Todas as categorias</option>
                       {categories.map((category) => (
@@ -2320,13 +2398,12 @@ export default function Settings() {
                     </select>
                   </div>
 
-                  {/* Filtro por preço */}
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">Preço</label>
+                    <label className={panelLabelClass}>Preço</label>
                     <select
                       value={filterPrice}
                       onChange={(e) => setFilterPrice(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
+                      className={panelSelectClass}
                     >
                       <option value="all">Todos os preços</option>
                       <option value="low">Até R$ 20,00</option>
@@ -2335,13 +2412,12 @@ export default function Settings() {
                     </select>
                   </div>
 
-                  {/* Filtro por tempo */}
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">Tempo de Preparo</label>
+                    <label className={panelLabelClass}>Tempo de Preparo</label>
                     <select
                       value={filterTime}
                       onChange={(e) => setFilterTime(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
+                      className={panelSelectClass}
                     >
                       <option value="all">Todos os tempos</option>
                       <option value="fast">Até 15 min</option>
@@ -2350,14 +2426,14 @@ export default function Settings() {
                     </select>
                   </div>
                 </div>
-              </div>
+              </PanelCard>
 
               {/* Lista de Produtos */}
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6 border-b">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-black">Produtos do Cardápio</h3>
-                    <span className="text-sm text-black">
+              <PanelCard padding="none">
+                <div className="p-5 sm:p-6 border-b border-gray-100">
+                  <div className="flex justify-between items-center gap-3">
+                    <h3 className="text-base font-semibold text-gray-900">Produtos do Cardápio</h3>
+                    <span className="text-sm text-gray-500">
                       {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -2453,21 +2529,24 @@ export default function Settings() {
                     </table>
                   </div>
                 )}
-              </div>
+              </PanelCard>
 
               {/* Gerenciamento de Categorias */}
-              <div className="bg-white rounded-lg shadow mt-6">
-                <div className="p-6 border-b">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-black">Gerenciar Categorias</h3>
-                    <button
-                      onClick={() => openCategoryModal()}
-                      className="bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 hover:bg-blue-600"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Nova Categoria</span>
-                    </button>
-                  </div>
+              <PanelCard padding="none">
+                <div className="p-5 sm:p-6 border-b border-gray-100">
+                  <PanelCardHeader
+                    title="Gerenciar Categorias"
+                    bordered={false}
+                    actions={
+                      <PanelButton
+                        onClick={() => openCategoryModal()}
+                        icon={<Plus className="w-4 h-4" />}
+                        className="text-sm"
+                      >
+                        Nova Categoria
+                      </PanelButton>
+                    }
+                  />
                 </div>
                 {categories.length === 0 ? (
                   <div className="p-6 text-center text-gray-500">
@@ -2504,47 +2583,46 @@ export default function Settings() {
                               <div className="mt-2 text-xs text-gray-400">
                                 {productsInCategory.slice(0, 3).map(p => p.name).join(', ')}
                                 {productsInCategory.length > 3 && '...'}
-        </div>
-      )}
-      
-      {/* Modal de Login */}
-      <RestaurantLoginModal
-        isOpen={showLoginModal}
-        onClose={() => navigate(-1)}
-        onSuccess={() => setShowLoginModal(false)}
-      />
-    </div>
-  );
-})}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
-              </div>
-
-            </div>
+              </PanelCard>
+            </PanelPage>
           )}
 
           {activeTab === 'personalizacao' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Personalização</h2>
-                <button
-                  onClick={savePersonalization}
-                  disabled={isSavingPersonalization}
-                  className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-green-600 disabled:bg-green-300 disabled:cursor-not-allowed"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{isSavingPersonalization ? 'Salvando...' : 'Salvar Configurações'}</span>
-                </button>
-              </div>
+            <PanelPage>
+              <PanelPageHeader
+                title="Personalização"
+                description="Configure a identidade visual e o conteúdo exibido no cardápio digital."
+                icon={<Palette className="w-5 h-5" />}
+                actions={
+                  <PanelButton
+                    onClick={savePersonalization}
+                    disabled={isSavingPersonalization}
+                    icon={<Save className="w-4 h-4" />}
+                  >
+                    {isSavingPersonalization ? 'Salvando...' : 'Salvar Configurações'}
+                  </PanelButton>
+                }
+              />
 
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold mb-6 text-black">Configurações do Restaurante</h3>
+              <PanelCard>
+                <PanelCardHeader
+                  title="Configurações do Restaurante"
+                  description="Nome, cores, banner e áudio exibidos aos clientes."
+                  bordered={false}
+                />
 
                 <div className="space-y-6">
                   {/* Nome do Restaurante */}
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">
+                    <label className={panelLabelClass}>
                       Nome do Restaurante
                     </label>
                     <input
@@ -2552,150 +2630,28 @@ export default function Settings() {
                       value={personalizationForm.restaurantName}
                       onChange={(e) => setPersonalizationForm(prev => ({ ...prev, restaurantName: e.target.value }))}
                       placeholder="Ex: Noctis"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                      className={panelInputClass}
                     />
-                    <p className="text-sm text-black mt-1">
+                    <p className="text-sm text-gray-500 mt-1.5">
                       Este nome aparecerá no cabeçalho do cardápio
                     </p>
                   </div>
 
                   {/* Cores */}
-                  <div className="space-y-6">
-                    {/* Botão de Extração Automática */}
-                    {personalizationForm.bannerUrl && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-800 mb-1">
-                              🎨 Extração Automática de Cores
-                            </h4>
-                            <p className="text-xs text-blue-600">
-                              Extraia automaticamente as cores dominantes do seu banner
-                            </p>
-                          </div>
-                          <button
-                            onClick={handleExtractColors}
-                            disabled={isExtractingColors}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-colors ${isExtractingColors
-                              ? 'bg-blue-300 text-blue-600 cursor-not-allowed'
-                              : 'bg-blue-500 text-white hover:bg-blue-600'
-                              }`}
-                          >
-                            <Sparkles className="w-4 h-4" />
-                            <span>
-                              {isExtractingColors ? 'Extraindo...' : 'Extrair Cores'}
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Paleta de Cores Extraídas */}
-                    {extractedColors && (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <h4 className="text-sm font-medium text-green-800 mb-3">
-                          ✨ Cores Extraídas do Banner
-                        </h4>
-                        <div className="space-y-3">
-                          {/* Paleta completa */}
-                          <div>
-                            <p className="text-xs text-green-600 mb-2">Paleta completa:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {extractedColors.palette.map((color, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-center space-x-2"
-                                >
-                                  <div
-                                    className="w-6 h-6 rounded border border-gray-300"
-                                    style={{ backgroundColor: color }}
-                                  />
-                                  <span className="text-xs font-mono text-green-700">
-                                    {color}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Cores selecionadas */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex items-center space-x-2">
-                              <div
-                                className="w-4 h-4 rounded border border-gray-300"
-                                style={{ backgroundColor: extractedColors.primaryColor }}
-                              />
-                              <span className="text-xs text-green-700">
-                                <strong>Primária:</strong> {extractedColors.primaryColor}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <div
-                                className="w-4 h-4 rounded border border-gray-300"
-                                style={{ backgroundColor: extractedColors.secondaryColor }}
-                              />
-                              <span className="text-xs text-green-700">
-                                <strong>Secundária:</strong> {extractedColors.secondaryColor}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Seleção Manual de Cores */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Cor Primária */}
-                      <div>
-                        <label className="block text-sm font-medium text-black mb-2">
-                          Cor Primária
-                        </label>
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="color"
-                            value={personalizationForm.primaryColor || '#4B0082'}
-                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
-                            className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={personalizationForm.primaryColor}
-                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, primaryColor: e.target.value }))}
-                            placeholder="#92400e"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                          />
-                        </div>
-                        <p className="text-sm text-black mt-1">
-                          Cor principal do header, filtros ativos, preços e botões do cardápio
-                        </p>
-                      </div>
-
-                      {/* Cor Secundária */}
-                      <div>
-                        <label className="block text-sm font-medium text-black mb-2">
-                          Cor Secundária
-                        </label>
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="color"
-                            value={personalizationForm.secondaryColor || '#F7F4FC'}
-                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
-                            className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={personalizationForm.secondaryColor}
-                            onChange={(e) => setPersonalizationForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
-                            placeholder="#fffbeb"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                          />
-                        </div>
-                        <p className="text-sm text-black mt-1">
-                          Cor de fundo da página do cardápio digital (área principal)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <ThemeColorsPanel
+                    primaryColor={personalizationForm.primaryColor}
+                    secondaryColor={personalizationForm.secondaryColor}
+                    onPrimaryChange={(color) =>
+                      setPersonalizationForm((prev) => ({ ...prev, primaryColor: color }))
+                    }
+                    onSecondaryChange={(color) =>
+                      setPersonalizationForm((prev) => ({ ...prev, secondaryColor: color }))
+                    }
+                    extractedColors={extractedColors}
+                    bannerUrl={personalizationForm.bannerUrl}
+                    onExtractColors={handleExtractColors}
+                    isExtractingColors={isExtractingColors}
+                  />
 
                   {/* Banner do Restaurante */}
                   <div>
@@ -2841,100 +2797,78 @@ export default function Settings() {
                     </p>
                   </div>
                 </div>
-              </div>
-            </div>
+              </PanelCard>
+            </PanelPage>
           )}
 
           {activeTab === 'relatorios' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Relatórios</h2>
-                <div className="flex items-center space-x-3">
-                  <select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(e.target.value as 'today' | 'week' | 'month' | 'all')}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                  >
-                    <option value="today">Hoje</option>
-                    <option value="week">Última Semana</option>
-                    <option value="month">Este Mês</option>
-                    <option value="all">Todos os Períodos</option>
-                  </select>
-                  <button
-                    onClick={loadStatistics}
-                    disabled={loadingStats}
-                    className="bg-blue-500 text-white px-4 py-2 rounded flex items-center space-x-2 hover:bg-blue-600 disabled:bg-blue-300"
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                    <span>{loadingStats ? 'Carregando...' : 'Atualizar'}</span>
-                  </button>
-                </div>
-              </div>
+            <PanelPage>
+              <PanelPageHeader
+                title="Relatórios"
+                description="Acompanhe pedidos, receita e desempenho do restaurante."
+                icon={<BarChart3 className="w-5 h-5" />}
+                actions={
+                  <>
+                    <select
+                      value={selectedPeriod}
+                      onChange={(e) => setSelectedPeriod(e.target.value as 'today' | 'week' | 'month' | 'all')}
+                      className={panelSelectClass}
+                    >
+                      <option value="today">Hoje</option>
+                      <option value="week">Última Semana</option>
+                      <option value="month">Este Mês</option>
+                      <option value="all">Todos os Períodos</option>
+                    </select>
+                    <PanelButton
+                      onClick={loadStatistics}
+                      disabled={loadingStats}
+                      icon={<TrendingUp className="w-4 h-4" />}
+                    >
+                      {loadingStats ? 'Carregando...' : 'Atualizar'}
+                    </PanelButton>
+                  </>
+                }
+              />
 
               {loadingStats ? (
-                <div className="bg-white rounded-lg shadow p-8 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Carregando estatísticas...</p>
-                </div>
+                <PanelCard padding="lg" className="text-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-500 text-sm">Carregando estatísticas...</p>
+                </PanelCard>
               ) : statistics ? (
                 <div className="space-y-6">
-                  {/* Cartões de Resumo */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Users className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total de Pedidos</p>
-                          <p className="text-2xl font-bold text-gray-900">{statistics.totalOrders}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                          <TrendingUp className="w-6 h-6 text-green-600" />
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Receita Total</p>
-                          <p className="text-2xl font-bold text-gray-900">R$ {statistics.totalRevenue.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                          <Calendar className="w-6 h-6 text-yellow-600" />
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Pedidos Hoje</p>
-                          <p className="text-2xl font-bold text-gray-900">{statistics.ordersToday}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                          <BarChart3 className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Ticket Médio</p>
-                          <p className="text-2xl font-bold text-gray-900">R$ {statistics.averageOrderValue.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <PanelStatCard
+                      label="Total de Pedidos"
+                      value={statistics.totalOrders}
+                      icon={<Users className="w-5 h-5" />}
+                    />
+                    <PanelStatCard
+                      label="Receita Total"
+                      value={`R$ ${statistics.totalRevenue.toFixed(2)}`}
+                      icon={<TrendingUp className="w-5 h-5" />}
+                      iconClassName="bg-emerald-50 text-emerald-600"
+                    />
+                    <PanelStatCard
+                      label="Pedidos Hoje"
+                      value={statistics.ordersToday}
+                      icon={<Calendar className="w-5 h-5" />}
+                      iconClassName="bg-amber-50 text-amber-600"
+                    />
+                    <PanelStatCard
+                      label="Ticket Médio"
+                      value={`R$ ${statistics.averageOrderValue.toFixed(2)}`}
+                      icon={<BarChart3 className="w-5 h-5" />}
+                      iconClassName="bg-violet-50 text-violet-600"
+                    />
                   </div>
 
                   {/* Produtos Mais Pedidos */}
-                  <div className="bg-white rounded-lg shadow">
-                    <div className="p-6 border-b border-gray-200">
-                      <h3 className="text-lg font-semibold text-gray-900">Top 10 Produtos Mais Pedidos</h3>
+                  <PanelCard padding="none">
+                    <div className="p-5 sm:p-6 border-b border-gray-100">
+                      <h3 className="text-base font-semibold text-gray-900">Top 10 Produtos Mais Pedidos</h3>
                     </div>
-                    <div className="p-6">
+                    <div className="p-5 sm:p-6">
                       {statistics.topProducts.length > 0 ? (
                         <div className="space-y-4">
                           {statistics.topProducts.map((product, index) => (
@@ -2961,14 +2895,14 @@ export default function Settings() {
                         <p className="text-gray-500 text-center py-8">Nenhum produto encontrado no período selecionado</p>
                       )}
                     </div>
-                  </div>
+                  </PanelCard>
 
                   {/* Categorias Mais Populares */}
-                  <div className="bg-white rounded-lg shadow">
-                    <div className="p-6 border-b border-gray-200">
-                      <h3 className="text-lg font-semibold text-gray-900">Categorias Mais Populares</h3>
+                  <PanelCard padding="none">
+                    <div className="p-5 sm:p-6 border-b border-gray-100">
+                      <h3 className="text-base font-semibold text-gray-900">Categorias Mais Populares</h3>
                     </div>
-                    <div className="p-6">
+                    <div className="p-5 sm:p-6">
                       {statistics.topCategories.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {statistics.topCategories.map((category, index) => (
@@ -2991,14 +2925,14 @@ export default function Settings() {
                         <p className="text-gray-500 text-center py-8">Nenhuma categoria encontrada no período selecionado</p>
                       )}
                     </div>
-                  </div>
+                  </PanelCard>
 
                   {/* Vendas por Dia */}
-                  <div className="bg-white rounded-lg shadow">
-                    <div className="p-6 border-b border-gray-200">
-                      <h3 className="text-lg font-semibold text-gray-900">Vendas dos Últimos 7 Dias</h3>
+                  <PanelCard padding="none">
+                    <div className="p-5 sm:p-6 border-b border-gray-100">
+                      <h3 className="text-base font-semibold text-gray-900">Vendas dos Últimos 7 Dias</h3>
                     </div>
-                    <div className="p-6">
+                    <div className="p-5 sm:p-6">
                       <div className="space-y-3">
                         {statistics.ordersByDay.map((day, index) => (
                           <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
@@ -3013,15 +2947,15 @@ export default function Settings() {
                         ))}
                       </div>
                     </div>
-                  </div>
+                  </PanelCard>
 
                   {/* Vendas por Hora (Hoje) */}
                   {selectedPeriod === 'today' && (
-                    <div className="bg-white rounded-lg shadow">
-                      <div className="p-6 border-b border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-900">Pedidos por Hora (Hoje)</h3>
+                    <PanelCard padding="none">
+                      <div className="p-5 sm:p-6 border-b border-gray-100">
+                        <h3 className="text-base font-semibold text-gray-900">Pedidos por Hora (Hoje)</h3>
                       </div>
-                      <div className="p-6">
+                      <div className="p-5 sm:p-6">
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                           {statistics.ordersByHour.filter(hour => hour.count > 0).map((hour, index) => (
                             <div key={index} className="text-center p-3 border border-gray-200 rounded-lg">
@@ -3034,141 +2968,92 @@ export default function Settings() {
                           <p className="text-gray-500 text-center py-8">Nenhum pedido hoje</p>
                         )}
                       </div>
-                    </div>
+                    </PanelCard>
                   )}
                 </div>
               ) : (
-                <div className="bg-white rounded-lg shadow p-8 text-center">
-                  <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">Clique em "Atualizar" para carregar as estatísticas</p>
-                </div>
+                <PanelEmptyState
+                  icon={<BarChart3 className="w-12 h-12" />}
+                  title="Nenhum dado carregado"
+                  description='Clique em "Atualizar" para carregar as estatísticas do período selecionado.'
+                />
               )}
-            </div>
+            </PanelPage>
           )}
 
           {activeTab === 'cozinha' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-orange-100 p-2 rounded-lg">
-                    <ChefHat className="w-8 h-8 text-orange-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Cozinha</h2>
-                    <p className="text-sm text-gray-500">Gerenciamento de Pedidos</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (kitchenSubTab === 'mesa') {
-                      refreshOrders();
-                    } else {
-                      loadDeliveryOrders();
-                    }
-                  }}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Atualizar
-                </button>
-              </div>
-
-              {/* Sub-abas da Cozinha */}
-              {(() => {
-                const mesaPendentes = orders.filter((o) => o.orderType === 'mesa' && o.status === 'novo').length;
-                const deliveryPendentes = deliveryOrders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length;
-                return (
-              <div className="mb-6">
-                <div className="border-b border-gray-200">
-                  <nav className="-mb-px flex space-x-8">
-                    <button
+            <PanelPage>
+              <PanelPageHeader
+                title="Cozinha"
+                description="Gerencie pedidos de mesa e delivery em tempo real."
+                icon={<ChefHat className="w-5 h-5" />}
+                actions={
+                  <PanelButton
+                    variant="secondary"
+                    onClick={() => {
+                      if (kitchenSubTab === 'mesa') {
+                        refreshOrders();
+                      } else {
+                        loadDeliveryOrders();
+                      }
+                    }}
+                    icon={<RefreshCw className="w-4 h-4" />}
+                  >
+                    Atualizar
+                  </PanelButton>
+                }
+                tabs={
+                  <PanelTabGroup>
+                    <PanelTab
+                      active={kitchenSubTab === 'mesa'}
                       onClick={() => setKitchenSubTab('mesa')}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${kitchenSubTab === 'mesa'
-                        ? 'border-orange-500 text-orange-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
+                      badge={mesaPendentesCount}
                     >
-                      <div className="flex items-center space-x-2">
-                        <Users className="w-4 h-4" />
-                        <span>Pedidos Mesa</span>
-                        {mesaPendentes > 0 && (
-                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
-                            {mesaPendentes > 99 ? '99+' : mesaPendentes}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                    <button
+                      <Users className="w-4 h-4" />
+                      Pedidos Mesa
+                    </PanelTab>
+                    <PanelTab
+                      active={kitchenSubTab === 'delivery'}
                       onClick={() => setKitchenSubTab('delivery')}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${kitchenSubTab === 'delivery'
-                        ? 'border-orange-500 text-orange-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
+                      badge={deliveryPendentesCount}
                     >
-                      <div className="flex items-center space-x-2">
-                        <Truck className="w-4 h-4" />
-                        <span>Pedidos Delivery</span>
-                        {deliveryPendentes > 0 && (
-                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
-                            {deliveryPendentes > 99 ? '99+' : deliveryPendentes}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  </nav>
-                </div>
-              </div>
-                );
-              })()}
+                      <Truck className="w-4 h-4" />
+                      Pedidos Delivery
+                    </PanelTab>
+                  </PanelTabGroup>
+                }
+              />
 
-              {/* Estatísticas */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Users className="w-8 h-8 text-orange-600" />
-                      <div>
-                        <p className="text-sm text-gray-600">Pedidos Mesa</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {orders.filter(o => o.orderType === 'mesa').length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Truck className="w-8 h-8 text-blue-600" />
-                      <div>
-                        <p className="text-sm text-gray-600">Pedidos Delivery</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {deliveryOrders.length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Package className="w-8 h-8 text-gray-600" />
-                      <div>
-                        <p className="text-sm text-gray-600">Total de Pedidos</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {orders.length + deliveryOrders.length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <PanelStatCard
+                  label="Pedidos Mesa"
+                  value={orders.filter((o) => o.orderType === 'mesa').length}
+                  icon={<Users className="w-5 h-5" />}
+                  iconClassName="bg-blue-50 text-blue-600"
+                />
+                <PanelStatCard
+                  label="Pedidos Delivery"
+                  value={deliveryOrders.length}
+                  icon={<Truck className="w-5 h-5" />}
+                  iconClassName="bg-sky-50 text-sky-600"
+                />
+                <PanelStatCard
+                  label="Total de Pedidos"
+                  value={orders.length + deliveryOrders.length}
+                  icon={<Package className="w-5 h-5" />}
+                  iconClassName="bg-gray-100 text-gray-600"
+                />
               </div>
 
               {/* Conteúdo das Sub-abas */}
               {kitchenSubTab === 'mesa' && (
                 <div>
                   {orders.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                      <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido de mesa no momento</h3>
-                      <p className="text-gray-500">Os pedidos de mesa aparecerão aqui quando forem enviados pelos clientes</p>
-                    </div>
+                    <PanelEmptyState
+                      icon={<Package className="w-12 h-12" />}
+                      title="Nenhum pedido de mesa no momento"
+                      description="Os pedidos de mesa aparecerão aqui quando forem enviados pelos clientes."
+                    />
                   ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       {statusOrder.map((status) => (
@@ -3303,16 +3188,16 @@ export default function Settings() {
                   </div>
 
                   {deliveryLoading ? (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                      <p className="text-gray-600">Carregando pedidos de delivery...</p>
-                    </div>
+                    <PanelCard padding="lg" className="text-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-500 text-sm">Carregando pedidos de delivery...</p>
+                    </PanelCard>
                   ) : deliveryOrders.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                      <Truck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido de delivery no momento</h3>
-                      <p className="text-gray-500">Os pedidos de delivery aparecerão aqui quando forem enviados pelos clientes</p>
-                    </div>
+                    <PanelEmptyState
+                      icon={<Truck className="w-12 h-12" />}
+                      title="Nenhum pedido de delivery no momento"
+                      description="Os pedidos de delivery aparecerão aqui quando forem enviados pelos clientes."
+                    />
                   ) : (() => {
                     const searchLower = deliverySearch.trim().toLowerCase();
                     const filteredOrders = deliveryOrders.filter((order) => {
@@ -3550,28 +3435,20 @@ export default function Settings() {
                 </div>
               )}
 
-            </div>
+            </PanelPage>
           )}
 
           {activeTab === 'delivery' && (
-            <div>
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Truck className="w-8 h-8 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Configurações de Delivery</h2>
-                  <p className="text-sm text-gray-500">Gerencie sua presença no serviço de delivery</p>
-                </div>
-              </div>
+            <PanelPage>
+              <PanelPageHeader
+                title="Configurações de Delivery"
+                description="Gerencie sua presença no serviço de delivery e os produtos disponíveis."
+                icon={<Truck className="w-5 h-5" />}
+              />
 
               <div className="space-y-6">
                 {/* Stripe Connect — recebimento online */}
-                <div className="relative overflow-hidden rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-6 shadow-[0_18px_45px_rgba(16,185,129,0.14)]">
-                  <div className="absolute right-0 top-0 h-28 w-28 translate-x-8 -translate-y-10 rounded-full bg-emerald-200/40 blur-2xl" />
-                  <div className="absolute bottom-0 left-10 h-20 w-20 translate-y-12 rounded-full bg-sky-200/50 blur-2xl" />
-
-                  <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <PanelCard className="border-emerald-200 bg-gradient-to-br from-emerald-50/80 via-white to-white">
                     <div className="flex items-start gap-4">
                       <div className="rounded-2xl bg-emerald-600 p-3 shadow-lg shadow-emerald-600/25">
                         <CreditCard className="h-6 w-6 text-white" />
@@ -3610,9 +3487,8 @@ export default function Settings() {
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="relative mt-5 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
+                  <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
                     {stripeConnectBanner && (
                       <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                         {stripeConnectBanner}
@@ -3780,13 +3656,13 @@ export default function Settings() {
                       pelo app só aparece para os clientes quando a Stripe confirmar cobranças ativas.
                     </p>
                   </div>
-                </div>
+                </PanelCard>
 
                 {/* Card: Habilitar/Desabilitar Delivery */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <PanelCard>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
                         Aparecer no Delivery
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
@@ -3830,16 +3706,16 @@ export default function Settings() {
                       </>
                     )}
                   </div>
-                </div>
+                </PanelCard>
 
                 {/* Card: Descrição para IA */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="bg-purple-100 p-2 rounded-lg">
-                      <Sparkles className="w-5 h-5 text-purple-600" />
+                <PanelCard>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600 border border-blue-100">
+                      <Sparkles className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
                         Descrição para Assistente de IA
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
@@ -3854,21 +3730,21 @@ export default function Settings() {
                     onChange={(e) => setDeliveryDescription(e.target.value)}
                     placeholder="Ex: Somos especializados em comida italiana autêntica. Trabalhamos com massas frescas feitas diariamente. Temos opções vegetarianas e veganas. Horário de funcionamento: 11h às 23h de terça a domingo."
                     rows={6}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
+                    className={`${panelInputClass} resize-none`}
                   />
                   <p className="mt-2 text-xs text-gray-400">
                     {deliveryDescription.length} caracteres • Quanto mais detalhado, melhor para a IA
                   </p>
-                </div>
+                </PanelCard>
 
                 {/* Card: Produtos Disponíveis para Delivery */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="bg-orange-100 p-2 rounded-lg">
-                      <Utensils className="w-5 h-5 text-orange-600" />
+                <PanelCard>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600 border border-blue-100">
+                      <Utensils className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
                         Produtos Disponíveis para Delivery
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
@@ -3941,23 +3817,23 @@ export default function Settings() {
                       })}
                     </div>
                   )}
-                </div>
+                </PanelCard>
 
-                {/* Botão de Salvar no Final */}
                 <div className="flex justify-end">
-                  <button
+                  <PanelButton
                     onClick={handleSaveDeliverySettings}
                     disabled={isSavingDelivery}
-                    className="inline-flex items-center px-8 py-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    icon={<Save className="w-4 h-4" />}
+                    className="px-6 py-3"
                   >
-                    <Save className="w-5 h-5 mr-2" />
                     {isSavingDelivery ? 'Salvando...' : 'Salvar Todas as Configurações'}
-                  </button>
+                  </PanelButton>
                 </div>
               </div>
-            </div>
+            </PanelPage>
           )}
 
+          </div>
         </div>
       </div>
 
