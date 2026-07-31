@@ -54,7 +54,6 @@ export const getChatbotConfig = async (): Promise<ChatbotConfig> => {
         updatedAt: data.updatedAt?.toDate()
       };
     } else {
-      console.log('ℹ️ Configuração não encontrada, usando padrão');
       return DEFAULT_CONFIG;
     }
   } catch (error) {

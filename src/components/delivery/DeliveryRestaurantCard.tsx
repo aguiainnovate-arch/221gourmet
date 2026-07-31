@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type KeyboardEvent } from 'react';
 import { MapPin, Star, Clock, Bike, Heart, Circle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Restaurant } from '../../types/restaurant';
@@ -32,6 +32,13 @@ function DeliveryRestaurantCard({
   const coverBadge = COVER_BADGE_STYLES[identity.coverBadge];
   const CoverBadgeIcon = coverBadge.icon;
 
+  const handleCardKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <article
       className="group relative rounded-[1.15rem] transition-transform duration-200 active:scale-[0.985] pb-0.5"
@@ -39,7 +46,13 @@ function DeliveryRestaurantCard({
         boxShadow: '0 6px 22px rgba(42, 30, 26, 0.09)',
       }}
     >
-      <button type="button" onClick={onClick} className="w-full text-left block">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={handleCardKeyDown}
+        className="w-full text-left block cursor-pointer rounded-[1.15rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E91120]/40"
+      >
         {/* Capa panorâmica — altura maior; painel branco abaixo não muda */}
         <div
           className="relative h-[158px] w-full overflow-hidden rounded-t-[1.15rem]"
@@ -193,7 +206,7 @@ function DeliveryRestaurantCard({
             <span className="line-clamp-1">{restaurant.address}</span>
           </p>
         </div>
-      </button>
+      </div>
     </article>
   );
 }
