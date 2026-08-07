@@ -1,0 +1,68 @@
+# Build iOS na nuvem (sem Mac local) → TestFlight / App Store
+# Docs: https://docs.codemagic.io/yaml-publishing/app-store-connect/
+#
+# Setup no Codemagic UI (uma vez):
+# 1. Conectar o repositório Git
+# 2. Teams → Integrations → App Store Connect (API Key)
+# 3. Code signing identities → gerar/upload certificados iOS
+# 4. Ajustar APP_STORE_APP_ID e email abaixo
+# 5. Rodar o workflow "ios-app-store"
+
+workflows:
+  ios-app-store:
+    name: Bora Comer iOS → App Store
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      # Nome da integração App Store Connect criada no Codemagic UI
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.noctis.gourmetapp
+      vars:
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+        # App Store Connect → App → App Information → Apple ID (número)
+        APP_STORE_APP_ID: 0000000000
+        CM_CERTIFICATE_PASSWORD: $CM_CERTIFICATE_PASSWORD
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm ci
+      - name: Build web + sync Capacitor (iOS)
+        script: |
+          npm run build:capacitor
+          npx cap sync ios
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd $CM_BUILD_DIR/ios/App
+          agvtool new-version -all $(($BUILD_NUMBER))
+      - name: Build IPA
+        script: |
+          cd $CM_BUILD_DIR/ios/App
+          xcode-project build-ipa \
+            --project App.xcodeproj \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      email:
+        recipients:
+          - SEU_EMAIL@exemplo.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        # Sobe para TestFlight (recomendado na 1ª vez)
+        submit_to_testflight: true
+        # Só ligue depois que metadados/screenshots estiverem prontos
+        submit_to_app_store: false

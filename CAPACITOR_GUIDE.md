@@ -66,12 +66,21 @@ npm run cap:run:ios        # iOS (apenas macOS)
 ## Requisitos
 
 ### Para Android
-- **Java JDK** 17 ou superior
+- **Java JDK** 21 ou superior (Capacitor 8 / Android Gradle Plugin exigem source 21)
 - **Android Studio** com:
-  - Android SDK (API 33 ou superior recomendado)
+  - Android SDK (API 33 ou superior recomendado; este projeto usa compileSdk 36)
   - Android SDK Build-Tools
   - Android Emulator (opcional, para testar sem dispositivo físico)
 - **Gradle** (geralmente vem com o Android Studio)
+
+### Windows (este PC)
+Scripts npm já são cross-platform (`cross-env`, `gradlew.bat`, splash em Node).
+Variáveis de ambiente esperadas:
+- `JAVA_HOME` → JDK 21+
+- `ANDROID_HOME` / `ANDROID_SDK_ROOT` → pasta do Android SDK
+- `android/local.properties` → `sdk.dir=...` (gerado localmente, não vai pro Git)
+
+iOS **não** roda no Windows (precisa macOS + Xcode).
 
 ### Para iOS (apenas macOS)
 - **macOS** (necessário para desenvolvimento iOS)
