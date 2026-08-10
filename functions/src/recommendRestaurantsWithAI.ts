@@ -1,8 +1,33 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import OpenAI from 'openai';
+import OpenAI, { APIError } from 'openai';
 
 import { admin } from './firebaseAdmin';
 import { openaiApiKey } from './openaiSecret';
+
+function mapOpenAiError(e: unknown): string {
+  if (e instanceof APIError) {
+    const status = e.status;
+    const code = typeof e.code === 'string' ? e.code : '';
+    console.error('[recommendRestaurantsWithAI] OpenAI APIError', {
+      status,
+      code,
+      type: e.type,
+      message: e.message?.slice(0, 300),
+    });
+    if (status === 401 || code === 'invalid_api_key') {
+      return 'Chave OpenAI inválida ou revogada no servidor (secret OPENAI_API_KEY). Atualize em firebase functions:secrets:set OPENAI_API_KEY e faça deploy das functions.';
+    }
+    if (status === 429 || code === 'rate_limit_exceeded' || code === 'insufficient_quota') {
+      return 'Cota ou limite da OpenAI esgotado (billing/quota). Verifique uso e pagamento em platform.openai.com e tente de novo depois.';
+    }
+    if (status === 503 || status === 500) {
+      return 'A OpenAI está instável no momento. Tente novamente em alguns instantes.';
+    }
+  } else {
+    console.error('[recommendRestaurantsWithAI] Erro na API OpenAI:', e);
+  }
+  return 'Não foi possível gerar recomendações no momento. Tente novamente em alguns instantes.';
+}
 
 const CHATBOT_CONFIG_DOC = 'global-chatbot-config';
 
@@ -306,7 +331,14 @@ export interface RecommendRestaurantsWithAIResult {
 }
 
 export const recommendRestaurantsWithAI = onCall(
-  { secrets: [openaiApiKey], region: 'us-central1', cors: true, invoker: 'public' },
+  {
+    secrets: [openaiApiKey],
+    region: 'us-central1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 120,
+    memory: '512MiB',
+  },
   async (request): Promise<RecommendRestaurantsWithAIResult> => {
     const apiKey = openaiApiKey.value();
     if (!apiKey) {
@@ -363,11 +395,9 @@ export const recommendRestaurantsWithAI = onCall(
       });
       content = response.choices[0]?.message?.content;
     } catch (e) {
-      console.error('[recommendRestaurantsWithAI] Erro na API OpenAI:', e);
       return {
         success: false,
-        error:
-          'Não foi possível gerar recomendações no momento. Tente novamente em alguns instantes.',
+        error: mapOpenAiError(e),
       };
     }
 

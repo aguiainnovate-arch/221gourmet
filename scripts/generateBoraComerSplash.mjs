@@ -23,8 +23,50 @@ const IOS_APPICON_DIR = path.join(
 )
 const SPLASH_BG = { r: 255, g: 248, b: 242, alpha: 1 }
 const SPLASH_BG_HEX = '#FFF8F2'
-/** Fundo opaco do ícone iOS (App Store rejeita PNG com alpha). */
-const IOS_ICON_BG = { r: 0, g: 0, b: 0 }
+/** Fundo claro do ícone na home / TestFlight / App Store (sem preto). */
+const IOS_ICON_BG = { r: 255, g: 248, b: 242 }
+
+/**
+ * Remove fundo preto da arte e compõe em canvas claro (ícone da home).
+ */
+async function composeAppIconOnLightBg(logoBuffer, size = 1024) {
+  const { data, info } = await sharp(logoBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    // Preto / quase-preto do fundo → transparente
+    if (r < 45 && g < 45 && b < 45) {
+      data[i + 3] = 0
+    }
+  }
+
+  const cutout = await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .resize(Math.floor(size * 0.9), Math.floor(size * 0.9), {
+      fit: 'inside',
+      withoutEnlargement: false,
+    })
+    .png()
+    .toBuffer()
+
+  return sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 3,
+      background: IOS_ICON_BG,
+    },
+  })
+    .composite([{ input: cutout, gravity: 'centre' }])
+    .png()
+    .toBuffer()
+}
 
 const SPLASH_SIZES = {
   'drawable-port-ldpi/splash.png': [240, 320],
@@ -80,14 +122,17 @@ async function composeSplash(logoBuffer, width, height) {
     .toBuffer()
 }
 
-function syncResourceFiles() {
+async function syncResourceFiles() {
   if (!existsSync(LOGO_PATH)) {
     throw new Error(`Logo não encontrada: ${LOGO_PATH}`)
   }
   mkdirSync(RESOURCES_DIR, { recursive: true })
-  for (const name of ['icon.png', 'splash.png', 'icon-source.png']) {
-    cpSync(LOGO_PATH, path.join(RESOURCES_DIR, name))
-  }
+  const logoBuffer = await sharp(LOGO_PATH).png().toBuffer()
+  const lightIcon = await composeAppIconOnLightBg(logoBuffer, 1024)
+  writeFileSync(path.join(RESOURCES_DIR, 'icon.png'), lightIcon)
+  writeFileSync(path.join(RESOURCES_DIR, 'icon-source.png'), lightIcon)
+  // Splash continua com a arte original (composeSplash já usa fundo creme)
+  cpSync(LOGO_PATH, path.join(RESOURCES_DIR, 'splash.png'))
   const oldLogo = path.join(RESOURCES_DIR, 'logo.jpeg')
   if (existsSync(oldLogo)) unlinkSync(oldLogo)
 }
@@ -119,18 +164,12 @@ function generateLauncherIcons() {
 }
 
 /**
- * Garante App Icon iOS 1024x1024 opaco (TestFlight / App Store).
- * @capacitor/assets às vezes deixa placeholder; sobrescrevemos com o logo.
+ * Garante App Icon iOS 1024x1024 opaco com fundo claro (TestFlight / App Store).
  */
 async function generateIosAppIcon(logoBuffer) {
   mkdirSync(IOS_APPICON_DIR, { recursive: true })
   const outPath = path.join(IOS_APPICON_DIR, 'AppIcon-512@2x.png')
-  const png = await sharp(logoBuffer)
-    .resize(1024, 1024, { fit: 'cover' })
-    .flatten({ background: IOS_ICON_BG })
-    .removeAlpha()
-    .png()
-    .toBuffer()
+  const png = await composeAppIconOnLightBg(logoBuffer, 1024)
   writeFileSync(outPath, png)
 
   writeFileSync(
@@ -199,14 +238,14 @@ async function main() {
     )
     return
   }
-  syncResourceFiles()
+  await syncResourceFiles()
   generateLauncherIcons()
   const logoBuffer = await sharp(LOGO_PATH).png().toBuffer()
   await generateSplashImages(logoBuffer)
   await generateIosAppIcon(logoBuffer)
   cleanupStaleAssets()
   console.log(
-    'Branding atualizado: BoraComerlogo (Android splash/ícone + iOS AppIcon)',
+    'Branding atualizado: ícone fundo claro + splash (Android/iOS)',
   )
 }
 

@@ -173,11 +173,11 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
   };
 
   const getFallbackResponse = (error: string): string => {
-    if (
-      /OPENAI_API_KEY|não configurad|não estão disponíveis|segredo|administrador/i.test(error) ||
-      error.includes('VITE_OPENAI_API_KEY')
-    ) {
-      return '🤖 As recomendações inteligentes dependem do servidor (Firebase Cloud Function com o segredo OPENAI_API_KEY). Peça ao administrador para configurar o secret e publicar as functions.\n\nEnquanto isso, me conte: que tipo de comida você está procurando hoje? 🍽️';
+    if (/chave openai inválida|invalid_api_key|revogada|VITE_OPENAI_API_KEY|OPENAI_API_KEY|não configurad|não estão disponíveis|segredo|administrador/i.test(error)) {
+      return '🤖 A IA está com a chave OpenAI inválida ou não configurada no servidor. Peça ao admin para gerar uma chave nova em platform.openai.com, atualizar o secret OPENAI_API_KEY e republicar as Cloud Functions.\n\nEnquanto isso, me conte: que tipo de comida você está procurando? 🍽️';
+    }
+    if (/cota|quota|rate_limit|limite da openai|billing/i.test(error)) {
+      return '🤖 A cota da OpenAI esgotou (billing/limite). Assim que o crédito for renovado, as recomendações voltam.\n\nEnquanto isso, me diga o que você quer comer que eu te ajudo com o que souber! 🍽️';
     }
     return '🤔 Interessante! Para te recomendar os melhores restaurantes, me conte mais: você tem preferência por algum tipo de comida específica? Italiana, japonesa, brasileira, lanches... Ou prefere que eu te mostre os mais populares?';
   };

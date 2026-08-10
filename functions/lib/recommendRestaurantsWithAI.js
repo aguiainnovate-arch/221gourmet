@@ -1,13 +1,59 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.recommendRestaurantsWithAI = void 0;
 const https_1 = require("firebase-functions/v2/https");
-const openai_1 = __importDefault(require("openai"));
+const openai_1 = __importStar(require("openai"));
 const firebaseAdmin_1 = require("./firebaseAdmin");
 const openaiSecret_1 = require("./openaiSecret");
+function mapOpenAiError(e) {
+    var _a;
+    if (e instanceof openai_1.APIError) {
+        const status = e.status;
+        const code = typeof e.code === 'string' ? e.code : '';
+        console.error('[recommendRestaurantsWithAI] OpenAI APIError', {
+            status,
+            code,
+            type: e.type,
+            message: (_a = e.message) === null || _a === void 0 ? void 0 : _a.slice(0, 300),
+        });
+        if (status === 401 || code === 'invalid_api_key') {
+            return 'Chave OpenAI inválida ou revogada no servidor (secret OPENAI_API_KEY). Atualize em firebase functions:secrets:set OPENAI_API_KEY e faça deploy das functions.';
+        }
+        if (status === 429 || code === 'rate_limit_exceeded' || code === 'insufficient_quota') {
+            return 'Cota ou limite da OpenAI esgotado (billing/quota). Verifique uso e pagamento em platform.openai.com e tente de novo depois.';
+        }
+        if (status === 503 || status === 500) {
+            return 'A OpenAI está instável no momento. Tente novamente em alguns instantes.';
+        }
+    }
+    else {
+        console.error('[recommendRestaurantsWithAI] Erro na API OpenAI:', e);
+    }
+    return 'Não foi possível gerar recomendações no momento. Tente novamente em alguns instantes.';
+}
 const CHATBOT_CONFIG_DOC = 'global-chatbot-config';
 const MAX_USER_MESSAGE = 4000;
 const MAX_HISTORY_MESSAGES = 24;
@@ -243,7 +289,14 @@ function cardsInstructionsFor(threshold) {
             return 'Seja conservador ao recomendar restaurantes. Apenas mostre cards quando o usuário pedir explicitamente ou a conversa claramente indicar que está pronto para ver opções.';
     }
 }
-exports.recommendRestaurantsWithAI = (0, https_1.onCall)({ secrets: [openaiSecret_1.openaiApiKey], region: 'us-central1', cors: true, invoker: 'public' }, async (request) => {
+exports.recommendRestaurantsWithAI = (0, https_1.onCall)({
+    secrets: [openaiSecret_1.openaiApiKey],
+    region: 'us-central1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 120,
+    memory: '512MiB',
+}, async (request) => {
     var _a, _b;
     const apiKey = openaiSecret_1.openaiApiKey.value();
     if (!apiKey) {
@@ -289,10 +342,9 @@ exports.recommendRestaurantsWithAI = (0, https_1.onCall)({ secrets: [openaiSecre
         content = (_b = (_a = response.choices[0]) === null || _a === void 0 ? void 0 : _a.message) === null || _b === void 0 ? void 0 : _b.content;
     }
     catch (e) {
-        console.error('[recommendRestaurantsWithAI] Erro na API OpenAI:', e);
         return {
             success: false,
-            error: 'Não foi possível gerar recomendações no momento. Tente novamente em alguns instantes.',
+            error: mapOpenAiError(e),
         };
     }
     if (!content) {

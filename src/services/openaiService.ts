@@ -152,6 +152,22 @@ class OpenAIService {
 
     } catch (error) {
       console.error('Erro ao enviar mensagem para OpenAI:', error);
+      const status = (error as { status?: number })?.status;
+      const code = (error as { code?: string })?.code;
+      if (status === 401 || code === 'invalid_api_key') {
+        return {
+          success: false,
+          error:
+            'Chave OpenAI inválida ou revogada (VITE_OPENAI_API_KEY). Gere uma nova em platform.openai.com/api-keys e atualize .env / build.',
+        };
+      }
+      if (status === 429 || code === 'rate_limit_exceeded' || code === 'insufficient_quota') {
+        return {
+          success: false,
+          error:
+            'Cota ou limite da OpenAI esgotado. Verifique billing em platform.openai.com.',
+        };
+      }
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Erro desconhecido' 
