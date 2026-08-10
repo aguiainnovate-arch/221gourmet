@@ -1,9 +1,14 @@
 # Build iOS na nuvem (sem Mac local) → TestFlight / App Store
 # Docs: https://docs.codemagic.io/yaml-publishing/app-store-connect/
 #
-# Env no Codemagic UI (Application → Environment variables):
-# Opção A (recomendada): grupo "bora-comer-env" + variável Secure DOTENV = conteúdo do .env
-# Opção B: no mesmo grupo, variáveis soltas VITE_FIREBASE_*, VITE_OPENAI_API_KEY, VITE_STRIPE_PUBLISHABLE_KEY
+# Env no Codemagic UI → Environment variables (OBRIGATÓRIO estar NO GRUPO):
+# 1) Variable name: DOTENV_B64
+# 2) Variable value: base64 do arquivo .env (uma linha só)
+# 3) Select group: digite bora-comer-env (cria o grupo) — NÃO deixe o grupo em branco
+# 4) Marque Secure → Add
+#
+# Gerar o valor no PowerShell (na pasta do projeto):
+#   [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path .env))) | Set-Clipboard
 
 workflows:
   ios-app-store:
@@ -35,11 +40,20 @@ workflows:
         script: |
           set -e
           ENV_FILE="$CM_BUILD_DIR/.env"
-          if [ -n "${DOTENV:-}" ]; then
+          echo "Diagnóstico (só nomes, sem valores):"
+          env | cut -d= -f1 | grep -E '^(DOTENV|DOTENV_B64|VITE_)' | sort | sed 's/^/  - /' || true
+
+          if [ -n "${DOTENV_B64:-}" ]; then
+            echo "$DOTENV_B64" | base64 --decode > "$ENV_FILE"
+            # normaliza CRLF do Windows
+            sed -i 's/\r$//' "$ENV_FILE" 2>/dev/null || true
+            echo "OK: .env a partir de DOTENV_B64 ($(wc -l < "$ENV_FILE") linhas)"
+          elif [ -n "${DOTENV:-}" ]; then
             printf '%s\n' "$DOTENV" > "$ENV_FILE"
+            sed -i 's/\r$//' "$ENV_FILE" 2>/dev/null || true
             echo "OK: .env a partir de DOTENV ($(wc -l < "$ENV_FILE") linhas)"
           else
-            echo "DOTENV vazio — montando .env a partir de VITE_* do grupo bora-comer-env"
+            echo "DOTENV/DOTENV_B64 vazios — tentando VITE_* do grupo"
             : > "$ENV_FILE"
             for key in \
               VITE_FIREBASE_API_KEY \
@@ -59,13 +73,11 @@ workflows:
             done
             echo "OK: .env gerado ($(wc -l < "$ENV_FILE") linhas)"
           fi
+
           if [ ! -s "$ENV_FILE" ]; then
-            echo "ERROR: nenhum env encontrado." >&2
-            echo "No Codemagic → 221gourmet → Environment variables:" >&2
-            echo "  1) Crie o grupo exatamente: bora-comer-env" >&2
-            echo "  2) Adicione variável DOTENV (Secure) com o .env inteiro" >&2
-            echo "     OU as chaves VITE_FIREBASE_* / VITE_OPENAI_API_KEY / VITE_STRIPE_PUBLISHABLE_KEY" >&2
-            echo "  3) Em Select group, escolha bora-comer-env ao salvar cada variável" >&2
+            echo "ERROR: grupo bora-comer-env sem variáveis úteis." >&2
+            echo "As variáveis DEVEM ser criadas COM o grupo selecionado (Select group = bora-comer-env)." >&2
+            echo "Use DOTENV_B64 (base64 do .env, uma linha) + Secure + Add." >&2
             exit 1
           fi
           if ! grep -q '^VITE_FIREBASE_API_KEY=' "$ENV_FILE" || ! grep -q '^VITE_FIREBASE_PROJECT_ID=' "$ENV_FILE"; then
