@@ -16,9 +16,8 @@ workflows:
       vars:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
-        # App Store Connect → App → Informações do app → Apple ID (número)
-        # Troque quando tiver o ID; não bloqueia o IPA se só for TestFlight via integration
-        APP_STORE_APP_ID: 0000000000
+        # App Store Connect → App → Informações do app → Apple ID
+        APP_STORE_APP_ID: "6799257054"
         CM_CERTIFICATE_PASSWORD: $CM_CERTIFICATE_PASSWORD
       xcode: latest
       node: 22
