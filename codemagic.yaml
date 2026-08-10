@@ -1,8 +1,9 @@
 # Build iOS na nuvem (sem Mac local) → TestFlight / App Store
 # Docs: https://docs.codemagic.io/yaml-publishing/app-store-connect/
 #
-# Env: no Codemagic UI, crie o grupo "bora-comer-env" com a variável Secure
-# DOTENV = conteúdo inteiro do .env (VITE_FIREBASE_*, VITE_OPENAI_*, VITE_STRIPE_PUBLISHABLE_KEY)
+# Env no Codemagic UI (Application → Environment variables):
+# Opção A (recomendada): grupo "bora-comer-env" + variável Secure DOTENV = conteúdo do .env
+# Opção B: no mesmo grupo, variáveis soltas VITE_FIREBASE_*, VITE_OPENAI_API_KEY, VITE_STRIPE_PUBLISHABLE_KEY
 
 workflows:
   ios-app-store:
@@ -32,12 +33,47 @@ workflows:
           npm ci
       - name: Write .env
         script: |
-          if [ -z "$DOTENV" ]; then
-            echo "ERROR: variável DOTENV ausente no grupo bora-comer-env" >&2
+          set -e
+          ENV_FILE="$CM_BUILD_DIR/.env"
+          if [ -n "${DOTENV:-}" ]; then
+            printf '%s\n' "$DOTENV" > "$ENV_FILE"
+            echo "OK: .env a partir de DOTENV ($(wc -l < "$ENV_FILE") linhas)"
+          else
+            echo "DOTENV vazio — montando .env a partir de VITE_* do grupo bora-comer-env"
+            : > "$ENV_FILE"
+            for key in \
+              VITE_FIREBASE_API_KEY \
+              VITE_FIREBASE_AUTH_DOMAIN \
+              VITE_FIREBASE_PROJECT_ID \
+              VITE_FIREBASE_STORAGE_BUCKET \
+              VITE_FIREBASE_MESSAGING_SENDER_ID \
+              VITE_FIREBASE_APP_ID \
+              VITE_OPENAI_API_KEY \
+              VITE_STRIPE_PUBLISHABLE_KEY \
+              VITE_APP_URL
+            do
+              eval "val=\${$key:-}"
+              if [ -n "$val" ]; then
+                printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
+              fi
+            done
+            echo "OK: .env gerado ($(wc -l < "$ENV_FILE") linhas)"
+          fi
+          if [ ! -s "$ENV_FILE" ]; then
+            echo "ERROR: nenhum env encontrado." >&2
+            echo "No Codemagic → 221gourmet → Environment variables:" >&2
+            echo "  1) Crie o grupo exatamente: bora-comer-env" >&2
+            echo "  2) Adicione variável DOTENV (Secure) com o .env inteiro" >&2
+            echo "     OU as chaves VITE_FIREBASE_* / VITE_OPENAI_API_KEY / VITE_STRIPE_PUBLISHABLE_KEY" >&2
+            echo "  3) Em Select group, escolha bora-comer-env ao salvar cada variável" >&2
             exit 1
           fi
-          printf '%s\n' "$DOTENV" > "$CM_BUILD_DIR/.env"
-          echo ".env escrito ($(wc -l < "$CM_BUILD_DIR/.env") linhas)"
+          if ! grep -q '^VITE_FIREBASE_API_KEY=' "$ENV_FILE" || ! grep -q '^VITE_FIREBASE_PROJECT_ID=' "$ENV_FILE"; then
+            echo "ERROR: faltam VITE_FIREBASE_API_KEY ou VITE_FIREBASE_PROJECT_ID no .env" >&2
+            exit 1
+          fi
+          echo "Chaves presentes:"
+          cut -d= -f1 "$ENV_FILE" | sed 's/^/  - /'
       - name: Build web + sync Capacitor (iOS)
         script: |
           npm run build:capacitor
