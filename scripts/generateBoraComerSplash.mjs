@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Gera splash + ícone Android a partir de dist/BoraComerlogo.png (fonte única).
+ * Gera splash + ícones Android/iOS a partir de dist/BoraComerlogo.png (fonte única).
  * Versão Node/cross-platform (substitui generateBoraComerSplash.py no Windows).
  */
 import { cpSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -13,8 +13,18 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const LOGO_PATH = path.join(ROOT, 'dist', 'BoraComerlogo.png')
 const RES_DIR = path.join(ROOT, 'android', 'app', 'src', 'main', 'res')
 const RESOURCES_DIR = path.join(ROOT, 'resources')
+const IOS_APPICON_DIR = path.join(
+  ROOT,
+  'ios',
+  'App',
+  'App',
+  'Assets.xcassets',
+  'AppIcon.appiconset',
+)
 const SPLASH_BG = { r: 255, g: 248, b: 242, alpha: 1 }
 const SPLASH_BG_HEX = '#FFF8F2'
+/** Fundo opaco do ícone iOS (App Store rejeita PNG com alpha). */
+const IOS_ICON_BG = { r: 0, g: 0, b: 0 }
 
 const SPLASH_SIZES = {
   'drawable-port-ldpi/splash.png': [240, 320],
@@ -99,12 +109,49 @@ function generateLauncherIcons() {
       '--splashBackgroundColorDark',
       SPLASH_BG_HEX,
       '--android',
+      '--ios',
     ],
     { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' },
   )
   if (result.status !== 0) {
     throw new Error(`@capacitor/assets falhou com código ${result.status}`)
   }
+}
+
+/**
+ * Garante App Icon iOS 1024x1024 opaco (TestFlight / App Store).
+ * @capacitor/assets às vezes deixa placeholder; sobrescrevemos com o logo.
+ */
+async function generateIosAppIcon(logoBuffer) {
+  mkdirSync(IOS_APPICON_DIR, { recursive: true })
+  const outPath = path.join(IOS_APPICON_DIR, 'AppIcon-512@2x.png')
+  const png = await sharp(logoBuffer)
+    .resize(1024, 1024, { fit: 'cover' })
+    .flatten({ background: IOS_ICON_BG })
+    .removeAlpha()
+    .png()
+    .toBuffer()
+  writeFileSync(outPath, png)
+
+  writeFileSync(
+    path.join(IOS_APPICON_DIR, 'Contents.json'),
+    `${JSON.stringify(
+      {
+        images: [
+          {
+            filename: 'AppIcon-512@2x.png',
+            idiom: 'universal',
+            platform: 'ios',
+            size: '1024x1024',
+          },
+        ],
+        info: { author: 'xcode', version: 1 },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
 }
 
 async function generateSplashImages(logoBuffer) {
@@ -156,8 +203,11 @@ async function main() {
   generateLauncherIcons()
   const logoBuffer = await sharp(LOGO_PATH).png().toBuffer()
   await generateSplashImages(logoBuffer)
+  await generateIosAppIcon(logoBuffer)
   cleanupStaleAssets()
-  console.log('Branding Android atualizado: BoraComerlogo (splash + ícone launcher)')
+  console.log(
+    'Branding atualizado: BoraComerlogo (Android splash/ícone + iOS AppIcon)',
+  )
 }
 
 main().catch((err) => {

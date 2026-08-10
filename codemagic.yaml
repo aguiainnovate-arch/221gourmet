@@ -1,5 +1,8 @@
 # Build iOS na nuvem (sem Mac local) → TestFlight / App Store
 # Docs: https://docs.codemagic.io/yaml-publishing/app-store-connect/
+#
+# Env: no Codemagic UI, crie o grupo "bora-comer-env" com a variável Secure
+# DOTENV = conteúdo inteiro do .env (VITE_FIREBASE_*, VITE_OPENAI_*, VITE_STRIPE_PUBLISHABLE_KEY)
 
 workflows:
   ios-app-store:
@@ -10,6 +13,8 @@ workflows:
       # Nome exato da chave no Codemagic (Integrations → Developer Portal)
       app_store_connect: BoraComer!
     environment:
+      groups:
+        - bora-comer-env
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.noctis.gourmetapp
@@ -25,6 +30,14 @@ workflows:
       - name: Install npm dependencies
         script: |
           npm ci
+      - name: Write .env
+        script: |
+          if [ -z "$DOTENV" ]; then
+            echo "ERROR: variável DOTENV ausente no grupo bora-comer-env" >&2
+            exit 1
+          fi
+          printf '%s\n' "$DOTENV" > "$CM_BUILD_DIR/.env"
+          echo ".env escrito ($(wc -l < "$CM_BUILD_DIR/.env") linhas)"
       - name: Build web + sync Capacitor (iOS)
         script: |
           npm run build:capacitor
