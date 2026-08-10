@@ -1,12 +1,5 @@
 # Build iOS na nuvem (sem Mac local) → TestFlight / App Store
 # Docs: https://docs.codemagic.io/yaml-publishing/app-store-connect/
-#
-# Setup no Codemagic UI (uma vez):
-# 1. Conectar o repositório Git
-# 2. Teams → Integrations → App Store Connect (API Key)
-# 3. Code signing identities → gerar/upload certificados iOS
-# 4. Ajustar APP_STORE_APP_ID e email abaixo
-# 5. Rodar o workflow "ios-app-store"
 
 workflows:
   ios-app-store:
@@ -14,8 +7,8 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
-      # Nome da integração App Store Connect criada no Codemagic UI
-      app_store_connect: codemagic
+      # Nome exato da chave no Codemagic (Integrations → Developer Portal)
+      app_store_connect: BoraComer!
     environment:
       ios_signing:
         distribution_type: app_store
@@ -23,7 +16,8 @@ workflows:
       vars:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
-        # App Store Connect → App → App Information → Apple ID (número)
+        # App Store Connect → App → Informações do app → Apple ID (número)
+        # Troque quando tiver o ID; não bloqueia o IPA se só for TestFlight via integration
         APP_STORE_APP_ID: 0000000000
         CM_CERTIFICATE_PASSWORD: $CM_CERTIFICATE_PASSWORD
       xcode: latest
@@ -56,13 +50,11 @@ workflows:
     publishing:
       email:
         recipients:
-          - SEU_EMAIL@exemplo.com
+          - agulainnovate@gmail.com
         notify:
           success: true
           failure: true
       app_store_connect:
         auth: integration
-        # Sobe para TestFlight (recomendado na 1ª vez)
         submit_to_testflight: true
-        # Só ligue depois que metadados/screenshots estiverem prontos
         submit_to_app_store: false
