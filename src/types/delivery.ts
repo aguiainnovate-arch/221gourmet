@@ -14,6 +14,7 @@ export interface DeliveryOrder {
   customerPhone: string;
   customerAddress: string;
   items: DeliveryOrderItem[];
+  /** Já inclui a taxa de entrega. Não somar deliveryFee de novo. */
   total: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
   paymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';

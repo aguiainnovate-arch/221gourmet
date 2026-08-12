@@ -20,6 +20,7 @@ export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: st
       name: product.name,
       description: product.description,
       price: product.price,
+      deliveryPrice: product.deliveryPrice ?? product.price,
       category: product.category,
       available: product.available,
       image: product.image || '',
@@ -69,6 +70,7 @@ export const getProducts = async (restaurantId: string): Promise<Product[]> => {
         name: data.name,
         description: data.description,
         price: coercePrice(data.price),
+        deliveryPrice: data.deliveryPrice !== undefined ? coercePrice(data.deliveryPrice) : coercePrice(data.price),
         category: data.category,
         available: data.available,
         image: data.image || '',
@@ -105,6 +107,7 @@ export const getProductsByCategory = async (category: string, restaurantId: stri
         name: data.name,
         description: data.description,
         price: coercePrice(data.price),
+        deliveryPrice: data.deliveryPrice !== undefined ? coercePrice(data.deliveryPrice) : coercePrice(data.price),
         category: data.category,
         available: data.available,
         image: data.image || '',
@@ -149,6 +152,7 @@ export const updateProduct = async (id: string, product: Partial<Product>): Prom
     const payload = omitUndefinedDeep({
       ...rest,
       ...(rest.price !== undefined ? { price: coercePrice(rest.price) } : {}),
+      ...(rest.deliveryPrice !== undefined ? { deliveryPrice: coercePrice(rest.deliveryPrice) } : {}),
       updatedAt: new Date(),
     }) as Record<string, unknown>;
 

@@ -211,6 +211,7 @@ export default function Settings() {
     name: '',
     description: '',
     price: '',
+    deliveryPrice: '',
     category: '',
     preparationTime: '',
     available: true,
@@ -889,6 +890,9 @@ export default function Settings() {
         name: product.name,
         description: product.description,
         price: Number.isFinite(Number(product.price)) ? String(product.price) : '',
+        deliveryPrice: Number.isFinite(Number(product.deliveryPrice ?? product.price))
+          ? String(product.deliveryPrice ?? product.price)
+          : '',
         category: product.category,
         preparationTime: product.preparationTime?.toString() || '',
         available: product.available,
@@ -901,6 +905,7 @@ export default function Settings() {
         name: '',
         description: '',
         price: '',
+        deliveryPrice: '',
         category: '',
         preparationTime: '',
         available: true,
@@ -920,7 +925,15 @@ export default function Settings() {
     try {
       const price = parseFloat(String(productForm.price).replace(',', '.'));
       if (!Number.isFinite(price) || price < 0) {
-        alert('Informe um preço válido.');
+        alert('Informe um preço válido para o salão.');
+        return;
+      }
+
+      const deliveryPriceRaw = productForm.deliveryPrice.trim()
+        ? parseFloat(String(productForm.deliveryPrice).replace(',', '.'))
+        : price;
+      if (!Number.isFinite(deliveryPriceRaw) || deliveryPriceRaw < 0) {
+        alert('Informe um preço válido para o delivery.');
         return;
       }
 
@@ -928,6 +941,7 @@ export default function Settings() {
         name: productForm.name.trim(),
         description: productForm.description.trim(),
         price,
+        deliveryPrice: deliveryPriceRaw,
         category: productForm.category,
         available: productForm.available,
         image: productForm.image || '',
@@ -2470,7 +2484,8 @@ export default function Settings() {
                         <tr>
                           <th className="text-left p-4 font-medium text-black">Produto</th>
                           <th className="text-left p-4 font-medium text-black">Categoria</th>
-                          <th className="text-left p-4 font-medium text-black">Preço</th>
+                          <th className="text-left p-4 font-medium text-black">Preço salão</th>
+                          <th className="text-left p-4 font-medium text-black">Preço delivery</th>
                           <th className="text-left p-4 font-medium text-black">Tempo</th>
                           <th className="text-left p-4 font-medium text-black">Status</th>
                           <th className="text-left p-4 font-medium text-black">Ações</th>
@@ -2507,8 +2522,11 @@ export default function Settings() {
                                 {product.category}
                               </span>
                             </td>
-                            <td className="p-4 font-medium text-green-600">
+                            <td className="p-4 font-medium text-green-600 whitespace-nowrap">
                               R$ {product.price.toFixed(2)}
+                            </td>
+                            <td className="p-4 font-medium text-amber-600 whitespace-nowrap">
+                              R$ {(product.deliveryPrice ?? product.price).toFixed(2)}
                             </td>
                             <td className="p-4 text-sm text-black">
                               {product.preparationTime ? `${product.preparationTime} min` : '-'}
@@ -3347,18 +3365,10 @@ export default function Settings() {
                                         </li>
                                       ))}
                                     </ul>
-                                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-1">
-                                      <div className="flex justify-between items-center text-sm gap-2">
-                                        <span className="text-gray-600">Subtotal:</span>
-                                        <span className="font-semibold whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
-                                      </div>
-                                      <div className="flex justify-between items-center text-sm gap-2">
-                                        <span className="text-gray-600">Taxa de entrega:</span>
-                                        <span className="font-semibold whitespace-nowrap">R$ {order.deliveryFee.toFixed(2)}</span>
-                                      </div>
-                                      <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-2 border-t border-gray-200 gap-2">
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                      <div className="flex justify-between items-center text-lg font-bold text-gray-900 gap-2">
                                         <span>Total:</span>
-                                        <span className="whitespace-nowrap">R$ {(order.total + order.deliveryFee).toFixed(2)}</span>
+                                        <span className="whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -3443,9 +3453,7 @@ export default function Settings() {
                             <li key={i} className="flex justify-between">{item.quantity}x {item.productName} <span>R$ {(item.price * item.quantity).toFixed(2)}</span></li>
                           ))}
                         </ul>
-                        <div className="mt-2 pt-2 border-t text-sm flex justify-between"><span>Subtotal</span><span>R$ {selectedDeliveryOrder.total.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm"><span>Taxa de entrega</span><span>R$ {selectedDeliveryOrder.deliveryFee.toFixed(2)}</span></div>
-                        <div className="flex justify-between font-semibold"><span>Total</span><span>R$ {(selectedDeliveryOrder.total + selectedDeliveryOrder.deliveryFee).toFixed(2)}</span></div>
+                        <div className="mt-2 pt-2 border-t flex justify-between font-semibold"><span>Total</span><span>R$ {selectedDeliveryOrder.total.toFixed(2)}</span></div>
                       </div>
                       {selectedDeliveryOrder.observations && <p className="text-sm text-gray-600"><strong>Obs.:</strong> {selectedDeliveryOrder.observations}</p>}
                       {selectedDeliveryOrder.status === 'cancelled' && selectedDeliveryOrder.cancellationReason && <p className="text-sm text-red-600"><strong>Motivo do cancelamento:</strong> {selectedDeliveryOrder.cancellationReason}</p>}
@@ -3829,7 +3837,8 @@ export default function Settings() {
                                     <div className="flex-1">
                                       <p className="font-medium text-gray-900">{product.name}</p>
                                       <p className="text-sm text-gray-500">
-                                        R$ {product.price.toFixed(2)}
+                                        Delivery R$ {(product.deliveryPrice ?? product.price).toFixed(2)}
+                                        <span className="text-gray-400"> · Salão R$ {product.price.toFixed(2)}</span>
                                       </p>
                                     </div>
                                   </div>
@@ -3947,7 +3956,7 @@ export default function Settings() {
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="font-medium text-black">Pedido #{orderToCancel.id.substring(0, 8)}</p>
                 <p className="text-sm text-black">Cliente: {orderToCancel.customerName}</p>
-                <p className="text-sm text-black">Total: R$ {(orderToCancel.total + orderToCancel.deliveryFee).toFixed(2)}</p>
+                <p className="text-sm text-black">Total: R$ {orderToCancel.total.toFixed(2)}</p>
               </div>
             </div>
 
@@ -4113,10 +4122,10 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-black mb-2">
-                    Preço (R$) *
+                    Preço no salão (QR / mesa) *
                   </label>
                   <input
                     type="number"
@@ -4127,7 +4136,26 @@ export default function Settings() {
                     placeholder="0.00"
                     className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Cardápio digital da mesa</p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Preço no delivery *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={productForm.deliveryPrice}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, deliveryPrice: e.target.value }))}
+                    placeholder={productForm.price || '0.00'}
+                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">App / pedidos para entrega. Vazio = mesmo do salão</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-black mb-2">
                     Tempo de Preparo (min)

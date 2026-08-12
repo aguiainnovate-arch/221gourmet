@@ -12,6 +12,7 @@ import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import { saveDeliveryUser } from '../services/deliveryUserService';
 import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import type { Product } from '../types/product';
+import { withChannelPrice } from '../types/product';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
 import type { CreateDeliveryOrderData } from '../types/delivery';
@@ -141,7 +142,7 @@ export default function DeliveryMenu() {
         p.available && (p.availableForDelivery ?? true)
       );
       
-      setProducts(availableProducts);
+      setProducts(availableProducts.map((p) => withChannelPrice(p, 'delivery')));
       setCategories(categoriesData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

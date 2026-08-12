@@ -258,7 +258,7 @@ const OrderCard = memo(({
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-lg font-bold tabular-nums" style={{ color: '#E91120' }}>
-                        {formatCurrency(order.total + order.deliveryFee)}
+                        {formatCurrency(order.total)}
                     </span>
                     <div className="flex items-center gap-2">
                         {canCancel && !confirmCancel && (
@@ -329,17 +329,9 @@ const OrderCard = memo(({
                             </div>
                         )}
                         <div className="pt-2 border-t border-gray-200 space-y-1 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-gray-600">Subtotal</span>
-                                <span className="font-medium">{formatCurrency(order.total)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-gray-600">Taxa de entrega</span>
-                                <span className="font-medium">{formatCurrency(order.deliveryFee)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-gray-900 pt-1">
+                            <div className="flex justify-between font-bold text-gray-900">
                                 <span>Total</span>
-                                <span>{formatCurrency(order.total + order.deliveryFee)}</span>
+                                <span>{formatCurrency(order.total)}</span>
                             </div>
                         </div>
                         <p className="text-xs text-gray-500">
