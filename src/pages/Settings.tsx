@@ -4,7 +4,7 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import {
   getTables,
   updateTable,
@@ -54,6 +54,7 @@ import {
   syncRestaurantStripeConnectFromStripe,
 } from '../services/restaurantStripeConnectService';
 import { playNotificationSound, getNotificationSoundEnabled, setNotificationSoundEnabled } from '../utils/notificationSound';
+import { printKitchenOrders } from '../utils/printKitchenOrders';
 import { getRestaurants } from '../services/restaurantService';
 import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
@@ -887,7 +888,7 @@ export default function Settings() {
       setProductForm({
         name: product.name,
         description: product.description,
-        price: product.price.toString(),
+        price: Number.isFinite(Number(product.price)) ? String(product.price) : '',
         category: product.category,
         preparationTime: product.preparationTime?.toString() || '',
         available: product.available,
@@ -917,17 +918,31 @@ export default function Settings() {
     }
 
     try {
-      const productData = {
+      const price = parseFloat(String(productForm.price).replace(',', '.'));
+      if (!Number.isFinite(price) || price < 0) {
+        alert('Informe um preço válido.');
+        return;
+      }
+
+      const productData: Parameters<typeof updateProduct>[1] = {
         name: productForm.name.trim(),
         description: productForm.description.trim(),
-        price: parseFloat(productForm.price),
+        price,
         category: productForm.category,
-        preparationTime: productForm.preparationTime.trim() ? parseInt(productForm.preparationTime) : undefined,
         available: productForm.available,
-        image: productForm.image,
-
-        translations: Object.keys(productTranslations).length > 0 ? productTranslations : undefined
+        image: productForm.image || '',
       };
+
+      if (productForm.preparationTime.trim()) {
+        const preparationTime = parseInt(productForm.preparationTime, 10);
+        if (Number.isFinite(preparationTime) && preparationTime >= 0) {
+          productData.preparationTime = preparationTime;
+        }
+      }
+
+      if (Object.keys(productTranslations).length > 0) {
+        productData.translations = productTranslations;
+      }
 
       if (editingProduct) {
         // Armazenar a URL da imagem antiga para deletar depois
@@ -960,7 +975,9 @@ export default function Settings() {
       setShowProductModal(false);
       loadProducts(); // Recarregar para atualizar categorias
     } catch (error) {
-      alert('Erro ao salvar produto. Tente novamente.');
+      console.error('Erro ao salvar produto:', error);
+      const detail = error instanceof Error ? error.message : String(error);
+      alert(`Erro ao salvar produto. ${detail}`);
     }
   };
 
@@ -2988,19 +3005,42 @@ export default function Settings() {
                 description="Gerencie pedidos de mesa e delivery em tempo real."
                 icon={<ChefHat className="w-5 h-5" />}
                 actions={
-                  <PanelButton
-                    variant="secondary"
-                    onClick={() => {
-                      if (kitchenSubTab === 'mesa') {
-                        refreshOrders();
-                      } else {
-                        loadDeliveryOrders();
-                      }
-                    }}
-                    icon={<RefreshCw className="w-4 h-4" />}
-                  >
-                    Atualizar
-                  </PanelButton>
+                  <>
+                    <PanelButton
+                      variant="secondary"
+                      onClick={() => {
+                        const mesaOrders = orders.filter((order) => order.orderType === 'mesa');
+                        const activeDelivery = deliveryOrders.filter(
+                          (order) => order.status !== 'cancelled' && order.status !== 'delivered'
+                        );
+                        if (mesaOrders.length === 0 && activeDelivery.length === 0) {
+                          alert('Não há pedidos para imprimir neste momento.');
+                          return;
+                        }
+                        printKitchenOrders({
+                          restaurantName: restaurantDisplayName || settings?.restaurantName || 'Restaurante',
+                          mesaOrders,
+                          deliveryOrders: activeDelivery,
+                        });
+                      }}
+                      icon={<Printer className="w-4 h-4" />}
+                    >
+                      Imprimir pedidos
+                    </PanelButton>
+                    <PanelButton
+                      variant="secondary"
+                      onClick={() => {
+                        if (kitchenSubTab === 'mesa') {
+                          refreshOrders();
+                        } else {
+                          loadDeliveryOrders();
+                        }
+                      }}
+                      icon={<RefreshCw className="w-4 h-4" />}
+                    >
+                      Atualizar
+                    </PanelButton>
+                  </>
                 }
                 tabs={
                   <PanelTabGroup>

@@ -66,7 +66,7 @@ export const getProducts = async (restaurantId: string): Promise<Product[]> => {
         id: doc.id,
         name: data.name,
         description: data.description,
-        price: data.price,
+        price: coercePrice(data.price),
         category: data.category,
         available: data.available,
         image: data.image || '',
@@ -102,7 +102,7 @@ export const getProductsByCategory = async (category: string, restaurantId: stri
         id: doc.id,
         name: data.name,
         description: data.description,
-        price: data.price,
+        price: coercePrice(data.price),
         category: data.category,
         available: data.available,
         image: data.image || '',
@@ -119,16 +119,42 @@ export const getProductsByCategory = async (category: string, restaurantId: stri
   }
 };
 
+function omitUndefinedDeep(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null || value instanceof Date || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.map(omitUndefinedDeep).filter((item) => item !== undefined);
+  }
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (nested === undefined) continue;
+    const next = omitUndefinedDeep(nested);
+    if (next !== undefined) cleaned[key] = next;
+  }
+  return cleaned;
+}
+
+function coercePrice(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 // Atualizar produto
 export const updateProduct = async (id: string, product: Partial<Product>): Promise<void> => {
   try {
+    const { id: _ignoredId, ...rest } = product as Partial<Product> & { id?: string };
+    const payload = omitUndefinedDeep({
+      ...rest,
+      ...(rest.price !== undefined ? { price: coercePrice(rest.price) } : {}),
+      updatedAt: new Date(),
+    }) as Record<string, unknown>;
+
     const productRef = doc(db, 'products', id);
-    await updateDoc(productRef, {
-      ...product,
-      updatedAt: new Date()
-    });
+    await updateDoc(productRef, payload);
   } catch (error) {
-    throw new Error('Falha ao atualizar produto');
+    console.error('Erro detalhado ao atualizar produto:', error);
+    throw new Error(`Falha ao atualizar produto: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 

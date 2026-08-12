@@ -281,18 +281,30 @@ export default function Menu() {
   const handleProductClick = (product: Product) => {
     if (expandedProduct === product.id) {
       setExpandedProduct(null);
-    } else {
-      setExpandedProduct(product.id);
-      // Inicializa o item expandido se não existir
-      if (!expandedItems.find(item => item.productId === product.id)) {
-        const existingSelected = selectedItems.find(item => item.product.id === product.id);
-        setExpandedItems(prev => [...prev, {
-          productId: product.id,
-          quantity: existingSelected?.quantity || 1,
-          observations: existingSelected?.observations || ''
-        }]);
-      }
+      return;
     }
+
+    setExpandedProduct(product.id);
+    const selected = selectedItems.find((item) => item.product.id === product.id);
+    setExpandedItems((prev) => {
+      const existing = prev.find((item) => item.productId === product.id);
+      if (existing) {
+        if (!selected) return prev;
+        return prev.map((item) =>
+          item.productId === product.id
+            ? { ...item, quantity: selected.quantity, observations: selected.observations }
+            : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          quantity: selected?.quantity || 1,
+          observations: selected?.observations || '',
+        },
+      ];
+    });
   };
 
   const handleImageClick = (e: React.MouseEvent, imageSrc: string, imageAlt: string) => {
@@ -320,23 +332,23 @@ export default function Menu() {
 
   const handleAddToOrder = (product: Product) => {
     const expandedItem = expandedItems.find(item => item.productId === product.id);
-    if (!expandedItem) return;
+    const selected = selectedItems.find(item => item.product.id === product.id);
+    const quantity = expandedItem?.quantity || selected?.quantity || 1;
+    const observations = expandedItem?.observations ?? selected?.observations ?? '';
 
     const existingItemIndex = selectedItems.findIndex(item => item.product.id === product.id);
     
     if (existingItemIndex >= 0) {
-      // Atualiza item existente
       setSelectedItems(prev => prev.map((item, index) => 
         index === existingItemIndex 
-          ? { ...item, quantity: expandedItem.quantity, observations: expandedItem.observations }
+          ? { ...item, quantity, observations }
           : item
       ));
     } else {
-      // Adiciona novo item
       setSelectedItems(prev => [...prev, { 
         product, 
-        quantity: expandedItem.quantity, 
-        observations: expandedItem.observations 
+        quantity, 
+        observations 
       }]);
     }
     
