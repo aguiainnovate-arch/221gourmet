@@ -401,6 +401,10 @@ export default function Orders() {
     const customerPhone = user?.phone?.trim() ?? '';
 
     useEffect(() => {
+        document.title = 'Bora Comer!';
+    }, []);
+
+    useEffect(() => {
         if (authLoading) return;
         if (!user) {
             navigate('/delivery/auth?redirect=/delivery/orders', { replace: true });

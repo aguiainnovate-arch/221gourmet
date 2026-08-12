@@ -274,7 +274,7 @@ export default function Menu() {
     if (menuSettings?.restaurantName) {
       document.title = `${menuSettings.restaurantName} - Mesa ${mesaInfo?.numero || ''}`;
     } else {
-      document.title = 'Noctis - Menu';
+      document.title = 'Bora Comer! - Menu';
     }
   }, [menuSettings?.restaurantName, mesaInfo?.numero]);
 

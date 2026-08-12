@@ -166,6 +166,12 @@ export default function Settings() {
   // Estados para delivery
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [deliveryDescription, setDeliveryDescription] = useState('');
+  const [feeMode, setFeeMode] = useState<'flat' | 'distance'>('flat');
+  const [flatFeeInput, setFlatFeeInput] = useState('5');
+  const [perKmFeeInput, setPerKmFeeInput] = useState('1.50');
+  const [maxRadiusInput, setMaxRadiusInput] = useState('10');
+  const [deliveryOriginAddress, setDeliveryOriginAddress] = useState('');
+  const [deliveryLocationLabel, setDeliveryLocationLabel] = useState('');
   const [productDeliverySettings, setProductDeliverySettings] = useState<Record<string, boolean>>({});
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
 
@@ -316,7 +322,7 @@ export default function Settings() {
     if (titleName) {
       document.title = `${titleName} - Gerenciamento`;
     } else {
-      document.title = 'Noctis - Gerenciamento';
+      document.title = 'Bora Comer! - Gerenciamento';
     }
   }, [settings?.restaurantName, restaurantDisplayName]);
 
@@ -400,15 +406,28 @@ export default function Settings() {
           if (restaurant?.deliverySettings) {
             setDeliveryEnabled(restaurant.deliverySettings.enabled);
             setDeliveryDescription(restaurant.deliverySettings.aiDescription || '');
-            console.log('   ✅ Configurações do restaurante carregadas:', {
-              enabled: restaurant.deliverySettings.enabled,
-              description: restaurant.deliverySettings.aiDescription?.substring(0, 50)
-            });
+            const fee = restaurant.deliverySettings.fee;
+            setFeeMode(fee?.mode === 'distance' ? 'distance' : 'flat');
+            setFlatFeeInput(String(fee?.flatFee ?? 5));
+            setPerKmFeeInput(String(fee?.perKmFee ?? 1.5));
+            setMaxRadiusInput(String(fee?.maxRadiusKm ?? 10));
+            setDeliveryOriginAddress(
+              restaurant.deliverySettings.originAddress || restaurant.address || ''
+            );
+            setDeliveryLocationLabel(
+              restaurant.deliverySettings.location
+                ? `Localização salva (${restaurant.deliverySettings.location.lat.toFixed(5)}, ${restaurant.deliverySettings.location.lng.toFixed(5)})`
+                : ''
+            );
           } else {
-            // Se não tem deliverySettings, usar valores padrão
             setDeliveryEnabled(true);
             setDeliveryDescription('');
-            console.log('   ⚠️  Sem deliverySettings, usando padrões (enabled: true)');
+            setFeeMode('flat');
+            setFlatFeeInput('5');
+            setPerKmFeeInput('1.50');
+            setMaxRadiusInput('10');
+            setDeliveryOriginAddress(restaurant?.address || '');
+            setDeliveryLocationLabel('');
           }
 
           // Carregar configurações de delivery dos produtos
@@ -1597,9 +1616,52 @@ export default function Settings() {
       console.log('   Produtos:', productDeliverySettings);
       
       // Salvar configurações gerais do restaurante
+      const flatFee = parseFloat(String(flatFeeInput).replace(',', '.'));
+      const perKmFee = parseFloat(String(perKmFeeInput).replace(',', '.'));
+      const maxRadiusKm = parseFloat(String(maxRadiusInput).replace(',', '.'));
+      if (!Number.isFinite(flatFee) || flatFee < 0) {
+        alert('Informe uma taxa de entrega válida.');
+        return;
+      }
+      if (feeMode === 'distance' && (!Number.isFinite(perKmFee) || perKmFee < 0)) {
+        alert('Informe um valor por km válido.');
+        return;
+      }
+
+      const originAddress = deliveryOriginAddress.trim();
+      let location = undefined as { lat: number; lng: number } | undefined;
+      if (originAddress) {
+        const { geocodeAddress } = await import('../services/geocodingService');
+        const point = await geocodeAddress(originAddress);
+        if (point) {
+          location = point;
+          setDeliveryLocationLabel(
+            `Localização encontrada (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`
+          );
+        } else if (feeMode === 'distance') {
+          alert(
+            'Não foi possível localizar o endereço de origem. Confira o endereço do restaurante para calcular a taxa por km.'
+          );
+          return;
+        } else {
+          setDeliveryLocationLabel('Endereço não localizado no mapa (taxa única não depende disso).');
+        }
+      } else if (feeMode === 'distance') {
+        alert('Informe o endereço de origem da entrega para calcular a distância.');
+        return;
+      }
+
       await updateRestaurantDeliverySettings(restaurantId, {
         enabled: deliveryEnabled,
-        aiDescription: deliveryDescription
+        aiDescription: deliveryDescription,
+        originAddress: originAddress || undefined,
+        location,
+        fee: {
+          mode: feeMode,
+          flatFee,
+          perKmFee: Number.isFinite(perKmFee) ? perKmFee : 1.5,
+          maxRadiusKm: Number.isFinite(maxRadiusKm) && maxRadiusKm >= 0 ? maxRadiusKm : 10,
+        },
       });
       console.log('   ✅ Configurações do restaurante salvas');
 
@@ -3752,6 +3814,98 @@ export default function Settings() {
                           Seu restaurante está oculto no delivery
                         </span>
                       </>
+                    )}
+                  </div>
+                </PanelCard>
+
+                <PanelCard>
+                  <h3 className="text-base font-semibold text-gray-900 mb-1">Taxa de entrega</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Cada restaurante define a própria taxa: valor único ou cálculo por km até a casa do cliente.
+                  </p>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setFeeMode('flat')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                        feeMode === 'flat'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      Taxa única
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeeMode('distance')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                        feeMode === 'distance'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      Por distância (km)
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className={panelLabelClass}>
+                        {feeMode === 'flat' ? 'Taxa única (R$)' : 'Taxa base (R$)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={flatFeeInput}
+                        onChange={(e) => setFlatFeeInput(e.target.value)}
+                        className={panelInputClass}
+                      />
+                    </div>
+                    {feeMode === 'distance' && (
+                      <>
+                        <div>
+                          <label className={panelLabelClass}>Valor por km (R$)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={perKmFeeInput}
+                            onChange={(e) => setPerKmFeeInput(e.target.value)}
+                            className={panelInputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={panelLabelClass}>Raio máximo (km)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={maxRadiusInput}
+                            onChange={(e) => setMaxRadiusInput(e.target.value)}
+                            className={panelInputClass}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">0 = sem limite</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={panelLabelClass}>Endereço de origem da entrega</label>
+                    <input
+                      type="text"
+                      value={deliveryOriginAddress}
+                      onChange={(e) => setDeliveryOriginAddress(e.target.value)}
+                      placeholder="Rua, número, bairro, cidade"
+                      className={panelInputClass}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Usado para medir a distância até o cliente. Ao salvar, o sistema localiza este endereço no mapa.
+                    </p>
+                    {deliveryLocationLabel && (
+                      <p className="text-xs text-green-700 mt-1">{deliveryLocationLabel}</p>
                     )}
                   </div>
                 </PanelCard>

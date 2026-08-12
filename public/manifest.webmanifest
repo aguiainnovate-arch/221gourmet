@@ -1,23 +1,23 @@
 {
-  "name": "Noctis",
-  "short_name": "Noctis",
-  "description": "Sua comida favorita em casa",
+  "name": "Bora Comer!",
+  "short_name": "Bora Comer",
+  "description": "Pediu, chegou!",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050A1A",
-  "theme_color": "#050A1A",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "icons": [
     {
-      "src": "/logoDelivery.jpeg",
+      "src": "/bora-comer-icon-192.png",
       "sizes": "192x192",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/logoDelivery.jpeg",
+      "src": "/bora-comer-icon-512.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

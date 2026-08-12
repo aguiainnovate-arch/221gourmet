@@ -24,7 +24,7 @@ export default function Staff() {
     if (settings?.restaurantName) {
       document.title = `${settings.restaurantName} - Cozinha`;
     } else {
-      document.title = 'Noctis - Cozinha';
+      document.title = 'Bora Comer! - Cozinha';
     }
   }, [settings?.restaurantName]);
 

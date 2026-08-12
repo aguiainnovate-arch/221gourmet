@@ -13,6 +13,7 @@ import { saveDeliveryUser } from '../services/deliveryUserService';
 import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import type { Product } from '../types/product';
 import { withChannelPrice } from '../types/product';
+import { getFeeSettings, formatFeePreview } from '../utils/deliveryFee';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
 import type { CreateDeliveryOrderData } from '../types/delivery';
@@ -59,7 +60,8 @@ export default function DeliveryMenu() {
     [stripePublishableKey]
   );
 
-  const deliveryFee = 5.00; // Taxa de entrega fixa
+  const feeSettings = getFeeSettings(restaurant?.deliverySettings?.fee);
+  const deliveryFee = feeSettings.flatFee;
 
   const { products: displayProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(
     products,
@@ -88,6 +90,10 @@ export default function DeliveryMenu() {
   useEffect(() => {
     loadRestaurantData();
   }, [restaurantId]);
+
+  useEffect(() => {
+    document.title = restaurant?.name ? `${restaurant.name} - Bora Comer!` : 'Bora Comer!';
+  }, [restaurant?.name]);
 
   // Scroll spy: ao rolar no container, atualizar a aba ativa conforme a seção que está no topo (abaixo da barra fixa)
   const stickyBarHeight = 120;
@@ -462,7 +468,7 @@ export default function DeliveryMenu() {
 
             <div className="flex-1 min-w-0 bg-gray-50 rounded-lg p-2.5 sm:p-3">
               <div className="text-xs sm:text-sm font-medium text-gray-700">{t('delivery.today')}</div>
-              <div className="text-xs text-gray-500">25-35 min • R$ 5,99</div>
+              <div className="text-xs text-gray-500">25-35 min • {formatFeePreview(feeSettings)}</div>
             </div>
           </div>
         </div>
@@ -626,6 +632,11 @@ export default function DeliveryMenu() {
         restaurantName={restaurant.name}
         accentColor={restaurant.theme?.primaryColor || '#E91120'}
         baseDeliveryFee={deliveryFee}
+        feeSettings={feeSettings}
+        restaurantLocation={restaurant.deliverySettings?.location}
+        restaurantOriginAddress={
+          restaurant.deliverySettings?.originAddress || restaurant.address || ''
+        }
         defaultName={user?.name || ''}
         defaultPhone={user?.phone || ''}
         defaultAddress={user?.address || ''}

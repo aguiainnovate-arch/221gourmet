@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Utensils, ArrowLeft } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
@@ -14,6 +14,10 @@ export default function RestaurantAuth() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    document.title = 'Bora Comer!';
+  }, []);
 
   // URL de retorno opcional (para redirecionar após login)
   const returnUrl = searchParams.get('returnUrl');

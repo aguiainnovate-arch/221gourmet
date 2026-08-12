@@ -31,6 +31,10 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import type { Product } from '../../types/product';
 import type { DeliveryOrderItem, CreateDeliveryOrderData } from '../../types/delivery';
 import type { DeliveryUser } from '../../types/deliveryUser';
+import type { DeliveryFeeSettings, DeliveryLocation } from '../../types/restaurant';
+import { DEFAULT_DELIVERY_FEE } from '../../types/restaurant';
+import { calculateDeliveryFee, getFeeSettings } from '../../utils/deliveryFee';
+import { geocodeAddress, getDistanceKm } from '../../services/geocodingService';
 import {
   createDeliveryPaymentIntent,
   createDeliverySetupIntent,
@@ -73,6 +77,9 @@ interface Props {
   accentColor?: string;
   baseDeliveryFee: number;
   turboFeeExtra?: number;
+  feeSettings?: DeliveryFeeSettings;
+  restaurantLocation?: DeliveryLocation;
+  restaurantOriginAddress?: string;
   defaultName?: string;
   defaultPhone?: string;
   defaultAddress?: string;
@@ -197,6 +204,9 @@ export default function CheckoutFlow({
   accentColor = '#E91120',
   baseDeliveryFee,
   turboFeeExtra = 3.99,
+  feeSettings,
+  restaurantLocation,
+  restaurantOriginAddress = '',
   defaultName = '',
   defaultPhone = '',
   defaultAddress = '',
@@ -233,6 +243,16 @@ export default function CheckoutFlow({
     copyPaste?: string;
     hostedInstructionsUrl?: string;
   } | null>(null);
+  const [originPoint, setOriginPoint] = useState<DeliveryLocation | null>(restaurantLocation ?? null);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeOutOfRange, setFeeOutOfRange] = useState(false);
+  const [distanceFee, setDistanceFee] = useState<number | null>(null);
+
+  const resolvedFee = useMemo(
+    () => getFeeSettings(feeSettings ?? { ...DEFAULT_DELIVERY_FEE, flatFee: baseDeliveryFee }),
+    [feeSettings?.mode, feeSettings?.flatFee, feeSettings?.perKmFee, feeSettings?.maxRadiusKm, baseDeliveryFee]
+  );
 
   const pixOrderBaseRef = useRef<Omit<
     CreateDeliveryOrderData,
@@ -340,10 +360,10 @@ export default function CheckoutFlow({
     () => items.reduce((acc, it) => acc + it.quantity, 0),
     [items]
   );
-  const deliveryFee = useMemo(
-    () => baseDeliveryFee + (deliveryOption === 'turbo' ? turboFeeExtra : 0),
-    [baseDeliveryFee, deliveryOption, turboFeeExtra]
-  );
+  const deliveryFee = useMemo(() => {
+    const base = distanceFee ?? resolvedFee.flatFee;
+    return base + (deliveryOption === 'turbo' ? turboFeeExtra : 0);
+  }, [distanceFee, resolvedFee.flatFee, deliveryOption, turboFeeExtra]);
   const total = subtotal + deliveryFee;
 
   const ensureCustomerFor = useCallback(async (): Promise<string | undefined> => {
@@ -503,7 +523,91 @@ export default function CheckoutFlow({
     addressDraft.street.trim().length >= 3 &&
     addressDraft.number.trim().length >= 1 &&
     addressDraft.neighborhood.trim().length >= 2 &&
-    addressDraft.city.trim().length >= 2;
+    addressDraft.city.trim().length >= 2 &&
+    !feeOutOfRange &&
+    !feeLoading;
+
+  useEffect(() => {
+    if (restaurantLocation) {
+      setOriginPoint(restaurantLocation);
+      return;
+    }
+    const origin = restaurantOriginAddress.trim();
+    if (!origin) return;
+    let cancelled = false;
+    geocodeAddress(origin).then((point) => {
+      if (!cancelled && point) setOriginPoint(point);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantLocation, restaurantOriginAddress]);
+
+  useEffect(() => {
+    if (resolvedFee.mode !== 'distance') {
+      setDistanceFee(resolvedFee.flatFee);
+      setFeeOutOfRange(false);
+      setFeeLoading(false);
+      setDistanceKm(null);
+      return;
+    }
+
+    const addressReady =
+      addressDraft.street.trim().length >= 3 &&
+      addressDraft.number.trim().length >= 1 &&
+      addressDraft.neighborhood.trim().length >= 2 &&
+      addressDraft.city.trim().length >= 2;
+
+    if (!addressReady) {
+      setDistanceFee(resolvedFee.flatFee);
+      setFeeOutOfRange(false);
+      setFeeLoading(false);
+      return;
+    }
+
+    const query = `${addressDraft.street}, ${addressDraft.number}, ${addressDraft.neighborhood}, ${addressDraft.city}, Brasil`;
+    let cancelled = false;
+    setFeeLoading(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          let origin = originPoint;
+          if (!origin && restaurantOriginAddress.trim()) {
+            origin = await geocodeAddress(restaurantOriginAddress);
+            if (origin && !cancelled) setOriginPoint(origin);
+          }
+          const dest = await geocodeAddress(query);
+          if (cancelled) return;
+          if (!origin || !dest) {
+            setDistanceFee(resolvedFee.flatFee);
+            setFeeOutOfRange(false);
+            setDistanceKm(null);
+            return;
+          }
+          const km = getDistanceKm(origin, dest);
+          const result = calculateDeliveryFee({ fee: resolvedFee, distanceKm: km });
+          setDistanceKm(km);
+          setFeeOutOfRange(result.outOfRange);
+          setDistanceFee(result.outOfRange ? 0 : result.fee);
+        } finally {
+          if (!cancelled) setFeeLoading(false);
+        }
+      })();
+    }, 700);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    resolvedFee,
+    addressDraft.street,
+    addressDraft.number,
+    addressDraft.neighborhood,
+    addressDraft.city,
+    originPoint,
+    restaurantOriginAddress,
+  ]);
 
   const persistAddressHistory = useCallback(
     (nextAddress: string) => {
@@ -824,10 +928,15 @@ export default function CheckoutFlow({
               onSelectSavedAddress={handleSelectSavedAddress}
               deliveryOption={deliveryOption}
               setDeliveryOption={setDeliveryOption}
-              baseDeliveryFee={baseDeliveryFee}
+              baseDeliveryFee={distanceFee ?? resolvedFee.flatFee}
               turboFeeExtra={turboFeeExtra}
               fmt={fmt}
               accentColor={accentColor}
+              distanceKm={distanceKm}
+              feeLoading={feeLoading}
+              feeOutOfRange={feeOutOfRange}
+              feeMode={resolvedFee.mode}
+              maxRadiusKm={resolvedFee.maxRadiusKm}
             />
           )}
 
@@ -926,6 +1035,12 @@ export default function CheckoutFlow({
             goTo('address');
           }}
           onContinueAddress={() => {
+            if (feeOutOfRange) {
+              setErrorBanner(
+                `Este endereço está fora da área de entrega (${resolvedFee.maxRadiusKm} km).`
+              );
+              return;
+            }
             if (!canProceedFromAddress) {
               setErrorBanner(t('delivery.fillDeliveryData'));
               return;
@@ -1283,6 +1398,11 @@ function AddressStep({
   turboFeeExtra,
   fmt,
   accentColor,
+  distanceKm,
+  feeLoading,
+  feeOutOfRange,
+  feeMode,
+  maxRadiusKm,
 }: {
   customerName: string;
   setCustomerName: (v: string) => void;
@@ -1298,6 +1418,11 @@ function AddressStep({
   turboFeeExtra: number;
   fmt: (v: number) => string;
   accentColor: string;
+  distanceKm: number | null;
+  feeLoading: boolean;
+  feeOutOfRange: boolean;
+  feeMode: 'flat' | 'distance';
+  maxRadiusKm: number;
 }) {
   const { t } = useTranslation();
   return (
@@ -1398,6 +1523,17 @@ function AddressStep({
         <h3 className="text-sm font-bold text-gray-900 mb-3">
           {t('delivery.deliveryOptionTitle')}
         </h3>
+        {feeMode === 'distance' && (
+          <p className="text-xs text-gray-500 mb-2">
+            {feeLoading
+              ? 'Calculando distância até o restaurante…'
+              : feeOutOfRange
+                ? `Fora da área de entrega (máx. ${maxRadiusKm} km).`
+                : distanceKm != null
+                  ? `Distância estimada: ${distanceKm.toFixed(1).replace('.', ',')} km`
+                  : 'Preencha o endereço para calcular a taxa por km.'}
+          </p>
+        )}
         <div className="space-y-2">
           <DeliveryOptionCard
             selected={deliveryOption === 'standard'}

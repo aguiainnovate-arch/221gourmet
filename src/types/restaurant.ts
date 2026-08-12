@@ -1,4 +1,30 @@
-/** Regra de taxa de entrega por distância (base + por km, min/máx, isenção por subtotal). */
+/** Taxa de entrega configurada pelo restaurante. */
+export type DeliveryFeeMode = 'flat' | 'distance';
+
+export interface DeliveryFeeSettings {
+  mode: DeliveryFeeMode;
+  /** Taxa única (flat) ou taxa base (distance). */
+  flatFee: number;
+  /** Valor cobrado por km no modo distance. */
+  perKmFee: number;
+  /** Raio máximo em km. 0 = sem limite. */
+  maxRadiusKm: number;
+}
+
+export interface DeliveryLocation {
+  lat: number;
+  lng: number;
+}
+
+export interface RestaurantDeliverySettings {
+  enabled: boolean;
+  aiDescription: string;
+  originAddress?: string;
+  location?: DeliveryLocation;
+  fee?: DeliveryFeeSettings;
+}
+
+/** @deprecated Use DeliveryFeeSettings. Mantido para compatibilidade. */
 export interface DeliveryFeeRule {
   baseFee: number;
   perKmFee: number;
@@ -6,6 +32,37 @@ export interface DeliveryFeeRule {
   minFee?: number;
   maxFee?: number;
   freeDeliveryAboveSubtotal?: number;
+}
+
+export const DEFAULT_DELIVERY_FEE: DeliveryFeeSettings = {
+  mode: 'flat',
+  flatFee: 5,
+  perKmFee: 1.5,
+  maxRadiusKm: 10,
+};
+
+export function normalizeDeliverySettings(raw: unknown): RestaurantDeliverySettings {
+  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const feeRaw = (data.fee && typeof data.fee === 'object' ? data.fee : {}) as Record<string, unknown>;
+  const locRaw = (data.location && typeof data.location === 'object' ? data.location : null) as Record<string, unknown> | null;
+  const lat = locRaw ? Number(locRaw.lat) : NaN;
+  const lng = locRaw ? Number(locRaw.lng) : NaN;
+  const flatFee = Number(feeRaw.flatFee);
+  const perKmFee = Number(feeRaw.perKmFee);
+  const maxRadiusKm = Number(feeRaw.maxRadiusKm);
+
+  return {
+    enabled: data.enabled !== false,
+    aiDescription: typeof data.aiDescription === 'string' ? data.aiDescription : '',
+    originAddress: typeof data.originAddress === 'string' ? data.originAddress : undefined,
+    location: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined,
+    fee: {
+      mode: feeRaw.mode === 'distance' ? 'distance' : 'flat',
+      flatFee: Number.isFinite(flatFee) && flatFee >= 0 ? flatFee : DEFAULT_DELIVERY_FEE.flatFee,
+      perKmFee: Number.isFinite(perKmFee) && perKmFee >= 0 ? perKmFee : DEFAULT_DELIVERY_FEE.perKmFee,
+      maxRadiusKm: Number.isFinite(maxRadiusKm) && maxRadiusKm >= 0 ? maxRadiusKm : DEFAULT_DELIVERY_FEE.maxRadiusKm,
+    },
+  };
 }
 
 export interface Restaurant {
@@ -34,10 +91,7 @@ export interface Restaurant {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
   };
-  deliverySettings?: {
-    enabled: boolean;
-    aiDescription: string;
-  };
+  deliverySettings?: RestaurantDeliverySettings;
   /** Stripe Connect — Express (IDs e flags sincronizados pelo backend). */
   stripeConnectAccountId?: string;
   stripeConnectChargesEnabled?: boolean;
@@ -64,10 +118,7 @@ export interface CreateRestaurantData {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
   };
-  deliverySettings?: {
-    enabled: boolean;
-    aiDescription: string;
-  };
+  deliverySettings?: RestaurantDeliverySettings;
 }
 
 export interface UpdateRestaurantData {
@@ -88,8 +139,5 @@ export interface UpdateRestaurantData {
     automaticTranslation: boolean;
     imageMenuTransfer: boolean;
   };
-  deliverySettings?: {
-    enabled: boolean;
-    aiDescription: string;
-  };
+  deliverySettings?: RestaurantDeliverySettings;
 }

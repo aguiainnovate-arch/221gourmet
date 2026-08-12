@@ -33,7 +33,7 @@ export default function Home() {
     if (settings?.restaurantName) {
       document.title = settings.restaurantName;
     } else {
-      document.title = 'Noctis';
+      document.title = 'Bora Comer!';
     }
   }, [settings?.restaurantName]);
 

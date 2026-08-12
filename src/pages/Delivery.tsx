@@ -71,6 +71,10 @@ export default function Delivery() {
   const handleBottomNav = useDeliveryBottomNav(navTab);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
+  useEffect(() => {
+    document.title = 'Bora Comer!';
+  }, []);
+
   const CAROUSEL_ITEM_WIDTH = 280;
   const CAROUSEL_GAP = 16;
   const CAROUSEL_STEP = CAROUSEL_ITEM_WIDTH + CAROUSEL_GAP;

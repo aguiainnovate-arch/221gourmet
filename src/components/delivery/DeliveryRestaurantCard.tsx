@@ -2,6 +2,7 @@ import { memo, useMemo, useState, type KeyboardEvent } from 'react';
 import { MapPin, Star, Clock, Bike, Heart, Circle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Restaurant } from '../../types/restaurant';
+import { getFeeSettings, formatFeePreview } from '../../utils/deliveryFee';
 import {
   CHIP_TONE_STYLES,
   COVER_BADGE_STYLES,
@@ -27,6 +28,7 @@ function DeliveryRestaurantCard({
   const { t } = useTranslation();
   const [coverError, setCoverError] = useState(false);
   const identity = useMemo(() => getRestaurantVisualIdentity(restaurant), [restaurant]);
+  const feeLabel = formatFeePreview(getFeeSettings(restaurant.deliverySettings?.fee));
   const logoUrl = restaurant.theme?.logo?.trim();
   const LogoIcon = identity.logo.icon;
   const coverBadge = COVER_BADGE_STYLES[identity.coverBadge];
@@ -169,7 +171,7 @@ function DeliveryRestaurantCard({
                 <span className="text-[#D4C4B8]">|</span>
                 <span className="inline-flex items-center gap-0.5 shrink-0">
                   <Bike className="w-3 h-3" style={{ color: '#8A7A74' }} />
-                  {t('delivery.deliveryFeeValue', { value: '3,50' })}
+                  {feeLabel}
                 </span>
               </div>
 

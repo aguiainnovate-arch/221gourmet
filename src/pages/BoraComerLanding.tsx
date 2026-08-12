@@ -244,6 +244,7 @@ export default function BoraComerLanding() {
 
   /* Garante tema claro no body ao montar a landing (evita fundo escuro do app) */
   useLayoutEffect(() => {
+    document.title = 'Bora Comer!';
     document.body.classList.add('landing-bora-comer');
     return () => document.body.classList.remove('landing-bora-comer');
   }, []);

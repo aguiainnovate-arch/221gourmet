@@ -12,7 +12,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
-import type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
+import type { Restaurant, CreateRestaurantData, UpdateRestaurantData, RestaurantDeliverySettings } from '../types/restaurant';
+import { normalizeDeliverySettings } from '../types/restaurant';
 
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
@@ -113,10 +114,7 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
     const restaurants: Restaurant[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      const deliverySettings = data.deliverySettings ?? {
-        enabled: true,
-        aiDescription: ''
-      };
+      const deliverySettings = normalizeDeliverySettings(data.deliverySettings);
       restaurants.push({
         id: doc.id,
         name: data.name,
@@ -186,7 +184,7 @@ export const getRestaurantById = async (id: string): Promise<Restaurant | null> 
       theme: data.theme,
       settings: data.settings,
       permissions: data.permissions,
-      deliverySettings: data.deliverySettings ?? { enabled: true, aiDescription: '' },
+      deliverySettings: normalizeDeliverySettings(data.deliverySettings),
       stripeConnectAccountId:
         typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
       stripeConnectChargesEnabled:
@@ -233,10 +231,7 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
     const doc = querySnapshot.docs[0];
     const data = doc.data();
     
-    const deliverySettings = data.deliverySettings ?? {
-      enabled: true,
-      aiDescription: ''
-    };
+    const deliverySettings = normalizeDeliverySettings(data.deliverySettings);
 
     return {
       id: doc.id,
@@ -387,10 +382,7 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
     const restaurants: Restaurant[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      const deliverySettings = data.deliverySettings ?? {
-        enabled: true,
-        aiDescription: ''
-      };
+      const deliverySettings = normalizeDeliverySettings(data.deliverySettings);
       restaurants.push({
         id: doc.id,
         name: data.name,
@@ -475,7 +467,7 @@ export const updateRestaurantPlan = async (restaurantId: string, planId: string)
 // Atualizar configurações de delivery de um restaurante
 export const updateRestaurantDeliverySettings = async (
   restaurantId: string,
-  deliverySettings: { enabled: boolean; aiDescription: string }
+  deliverySettings: RestaurantDeliverySettings
 ): Promise<void> => {
   try {
     const restaurantRef = doc(db, 'restaurants', restaurantId);

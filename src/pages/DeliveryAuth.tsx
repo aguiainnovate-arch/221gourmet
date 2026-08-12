@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Phone, MapPin, CreditCard, Utensils, ArrowLeft, Lock } from 'lucide-react';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
@@ -25,6 +25,10 @@ export default function DeliveryAuth() {
 
   const { login: deliveryLogin, updateUser } = useDeliveryAuth();
   const { login: restaurantLogin } = useRestaurantAuth();
+
+  useEffect(() => {
+    document.title = 'Bora Comer!';
+  }, []);
 
   const [step, setStep] = useState<Step>('email');
   const [isSubmitting, setIsSubmitting] = useState(false);
