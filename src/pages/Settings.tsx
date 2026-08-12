@@ -924,7 +924,7 @@ export default function Settings() {
         return;
       }
 
-      const productData: Parameters<typeof updateProduct>[1] = {
+      const productData: Omit<Product, 'id'> = {
         name: productForm.name.trim(),
         description: productForm.description.trim(),
         price,

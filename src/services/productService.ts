@@ -6,7 +6,9 @@ import {
   deleteDoc, 
   doc, 
   query,
-  where 
+  where,
+  type DocumentData,
+  type UpdateData,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { Product } from '../types/product';
@@ -151,7 +153,7 @@ export const updateProduct = async (id: string, product: Partial<Product>): Prom
     }) as Record<string, unknown>;
 
     const productRef = doc(db, 'products', id);
-    await updateDoc(productRef, payload);
+    await updateDoc(productRef, payload as UpdateData<DocumentData>);
   } catch (error) {
     console.error('Erro detalhado ao atualizar produto:', error);
     throw new Error(`Falha ao atualizar produto: ${error instanceof Error ? error.message : String(error)}`);
