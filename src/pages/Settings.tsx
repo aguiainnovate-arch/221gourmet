@@ -73,8 +73,10 @@ import ThemeColorsPanel from '../components/ThemeColorsPanel';
 import OpeningHoursEditor from '../components/OpeningHoursEditor';
 import {
   createDefaultOpeningHours,
+  type Restaurant,
   type RestaurantOpeningHours,
 } from '../types/restaurant';
+import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import {
   PanelPage,
   PanelPageHeader,
@@ -219,6 +221,8 @@ export default function Settings() {
 
   // Nome da loja (exibido no header após login)
   const [restaurantDisplayName, setRestaurantDisplayName] = useState<string>('');
+  const [partnershipRestaurant, setPartnershipRestaurant] = useState<Restaurant | null>(null);
+  const [partnershipAccessChecked, setPartnershipAccessChecked] = useState(false);
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -308,21 +312,36 @@ export default function Settings() {
     }
   }, [authLoading, hasAccess]);
 
-  // Carregar nome da loja para exibir no header (pós-login)
+  // Carregar nome da loja para exibir no header (pós-login) + gate de assinatura
   useEffect(() => {
     if (!restaurantId) return;
     let cancelled = false;
+    setPartnershipAccessChecked(false);
     getRestaurants()
       .then((restaurants) => {
         if (cancelled) return;
-        const restaurant = restaurants.find((r) => r.id === restaurantId);
+        const restaurant = restaurants.find((r) => r.id === restaurantId) ?? null;
+        setPartnershipRestaurant(restaurant);
         if (restaurant?.name) {
           setRestaurantDisplayName(restaurant.name);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setPartnershipRestaurant(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPartnershipAccessChecked(true);
+      });
     return () => { cancelled = true; };
   }, [restaurantId]);
+
+  // Sem assinatura / trial expirado → só /planos
+  useEffect(() => {
+    if (!hasAccess || !partnershipAccessChecked || !partnershipRestaurant) return;
+    if (!hasRestaurantPlatformAccess(partnershipRestaurant)) {
+      navigate('/planos', { replace: true });
+    }
+  }, [hasAccess, partnershipAccessChecked, partnershipRestaurant, navigate]);
 
   // Atualizar título da aba do navegador
   useEffect(() => {
@@ -2074,6 +2093,21 @@ export default function Settings() {
           </div>
         )}
       </>
+    );
+  }
+
+  if (
+    partnershipAccessChecked &&
+    partnershipRestaurant &&
+    !hasRestaurantPlatformAccess(partnershipRestaurant)
+  ) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#E91120] mx-auto mb-4" />
+          <p className="text-gray-700 font-medium">Redirecionando para os planos de parceria...</p>
+        </div>
+      </div>
     );
   }
 

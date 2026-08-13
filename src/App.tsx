@@ -12,6 +12,7 @@ import Orders from './pages/Orders';
 import RestaurantAuth from './pages/RestaurantAuth';
 import BoraComerLanding from './pages/BoraComerLanding';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import PartnershipPlans from './pages/PartnershipPlans';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import { OrderProvider } from './contexts/OrderContext';
@@ -49,6 +50,14 @@ function App() {
                 <Route path="/register/:token" element={<Register />} />
                 <Route path="/parceiros" element={<BoraComerLanding />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route
+                  path="/planos"
+                  element={
+                    <RestaurantAuthProvider>
+                      <PartnershipPlans />
+                    </RestaurantAuthProvider>
+                  }
+                />
 
                 {/* Rota de login de restaurante */}
                 <Route path="/restaurant/auth" element={

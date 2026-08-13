@@ -28,6 +28,7 @@ import type { CreateDeliveryUserData } from '../types/deliveryUser';
 import LanguageSelector from '../components/LanguageSelector';
 import PasswordInput from '../components/PasswordInput';
 import PhoneOtpForm from '../components/PhoneOtpForm';
+import PhoneWithCountryInput from '../components/PhoneWithCountryInput';
 
 type Step = 'email' | 'otp' | 'restaurant_password' | 'delivery_register';
 type OtpPurpose = 'login' | 'register';
@@ -535,21 +536,14 @@ export default function DeliveryAuth() {
                 <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>
                   Telefone *
                 </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    value={phone ? formatPhoneDisplay(normalizePhone(phone)) : ''}
-                    onChange={(e) => setPhone(applyPhoneMaskInput(e.target.value))}
-                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
-                    style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
-                    placeholder="+55 11 99999 9999"
-                    required
-                  />
-                </div>
+                <PhoneWithCountryInput
+                  value={phone}
+                  onChange={setPhone}
+                  required
+                  variant="delivery"
+                />
                 <p className="mt-1 text-[11px]" style={{ color: '#6B5A54' }}>
-                  Enviaremos um código SMS para este número.
+                  Escolha o país e digite DDD + número. Enviaremos um código SMS.
                 </p>
               </div>
               <div>

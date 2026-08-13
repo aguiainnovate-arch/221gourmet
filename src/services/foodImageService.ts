@@ -17,6 +17,7 @@
 import { getRestaurants } from './restaurantService';
 import { getRestaurantPermissions } from './permissionService';
 import { getProducts } from './productService';
+import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 
 const UNSPLASH_ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
 
@@ -134,7 +135,9 @@ export function getDefaultFoodImages(): FoodImage[] {
 export async function fetchFeaturedProductImages(): Promise<FoodImage[]> {
   try {
     const restaurants = await getRestaurants();
-    const activeRestaurants = restaurants.filter((r) => r.active);
+    const activeRestaurants = restaurants.filter(
+      (r) => r.active && hasRestaurantPlatformAccess(r)
+    );
 
     const allowed = await Promise.all(
       activeRestaurants.map(async (r) => {

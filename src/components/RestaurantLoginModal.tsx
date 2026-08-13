@@ -1,7 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import PasswordInput from './PasswordInput';
+import { getRestaurants } from '../services/restaurantService';
+import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 
 interface RestaurantLoginModalProps {
   isOpen: boolean;
@@ -10,6 +13,7 @@ interface RestaurantLoginModalProps {
 }
 
 export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: RestaurantLoginModalProps) {
+  const navigate = useNavigate();
   const { login } = useRestaurantAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,9 +34,17 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
       const success = await login(email, password);
 
       if (success) {
+        const restaurants = await getRestaurants();
+        const restaurant = restaurants.find(
+          (r) => r.email.toLowerCase() === email.toLowerCase()
+        );
         setEmail('');
         setPassword('');
         onClose();
+        if (restaurant && !hasRestaurantPlatformAccess(restaurant)) {
+          navigate('/planos', { replace: true });
+          return;
+        }
         if (onSuccess) onSuccess();
       } else {
         setError('Email ou senha incorretos');

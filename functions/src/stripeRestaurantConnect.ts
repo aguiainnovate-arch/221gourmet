@@ -19,7 +19,9 @@ const publicAppUrl = defineString('PUBLIC_APP_URL', {
   description: 'Origem do app (ex. https://site.com). Sem path; retorno Stripe = /{id}/settings',
 });
 
-function connectAppOrigin(raw: string): string {
+export { publicAppUrl };
+
+export function connectAppOrigin(raw: string): string {
   const trimmed = raw.trim().replace(/\/$/, '');
   if (!trimmed) return 'http://localhost:5173';
   try {

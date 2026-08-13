@@ -23,6 +23,7 @@ import {
 } from '../utils/authInputUtils';
 import type { CreateDeliveryUserData } from '../types/deliveryUser';
 import PhoneOtpForm from './PhoneOtpForm';
+import PhoneWithCountryInput from './PhoneWithCountryInput';
 
 interface DeliveryAuthModalProps {
   isOpen: boolean;
@@ -340,16 +341,15 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                       <Phone className="w-4 h-4 inline mr-2" />
                       Telefone *
                     </label>
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      value={phone ? formatPhoneDisplay(normalizePhone(phone)) : ''}
-                      onChange={(e) => setPhone(applyPhoneMaskInput(e.target.value))}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
-                      placeholder="+55 11 99999 9999"
+                    <PhoneWithCountryInput
+                      value={phone}
+                      onChange={setPhone}
                       required
+                      variant="modal"
                     />
-                    <p className="mt-1 text-xs text-gray-600">Enviaremos um código SMS para este número.</p>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Escolha o país e digite DDD + número. Enviaremos um código SMS.
+                    </p>
                   </div>
                 </>
               )}

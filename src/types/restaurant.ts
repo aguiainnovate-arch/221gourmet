@@ -1,3 +1,5 @@
+import type { PartnershipSubscription } from './partnership';
+
 /** Taxa de entrega configurada pelo restaurante. */
 export type DeliveryFeeMode = 'flat' | 'distance';
 
@@ -171,6 +173,8 @@ export interface Restaurant {
   deliverySettings?: RestaurantDeliverySettings;
   /** Horários de funcionamento por dia da semana. */
   openingHours?: RestaurantOpeningHours;
+  /** Trial / assinatura de parceria Bora Comer!. */
+  partnershipSubscription?: PartnershipSubscription;
   /** Stripe Connect — Express (IDs e flags sincronizados pelo backend). */
   stripeConnectAccountId?: string;
   stripeConnectChargesEnabled?: boolean;
@@ -199,6 +203,7 @@ export interface CreateRestaurantData {
   };
   deliverySettings?: RestaurantDeliverySettings;
   openingHours?: RestaurantOpeningHours;
+  partnershipSubscription?: PartnershipSubscription;
 }
 
 export interface UpdateRestaurantData {
@@ -221,4 +226,5 @@ export interface UpdateRestaurantData {
   };
   deliverySettings?: RestaurantDeliverySettings;
   openingHours?: RestaurantOpeningHours;
+  partnershipSubscription?: PartnershipSubscription;
 }

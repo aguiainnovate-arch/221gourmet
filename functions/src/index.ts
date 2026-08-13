@@ -13,6 +13,10 @@ export {
   createRestaurantStripeConnectOnboardingLink,
   syncRestaurantStripeConnectStatus,
 } from './stripeRestaurantConnect';
+export {
+  createPartnershipSubscriptionCheckout,
+  confirmPartnershipSubscriptionCheckout,
+} from './stripePartnershipBilling';
 export { recommendRestaurantsWithAI } from './recommendRestaurantsWithAI';
 
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';

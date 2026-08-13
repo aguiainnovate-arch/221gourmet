@@ -24,6 +24,7 @@ import CheckoutFlow from '../components/delivery/CheckoutFlow';
 import RestaurantInfoModal from '../components/delivery/RestaurantInfoModal';
 import type { CartLine } from '../components/delivery/CheckoutFlow';
 import { isRestaurantOpenNow } from '../utils/openingHours';
+import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 
 export default function DeliveryMenu() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
@@ -146,7 +147,11 @@ export default function DeliveryMenu() {
       ]);
 
       const currentRestaurant = restaurantsData.find(r => r.id === restaurantId);
-      setRestaurant(currentRestaurant || null);
+      if (currentRestaurant && !hasRestaurantPlatformAccess(currentRestaurant)) {
+        setRestaurant(null);
+      } else {
+        setRestaurant(currentRestaurant || null);
+      }
       
       const availableProducts = productsData.filter(p => 
         p.available && (p.availableForDelivery ?? true)

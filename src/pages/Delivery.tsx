@@ -34,6 +34,7 @@ import {
   getFavoriteRestaurantIds,
   toggleFavoriteRestaurantId,
 } from '../utils/deliveryFavoritesStorage';
+import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 
 const FALLBACK_COVERS = getDefaultFoodImages();
 
@@ -136,7 +137,9 @@ export default function Delivery() {
       setLoading(true);
       setLoadError(null);
       const data = await getRestaurants();
-      const activeRestaurants = data.filter((r) => r.active);
+      const activeRestaurants = data.filter(
+        (r) => r.active && hasRestaurantPlatformAccess(r)
+      );
       const restaurantsWithPermissions = await Promise.all(
         activeRestaurants.map(async (restaurant) => {
           const permissions = await getRestaurantPermissions(restaurant.id);

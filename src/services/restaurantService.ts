@@ -14,6 +14,11 @@ import { db } from '../../firebase';
 import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
 import type { Restaurant, CreateRestaurantData, UpdateRestaurantData, RestaurantDeliverySettings } from '../types/restaurant';
 import { normalizeDeliverySettings, normalizeOpeningHours } from '../types/restaurant';
+import {
+  createTrialPartnershipSubscription,
+  normalizePartnershipSubscription,
+  partnershipSubscriptionToFirestore,
+} from '../types/partnership';
 
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
@@ -57,6 +62,7 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
     permissions: data.permissions as Restaurant['permissions'],
     deliverySettings: normalizeDeliverySettings(data.deliverySettings),
     openingHours: data.openingHours ? normalizeOpeningHours(data.openingHours) : undefined,
+    partnershipSubscription: normalizePartnershipSubscription(data.partnershipSubscription),
     stripeConnectAccountId:
       typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
     stripeConnectChargesEnabled:
@@ -85,8 +91,13 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
 // Adicionar novo restaurante
 export const addRestaurant = async (restaurantData: CreateRestaurantData): Promise<Restaurant> => {
   try {
+    const now = new Date();
+    const partnershipSubscription =
+      restaurantData.partnershipSubscription ?? createTrialPartnershipSubscription(now);
+
     const docRef = await addDoc(collection(db, 'restaurants'), {
       ...restaurantData,
+      partnershipSubscription: partnershipSubscriptionToFirestore(partnershipSubscription),
       active: true,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -131,9 +142,10 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
     return {
       id: restaurantId,
       ...restaurantData,
+      partnershipSubscription,
       active: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
       settings: {
         maxTables: 999, // Será definido baseado no plano posteriormente
         allowOnlineOrders: true,
@@ -210,8 +222,14 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
 export const updateRestaurant = async (id: string, updates: UpdateRestaurantData | CreateRestaurantData): Promise<void> => {
   try {
     const restaurantRef = doc(db, 'restaurants', id);
+    const payload: Record<string, unknown> = { ...updates };
+    if (updates.partnershipSubscription) {
+      payload.partnershipSubscription = partnershipSubscriptionToFirestore(
+        updates.partnershipSubscription
+      );
+    }
     await updateDoc(restaurantRef, stripUndefined({
-      ...updates,
+      ...payload,
       updatedAt: Timestamp.now()
     }));
 

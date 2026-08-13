@@ -4,6 +4,7 @@ import { Mail, Lock, Utensils, ArrowLeft } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
 import PasswordInput from '../components/PasswordInput';
+import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 
 export default function RestaurantAuth() {
   const navigate = useNavigate();
@@ -39,6 +40,11 @@ export default function RestaurantAuth() {
         // Buscar o ID do restaurante pelo email
         const restaurants = await getRestaurants();
         const restaurant = restaurants.find(r => r.email.toLowerCase() === email.toLowerCase());
+
+        if (restaurant && !hasRestaurantPlatformAccess(restaurant)) {
+          navigate('/planos', { replace: true });
+          return;
+        }
         
         // Redirecionar para a URL de retorno ou para as configurações do restaurante
         if (returnUrl) {
