@@ -37,11 +37,20 @@ export function looksLikePhone(value: string): boolean {
 
 /**
  * Normaliza telefone para formato E.164 (apenas + e dígitos).
- * Usado para persistência e busca no backend.
+ * Usado para persistência, busca e Firebase Phone Auth (SMS).
+ * Números BR locais (10–11 dígitos, sem país) recebem prefixo 55.
  */
 export function normalizePhone(value: string): string {
   const d = value.replace(/\D/g, '');
   if (d.length === 0) return '';
+  // Já com DDI Brasil
+  if (d.startsWith('55') && d.length >= 12 && d.length <= 13) {
+    return '+' + d;
+  }
+  // Celular/fixo BR sem DDI: 11 99999-9999 ou 11 3333-3333
+  if (d.length === 10 || d.length === 11) {
+    return '+55' + d;
+  }
   return '+' + d;
 }
 

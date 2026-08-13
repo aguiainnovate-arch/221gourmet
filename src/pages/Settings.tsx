@@ -70,6 +70,11 @@ import type { Category } from '../services/categoryService';
 import ProductImage from '../components/ProductImage';
 import MenuPreview from '../components/MenuPreview';
 import ThemeColorsPanel from '../components/ThemeColorsPanel';
+import OpeningHoursEditor from '../components/OpeningHoursEditor';
+import {
+  createDefaultOpeningHours,
+  type RestaurantOpeningHours,
+} from '../types/restaurant';
 import {
   PanelPage,
   PanelPageHeader,
@@ -143,6 +148,9 @@ export default function Settings() {
     bannerUrl: '',
     audioUrl: ''
   });
+  const [openingHoursForm, setOpeningHoursForm] = useState<RestaurantOpeningHours>(
+    () => createDefaultOpeningHours()
+  );
 
   // Estados para extração de cores
   const [extractedColors, setExtractedColors] = useState<{
@@ -398,6 +406,7 @@ export default function Settings() {
           setStripeConnectDetailsSubmitted(restaurant?.stripeConnectDetailsSubmitted);
           setStripeConnectDisabledReason(restaurant?.stripeConnectDisabledReason ?? null);
           setStripeConnectRequirementsSummary(restaurant?.stripeConnectRequirementsSummary ?? null);
+          setOpeningHoursForm(restaurant?.openingHours ?? createDefaultOpeningHours());
           
           console.log('📖 Carregando configurações de delivery...');
           console.log('   Restaurante encontrado:', restaurant?.name);
@@ -1543,6 +1552,7 @@ export default function Settings() {
       await updateRestaurant(restaurantId, {
         name: personalizationForm.restaurantName.trim(),
         theme,
+        openingHours: openingHoursForm,
       });
 
       const { applyCustomColors } = await import('../utils/colorUtils');
@@ -2732,6 +2742,20 @@ export default function Settings() {
                     <p className="text-sm text-gray-500 mt-1.5">
                       Este nome aparecerá no cabeçalho do cardápio
                     </p>
+                  </div>
+
+                  {/* Horário de funcionamento */}
+                  <div>
+                    <label className={panelLabelClass}>
+                      Horário de funcionamento
+                    </label>
+                    <p className="text-sm text-gray-500 mb-3">
+                      Defina os dias e horários em que o restaurante atende. Os clientes veem isso ao tocar em “Ver mais”.
+                    </p>
+                    <OpeningHoursEditor
+                      value={openingHoursForm}
+                      onChange={setOpeningHoursForm}
+                    />
                   </div>
 
                   {/* Cores */}

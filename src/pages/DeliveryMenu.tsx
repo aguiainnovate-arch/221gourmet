@@ -21,7 +21,9 @@ import LanguageSelector from '../components/LanguageSelector';
 import ProductImage from '../components/ProductImage';
 import FloatingCartBar from '../components/delivery/FloatingCartBar';
 import CheckoutFlow from '../components/delivery/CheckoutFlow';
+import RestaurantInfoModal from '../components/delivery/RestaurantInfoModal';
 import type { CartLine } from '../components/delivery/CheckoutFlow';
+import { isRestaurantOpenNow } from '../utils/openingHours';
 
 export default function DeliveryMenu() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
@@ -41,6 +43,7 @@ export default function DeliveryMenu() {
   const [selectedItems, setSelectedItems] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
 
   // Modal de detalhes do produto (slide de baixo + arrastar para fechar)
   const [productModalProduct, setProductModalProduct] = useState<Product | null>(null);
@@ -62,6 +65,7 @@ export default function DeliveryMenu() {
 
   const feeSettings = getFeeSettings(restaurant?.deliverySettings?.fee);
   const deliveryFee = feeSettings.flatFee;
+  const openNowStatus = isRestaurantOpenNow(restaurant?.openingHours);
 
   const { products: displayProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(
     products,
@@ -443,14 +447,24 @@ export default function DeliveryMenu() {
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
               <div className="flex items-center gap-1.5 shrink-0">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs sm:text-sm font-medium text-gray-700">{t('delivery.open')}</span>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    openNowStatus === false ? 'bg-red-500' : 'bg-green-500'
+                  }`}
+                />
+                <span className="text-xs sm:text-sm font-medium text-gray-700">
+                  {openNowStatus === false ? t('delivery.closed') : t('delivery.open')}
+                </span>
               </div>
               <div className="text-xs sm:text-sm text-gray-500 shrink-0">
                 Pedido mín. R$ 15,00
               </div>
             </div>
-            <button className="text-red-500 text-xs sm:text-sm font-medium hover:text-red-600 shrink-0">
+            <button
+              type="button"
+              onClick={() => setInfoModalOpen(true)}
+              className="text-red-500 text-xs sm:text-sm font-medium hover:text-red-600 shrink-0"
+            >
               {t('delivery.seeMore')}
             </button>
           </div>
@@ -762,6 +776,13 @@ export default function DeliveryMenu() {
             </div>
           </div>
         </>
+      )}
+
+      {infoModalOpen && restaurant && (
+        <RestaurantInfoModal
+          restaurant={restaurant}
+          onClose={() => setInfoModalOpen(false)}
+        />
       )}
 
     </div>

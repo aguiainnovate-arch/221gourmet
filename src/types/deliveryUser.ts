@@ -7,6 +7,8 @@ export interface DeliveryUser {
   defaultPaymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   /** Customer ID na Stripe (para salvar cartões). Preenchido sob demanda. */
   stripeCustomerId?: string;
+  /** UID do Firebase Auth após login por SMS (Phone Auth). */
+  authUid?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,5 +20,6 @@ export interface CreateDeliveryUserData {
   address: string;
   defaultPaymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   stripeCustomerId?: string;
+  authUid?: string;
 }
 

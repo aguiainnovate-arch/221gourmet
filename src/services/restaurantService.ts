@@ -13,7 +13,7 @@ import {
 import { db } from '../../firebase';
 import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
 import type { Restaurant, CreateRestaurantData, UpdateRestaurantData, RestaurantDeliverySettings } from '../types/restaurant';
-import { normalizeDeliverySettings } from '../types/restaurant';
+import { normalizeDeliverySettings, normalizeOpeningHours } from '../types/restaurant';
 
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
@@ -31,6 +31,55 @@ function stripUndefined<T>(value: T): T {
     return out as T;
   }
   return value;
+}
+
+function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant {
+  return {
+    id,
+    name: String(data.name ?? ''),
+    domain: String(data.domain ?? ''),
+    email: String(data.email ?? ''),
+    phone: String(data.phone ?? ''),
+    address: String(data.address ?? ''),
+    password: typeof data.password === 'string' ? data.password : '',
+    planId: typeof data.planId === 'string' ? data.planId : undefined,
+    active: data.active === true,
+    createdAt:
+      data.createdAt && typeof (data.createdAt as { toDate?: () => Date }).toDate === 'function'
+        ? (data.createdAt as { toDate: () => Date }).toDate()
+        : new Date(),
+    updatedAt:
+      data.updatedAt && typeof (data.updatedAt as { toDate?: () => Date }).toDate === 'function'
+        ? (data.updatedAt as { toDate: () => Date }).toDate()
+        : new Date(),
+    theme: data.theme as Restaurant['theme'],
+    settings: data.settings as Restaurant['settings'],
+    permissions: data.permissions as Restaurant['permissions'],
+    deliverySettings: normalizeDeliverySettings(data.deliverySettings),
+    openingHours: data.openingHours ? normalizeOpeningHours(data.openingHours) : undefined,
+    stripeConnectAccountId:
+      typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
+    stripeConnectChargesEnabled:
+      typeof data.stripeConnectChargesEnabled === 'boolean'
+        ? data.stripeConnectChargesEnabled
+        : undefined,
+    stripeConnectDetailsSubmitted:
+      typeof data.stripeConnectDetailsSubmitted === 'boolean'
+        ? data.stripeConnectDetailsSubmitted
+        : undefined,
+    stripeConnectPayoutsEnabled:
+      typeof data.stripeConnectPayoutsEnabled === 'boolean'
+        ? data.stripeConnectPayoutsEnabled
+        : undefined,
+    stripeConnectDisabledReason:
+      typeof data.stripeConnectDisabledReason === 'string'
+        ? data.stripeConnectDisabledReason
+        : null,
+    stripeConnectRequirementsSummary:
+      typeof data.stripeConnectRequirementsSummary === 'string'
+        ? data.stripeConnectRequirementsSummary
+        : null,
+  };
 }
 
 // Adicionar novo restaurante
@@ -112,48 +161,8 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
     const querySnapshot = await getDocs(q);
     
     const restaurants: Restaurant[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const deliverySettings = normalizeDeliverySettings(data.deliverySettings);
-      restaurants.push({
-        id: doc.id,
-        name: data.name,
-        domain: data.domain,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        password: data.password || '',
-        planId: data.planId,
-        active: data.active,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-        theme: data.theme,
-        settings: data.settings,
-        permissions: data.permissions,
-        deliverySettings,
-        stripeConnectAccountId:
-          typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
-        stripeConnectChargesEnabled:
-          typeof data.stripeConnectChargesEnabled === 'boolean'
-            ? data.stripeConnectChargesEnabled
-            : undefined,
-        stripeConnectDetailsSubmitted:
-          typeof data.stripeConnectDetailsSubmitted === 'boolean'
-            ? data.stripeConnectDetailsSubmitted
-            : undefined,
-        stripeConnectPayoutsEnabled:
-          typeof data.stripeConnectPayoutsEnabled === 'boolean'
-            ? data.stripeConnectPayoutsEnabled
-            : undefined,
-        stripeConnectDisabledReason:
-          typeof data.stripeConnectDisabledReason === 'string'
-            ? data.stripeConnectDisabledReason
-            : null,
-        stripeConnectRequirementsSummary:
-          typeof data.stripeConnectRequirementsSummary === 'string'
-            ? data.stripeConnectRequirementsSummary
-            : null,
-      });
+    querySnapshot.forEach((docSnap) => {
+      restaurants.push(mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
     });
 
     return restaurants;
@@ -168,46 +177,7 @@ export const getRestaurantById = async (id: string): Promise<Restaurant | null> 
   try {
     const docSnap = await getDoc(doc(db, 'restaurants', id));
     if (!docSnap.exists()) return null;
-    const data = docSnap.data();
-    return {
-      id: docSnap.id,
-      name: data.name,
-      domain: data.domain,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      password: data.password || '',
-      planId: data.planId,
-      active: data.active,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
-      theme: data.theme,
-      settings: data.settings,
-      permissions: data.permissions,
-      deliverySettings: normalizeDeliverySettings(data.deliverySettings),
-      stripeConnectAccountId:
-        typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
-      stripeConnectChargesEnabled:
-        typeof data.stripeConnectChargesEnabled === 'boolean'
-          ? data.stripeConnectChargesEnabled
-          : undefined,
-      stripeConnectDetailsSubmitted:
-        typeof data.stripeConnectDetailsSubmitted === 'boolean'
-          ? data.stripeConnectDetailsSubmitted
-          : undefined,
-      stripeConnectPayoutsEnabled:
-        typeof data.stripeConnectPayoutsEnabled === 'boolean'
-          ? data.stripeConnectPayoutsEnabled
-          : undefined,
-      stripeConnectDisabledReason:
-        typeof data.stripeConnectDisabledReason === 'string'
-          ? data.stripeConnectDisabledReason
-          : null,
-      stripeConnectRequirementsSummary:
-        typeof data.stripeConnectRequirementsSummary === 'string'
-          ? data.stripeConnectRequirementsSummary
-          : null,
-    };
+    return mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>);
   } catch (error) {
     console.error('Erro ao buscar restaurante por ID:', error);
     return null;
@@ -228,49 +198,8 @@ export const getRestaurantByDomain = async (domain: string): Promise<Restaurant 
       return null;
     }
 
-    const doc = querySnapshot.docs[0];
-    const data = doc.data();
-    
-    const deliverySettings = normalizeDeliverySettings(data.deliverySettings);
-
-    return {
-      id: doc.id,
-      name: data.name,
-      domain: data.domain,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      password: data.password || '', // Campo de senha
-      planId: data.planId,
-      active: data.active,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
-      theme: data.theme,
-      settings: data.settings,
-      deliverySettings,
-      stripeConnectAccountId:
-        typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
-      stripeConnectChargesEnabled:
-        typeof data.stripeConnectChargesEnabled === 'boolean'
-          ? data.stripeConnectChargesEnabled
-          : undefined,
-      stripeConnectDetailsSubmitted:
-        typeof data.stripeConnectDetailsSubmitted === 'boolean'
-          ? data.stripeConnectDetailsSubmitted
-          : undefined,
-      stripeConnectPayoutsEnabled:
-        typeof data.stripeConnectPayoutsEnabled === 'boolean'
-          ? data.stripeConnectPayoutsEnabled
-          : undefined,
-      stripeConnectDisabledReason:
-        typeof data.stripeConnectDisabledReason === 'string'
-          ? data.stripeConnectDisabledReason
-          : null,
-      stripeConnectRequirementsSummary:
-        typeof data.stripeConnectRequirementsSummary === 'string'
-          ? data.stripeConnectRequirementsSummary
-          : null,
-    };
+    const docSnap = querySnapshot.docs[0];
+    return mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>);
   } catch (error) {
     console.error('Erro ao buscar restaurante por domínio:', error);
     return null;
@@ -380,48 +309,8 @@ export const getRestaurantsByPlan = async (planId: string): Promise<Restaurant[]
     const querySnapshot = await getDocs(q);
     
     const restaurants: Restaurant[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const deliverySettings = normalizeDeliverySettings(data.deliverySettings);
-      restaurants.push({
-        id: doc.id,
-        name: data.name,
-        domain: data.domain,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        password: data.password || '',
-        planId: data.planId,
-        active: data.active,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-        theme: data.theme,
-        settings: data.settings,
-        permissions: data.permissions,
-        deliverySettings,
-        stripeConnectAccountId:
-          typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
-        stripeConnectChargesEnabled:
-          typeof data.stripeConnectChargesEnabled === 'boolean'
-            ? data.stripeConnectChargesEnabled
-            : undefined,
-        stripeConnectDetailsSubmitted:
-          typeof data.stripeConnectDetailsSubmitted === 'boolean'
-            ? data.stripeConnectDetailsSubmitted
-            : undefined,
-        stripeConnectPayoutsEnabled:
-          typeof data.stripeConnectPayoutsEnabled === 'boolean'
-            ? data.stripeConnectPayoutsEnabled
-            : undefined,
-        stripeConnectDisabledReason:
-          typeof data.stripeConnectDisabledReason === 'string'
-            ? data.stripeConnectDisabledReason
-            : null,
-        stripeConnectRequirementsSummary:
-          typeof data.stripeConnectRequirementsSummary === 'string'
-            ? data.stripeConnectRequirementsSummary
-            : null,
-      });
+    querySnapshot.forEach((docSnap) => {
+      restaurants.push(mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
     });
 
     return restaurants;

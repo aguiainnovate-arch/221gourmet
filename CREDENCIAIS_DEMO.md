@@ -54,11 +54,21 @@ Contas são criadas no **Firebase (Firestore)** via scripts executáveis no term
 | Campo     | Valor              |
 |----------|--------------------|
 | **Email**   | `cliente@demo.com`   |
-| **Telefone**| `(11) 99999-9999`   |
+| **Telefone**| `(11) 99999-9999` → E.164: `+5511999999999`   |
 
-**Senha:** não existe. Acesso por **email** ou **telefone**.
+**Senha:** não existe. Acesso por **email** ou **telefone**, com **código SMS** (Firebase Phone Auth).
 
-**Onde usar:** rota `/delivery/auth`. Informe o email ou o telefone acima.
+**Fluxo:** informe email/telefone → Firebase envia SMS → digite o código de 6 dígitos → sessão permanece ativa.
+
+**Onde usar:** rota `/delivery/auth`.
+
+### Configuração obrigatória no Firebase Console
+
+1. **Authentication → Sign-in method → Phone** → ativar.
+2. Em **Authentication → Settings → Authorized domains**, incluir o domínio do app (ex.: `localhost`).
+3. Para testes sem SMS real: **Authentication → Sign-in method → Phone → Phone numbers for testing**  
+   (ex.: `+5511999999999` com código `123456`).
+4. Billing/Blaze pode ser necessário para SMS reais (números de teste funcionam no plano gratuito).
 
 ---
 
@@ -67,9 +77,9 @@ Contas são criadas no **Firebase (Firestore)** via scripts executáveis no term
 | Campo     | Valor              |
 |----------|--------------------|
 | **Email**   | `motoboy@demo.com`   |
-| **Telefone**| `(11) 98888-8888`   |
+| **Telefone**| `(11) 98888-8888` → E.164: `+5511988888888`   |
 
-**Senha:** não existe. Acesso por **email** ou **telefone** (mesmo fluxo de cliente delivery).
+**Senha:** não existe. Mesmo fluxo de cliente delivery (**SMS OTP**).
 
 **Onde usar:** rota `/delivery/auth`. O painel do motoboy depende de rota/autenticação específica no app.
 

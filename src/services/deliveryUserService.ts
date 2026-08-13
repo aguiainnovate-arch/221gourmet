@@ -3,6 +3,21 @@ import { db } from '../../firebase';
 import type { DeliveryUser, CreateDeliveryUserData } from '../types/deliveryUser';
 import { normalizePhone } from '../utils/authInputUtils';
 
+function mapDeliveryUserDoc(id: string, data: Record<string, any>): DeliveryUser {
+  return {
+    id,
+    email: data.email,
+    phone: data.phone,
+    name: data.name,
+    address: data.address,
+    defaultPaymentMethod: data.defaultPaymentMethod,
+    stripeCustomerId: data.stripeCustomerId,
+    authUid: data.authUid,
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+  };
+}
+
 // Criar ou atualizar usuário de delivery
 export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promise<DeliveryUser> => {
   try {
@@ -26,6 +41,7 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
       phone: normalizedPhone,
     };
     if (userData.stripeCustomerId === undefined) delete cleanData.stripeCustomerId;
+    if (userData.authUid === undefined) delete cleanData.authUid;
 
     if (existingUser) {
       // Atualizar usuário existente
@@ -39,7 +55,9 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
       return {
         id: existingUser.id,
         ...userData,
+        phone: normalizedPhone,
         stripeCustomerId: userData.stripeCustomerId ?? prevData.stripeCustomerId,
+        authUid: userData.authUid ?? prevData.authUid,
         createdAt: prevData.createdAt?.toDate() || new Date(),
         updatedAt: new Date()
       };
@@ -54,6 +72,7 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
       return {
         id: docRef.id,
         ...userData,
+        phone: normalizedPhone,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -61,6 +80,35 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
   } catch (error) {
     console.error('Erro ao salvar usuário de delivery:', error);
     throw new Error('Falha ao salvar informações do usuário');
+  }
+};
+
+/** Vincula o documento deliveryUsers ao UID do Firebase Auth (Phone Auth). */
+export const linkDeliveryUserAuthUid = async (
+  userId: string,
+  authUid: string
+): Promise<void> => {
+  const userRef = doc(db, 'deliveryUsers', userId);
+  await updateDoc(userRef, {
+    authUid,
+    updatedAt: Timestamp.now(),
+  });
+};
+
+/** Busca usuário delivery pelo UID do Firebase Auth. */
+export const getDeliveryUserByAuthUid = async (
+  authUid: string
+): Promise<DeliveryUser | null> => {
+  try {
+    if (!authUid) return null;
+    const q = query(collection(db, 'deliveryUsers'), where('authUid', '==', authUid));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    const d = snapshot.docs[0];
+    return mapDeliveryUserDoc(d.id, d.data());
+  } catch (error) {
+    console.error('Erro ao buscar usuário de delivery por authUid:', error);
+    return null;
   }
 };
 
@@ -74,20 +122,8 @@ export const getDeliveryUserByEmail = async (email: string): Promise<DeliveryUse
       return null;
     }
 
-    const doc = snapshot.docs[0];
-    const data = doc.data();
-    
-    return {
-      id: doc.id,
-      email: data.email,
-      phone: data.phone,
-      name: data.name,
-      address: data.address,
-      defaultPaymentMethod: data.defaultPaymentMethod,
-      stripeCustomerId: data.stripeCustomerId,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date()
-    };
+    const d = snapshot.docs[0];
+    return mapDeliveryUserDoc(d.id, d.data());
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
@@ -106,20 +142,8 @@ export const getDeliveryUserByPhone = async (phone: string): Promise<DeliveryUse
       return null;
     }
 
-    const doc = snapshot.docs[0];
-    const data = doc.data();
-    
-    return {
-      id: doc.id,
-      email: data.email,
-      phone: data.phone,
-      name: data.name,
-      address: data.address,
-      defaultPaymentMethod: data.defaultPaymentMethod,
-      stripeCustomerId: data.stripeCustomerId,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date()
-    };
+    const d = snapshot.docs[0];
+    return mapDeliveryUserDoc(d.id, d.data());
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
@@ -136,19 +160,7 @@ export const getDeliveryUserById = async (userId: string): Promise<DeliveryUser 
       return null;
     }
 
-    const data = userSnap.data();
-    
-    return {
-      id: userSnap.id,
-      email: data.email,
-      phone: data.phone,
-      name: data.name,
-      address: data.address,
-      defaultPaymentMethod: data.defaultPaymentMethod,
-      stripeCustomerId: data.stripeCustomerId,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date()
-    };
+    return mapDeliveryUserDoc(userSnap.id, userSnap.data());
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
@@ -195,20 +207,7 @@ export const getAllDeliveryUsers = async (): Promise<DeliveryUser[]> => {
   try {
     const q = query(collection(db, 'deliveryUsers'), orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        email: data.email,
-        phone: data.phone,
-        name: data.name,
-        address: data.address,
-        defaultPaymentMethod: data.defaultPaymentMethod,
-        stripeCustomerId: data.stripeCustomerId,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      };
-    });
+    return snapshot.docs.map((d) => mapDeliveryUserDoc(d.id, d.data()));
   } catch (error) {
     console.error('Erro ao listar usuários de delivery:', error);
     return [];

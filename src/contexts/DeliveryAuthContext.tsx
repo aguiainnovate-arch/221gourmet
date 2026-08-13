@@ -1,65 +1,126 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../firebase';
 import type { DeliveryUser } from '../types/deliveryUser';
-import { getDeliveryUserById } from '../services/deliveryUserService';
+import {
+  getDeliveryUserById,
+  getDeliveryUserByPhone,
+  getDeliveryUserByAuthUid,
+  linkDeliveryUserAuthUid,
+} from '../services/deliveryUserService';
+import { signOutPhoneAuth } from '../services/phoneAuthService';
 
 interface DeliveryAuthContextType {
   user: DeliveryUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** Estabelece sessão do perfil delivery (após OTP SMS bem-sucedido). */
   login: (userId: string) => Promise<void>;
-  logout: () => void;
+  /**
+   * Após Firebase Phone Auth, resolve o perfil delivery pelo telefone/uid
+   * e vincula authUid se ainda não estiver ligado.
+   */
+  loginAfterPhoneAuth: (authUid: string, phoneE164: string) => Promise<DeliveryUser>;
+  logout: () => Promise<void>;
   updateUser: (user: DeliveryUser) => void;
 }
 
 const DeliveryAuthContext = createContext<DeliveryAuthContextType | undefined>(undefined);
+
+const STORAGE_KEY = 'delivery_user_id';
+
+async function resolveProfileFromFirebaseAuth(
+  authUid: string,
+  phoneNumber: string | null
+): Promise<DeliveryUser | null> {
+  let profile = await getDeliveryUserByAuthUid(authUid);
+  if (!profile && phoneNumber) {
+    profile = await getDeliveryUserByPhone(phoneNumber);
+    if (profile && profile.authUid !== authUid) {
+      await linkDeliveryUserAuthUid(profile.id, authUid);
+      profile = { ...profile, authUid };
+    }
+  }
+  return profile;
+}
 
 export const DeliveryAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<DeliveryUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Carregar usuário salvo do localStorage
-    const loadSavedUser = async () => {
+    let cancelled = false;
+
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
       try {
-        const savedUserId = localStorage.getItem('delivery_user_id');
+        if (fbUser?.uid && fbUser.phoneNumber) {
+          const profile = await resolveProfileFromFirebaseAuth(fbUser.uid, fbUser.phoneNumber);
+          if (cancelled) return;
+          if (profile) {
+            setUser(profile);
+            localStorage.setItem(STORAGE_KEY, profile.id);
+            return;
+          }
+        }
+
+        // Sem sessão Phone Auth: mantém sessão legada em localStorage até o próximo login SMS
+        const savedUserId = localStorage.getItem(STORAGE_KEY);
         if (savedUserId) {
           const userData = await getDeliveryUserById(savedUserId);
+          if (cancelled) return;
           if (userData) {
             setUser(userData);
           } else {
-            // Usuário não encontrado, limpar localStorage
-            localStorage.removeItem('delivery_user_id');
+            localStorage.removeItem(STORAGE_KEY);
+            setUser(null);
           }
+        } else if (!cancelled) {
+          setUser(null);
         }
       } catch (error) {
-        console.error('Erro ao carregar usuário:', error);
+        console.error('Erro ao carregar sessão delivery:', error);
+        if (!cancelled) setUser(null);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
-    };
+    });
 
-    loadSavedUser();
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
   const login = async (userId: string) => {
-    try {
-      const userData = await getDeliveryUserById(userId);
-      if (userData) {
-        setUser(userData);
-        localStorage.setItem('delivery_user_id', userId);
-      } else {
-        throw new Error('Usuário não encontrado');
-      }
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      throw error;
+    const userData = await getDeliveryUserById(userId);
+    if (!userData) {
+      throw new Error('Usuário não encontrado');
     }
+    setUser(userData);
+    localStorage.setItem(STORAGE_KEY, userId);
   };
 
-  const logout = () => {
+  const loginAfterPhoneAuth = async (authUid: string, phoneE164: string): Promise<DeliveryUser> => {
+    const profile = await resolveProfileFromFirebaseAuth(authUid, phoneE164);
+    if (!profile) {
+      throw new Error(
+        'Conta verificada, mas perfil de delivery não encontrado. Crie uma conta primeiro.'
+      );
+    }
+    setUser(profile);
+    localStorage.setItem(STORAGE_KEY, profile.id);
+    return profile;
+  };
+
+  const logout = async () => {
     setUser(null);
-    localStorage.removeItem('delivery_user_id');
+    localStorage.removeItem(STORAGE_KEY);
+    try {
+      await signOutPhoneAuth();
+    } catch (error) {
+      console.error('Erro ao encerrar sessão Firebase Auth:', error);
+    }
   };
 
   const updateUser = (updatedUser: DeliveryUser) => {
@@ -73,8 +134,9 @@ export const DeliveryAuthProvider: React.FC<{ children: ReactNode }> = ({ childr
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginAfterPhoneAuth,
         logout,
-        updateUser
+        updateUser,
       }}
     >
       {children}
@@ -89,4 +151,3 @@ export const useDeliveryAuth = () => {
   }
   return context;
 };
-
