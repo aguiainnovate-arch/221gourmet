@@ -64,11 +64,17 @@ Contas são criadas no **Firebase (Firestore)** via scripts executáveis no term
 
 ### Configuração obrigatória no Firebase Console
 
+O erro `auth/invalid-app-credential` **não é o formulário** — o Firebase recusou o reCAPTCHA. Confira nesta ordem:
+
 1. **Authentication → Sign-in method → Phone** → ativar.
-2. Em **Authentication → Settings → Authorized domains**, incluir o domínio do app (ex.: `localhost`).
-3. Para testes sem SMS real: **Authentication → Sign-in method → Phone → Phone numbers for testing**  
+2. **Authentication → Settings → Authorized domains** → `localhost` **e** `127.0.0.1`.
+3. **Authentication → Settings → SMS region policy** → permitir **Brazil (BR)**. Projetos novos bloqueiam todos os países.
+4. Abra o app em **http://127.0.0.1:5173** (Phone Auth na web falha com frequência só com `localhost`).
+5. Para testar sem SMS real: **Phone → Phone numbers for testing**  
    (ex.: `+5511999999999` com código `123456`).
-4. Billing/Blaze pode ser necessário para SMS reais (números de teste funcionam no plano gratuito).
+6. SMS real exige plano **Blaze**. Números de teste funcionam no Spark.
+
+O log `Failed to initialize reCAPTCHA Enterprise config` é o Firebase caindo no reCAPTCHA v2. Isso é normal se o Enterprise não estiver ligado; o SMS só vai se os itens 1–4 estiverem certos.
 
 ---
 

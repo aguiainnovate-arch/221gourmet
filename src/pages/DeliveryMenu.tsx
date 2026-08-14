@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import type { Stripe } from '@stripe/stripe-js';
 import { getNativeSafeAreaTop, isNativePlatform } from '../utils/capacitorUtils';
 import { ArrowLeft, Plus, Minus, MapPin, Bike, Search, ChevronDown, ShoppingCart } from 'lucide-react';
 import { getProducts } from '../services/productService';
@@ -59,10 +59,18 @@ export default function DeliveryMenu() {
   const [backdropVisible, setBackdropVisible] = useState(false);
 
   const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
-  const stripePromise = useMemo(
-    () => (stripePublishableKey ? loadStripe(stripePublishableKey) : null),
-    [stripePublishableKey]
-  );
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+
+  useEffect(() => {
+    if (!checkoutOpen || !stripePublishableKey) return;
+    let cancelled = false;
+    void import('@stripe/stripe-js/pure').then(({ loadStripe }) => {
+      if (!cancelled) setStripePromise(loadStripe(stripePublishableKey));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutOpen, stripePublishableKey]);
 
   const feeSettings = getFeeSettings(restaurant?.deliverySettings?.fee);
   const deliveryFee = feeSettings.flatFee;

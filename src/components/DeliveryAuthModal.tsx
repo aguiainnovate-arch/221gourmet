@@ -15,10 +15,7 @@ import {
   clearPhoneRecaptcha,
 } from '../services/phoneAuthService';
 import {
-  validateEmailOrPhone,
-  applyPhoneMaskInput,
-  getInputKind,
-  formatPhoneDisplay,
+  isEmail,
   normalizePhone,
 } from '../utils/authInputUtils';
 import type { CreateDeliveryUserData } from '../types/deliveryUser';
@@ -32,6 +29,7 @@ interface DeliveryAuthModalProps {
 
 type ModalStep = 'form' | 'otp';
 type OtpPurpose = 'login' | 'register';
+type LoginMode = 'phone' | 'email';
 
 export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModalProps) {
   const { login, loginAfterPhoneAuth, user, updateUser } = useDeliveryAuth();
@@ -41,10 +39,9 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
   const [error, setError] = useState('');
 
   const [name, setName] = useState(user?.name || '');
+  const [loginMode, setLoginMode] = useState<LoginMode>('phone');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [emailOrPhone, setEmailOrPhone] = useState('');
-  const [emailOrPhoneTouched, setEmailOrPhoneTouched] = useState(false);
   const [address, setAddress] = useState(user?.address || '');
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<
     'money' | 'credit' | 'debit' | 'pix' | 'stripe'
@@ -56,10 +53,6 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const pendingRegisterRef = useRef<CreateDeliveryUserData | null>(null);
 
-  const emailOrPhoneValidation = validateEmailOrPhone(emailOrPhone);
-  const showEmailOrPhoneFieldError =
-    isLogin && emailOrPhoneTouched && !emailOrPhoneValidation.valid && emailOrPhone.trim() !== '';
-
   useEffect(() => {
     if (!isOpen) {
       clearPhoneRecaptcha();
@@ -67,16 +60,6 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
       pendingRegisterRef.current = null;
     }
   }, [isOpen]);
-
-  const handleEmailOrPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (getInputKind(raw) === 'phone') {
-      setEmailOrPhone(applyPhoneMaskInput(raw));
-    } else {
-      setEmailOrPhone(raw);
-    }
-    setError('');
-  };
 
   const startPhoneOtp = async (phoneE164: string, purpose: OtpPurpose) => {
     setOtpPhone(phoneE164);
@@ -92,32 +75,37 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
     setError('');
 
     if (isLogin) {
-      setEmailOrPhoneTouched(true);
-      const result = validateEmailOrPhone(emailOrPhone);
-      if (!result.valid) {
-        setError(result.error);
-        return;
-      }
-
       try {
         setIsSubmitting(true);
-        const foundUser =
-          result.kind === 'email'
-            ? await getDeliveryUserByEmail(result.normalized)
-            : await getDeliveryUserByPhone(result.normalized);
-
-        if (!foundUser) {
-          setError('Usuário não encontrado. Crie uma conta primeiro.');
-          return;
+        if (loginMode === 'email') {
+          const normalizedEmail = email.trim().toLowerCase();
+          if (!isEmail(normalizedEmail)) {
+            setError('Informe um email válido.');
+            return;
+          }
+          const foundUser = await getDeliveryUserByEmail(normalizedEmail);
+          if (!foundUser) {
+            setError('Usuário não encontrado. Crie uma conta primeiro.');
+            return;
+          }
+          if (!foundUser.phone) {
+            setError('Esta conta não tem telefone cadastrado.');
+            return;
+          }
+          await startPhoneOtp(normalizePhone(foundUser.phone), 'login');
+        } else {
+          const phoneE164 = normalizePhone(phone);
+          if (phoneE164.replace(/\D/g, '').length < 10) {
+            setError('Informe DDD e número com o país selecionado.');
+            return;
+          }
+          const foundUser = await getDeliveryUserByPhone(phoneE164);
+          if (!foundUser) {
+            setError('Usuário não encontrado. Crie uma conta primeiro.');
+            return;
+          }
+          await startPhoneOtp(phoneE164, 'login');
         }
-        if (!foundUser.phone) {
-          setError('Esta conta não tem telefone cadastrado.');
-          return;
-        }
-        await startPhoneOtp(
-          result.kind === 'phone' ? result.normalized : normalizePhone(foundUser.phone),
-          'login'
-        );
       } catch (err) {
         console.error('Erro ao iniciar login SMS:', err);
         setError(mapPhoneAuthError(err));
@@ -217,7 +205,6 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
     confirmationRef.current = null;
     pendingRegisterRef.current = null;
     setError('');
-    setEmailOrPhone('');
     setIsLogin(false);
     setStep('form');
     setOtpCode('');
@@ -289,35 +276,54 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
               )}
 
               {isLogin ? (
-                <div>
-                  <label className="block text-sm font-medium text-black mb-2">
-                    {getInputKind(emailOrPhone) === 'phone' ? (
-                      <Phone className="w-4 h-4 inline mr-2" />
-                    ) : (
-                      <Mail className="w-4 h-4 inline mr-2" />
-                    )}
-                    Email ou telefone
-                  </label>
-                  <input
-                    type="text"
-                    inputMode={getInputKind(emailOrPhone) === 'phone' ? 'tel' : 'email'}
-                    value={
-                      getInputKind(emailOrPhone) === 'phone'
-                        ? formatPhoneDisplay(normalizePhone(emailOrPhone))
-                        : emailOrPhone
-                    }
-                    onChange={handleEmailOrPhoneChange}
-                    onBlur={() => setEmailOrPhoneTouched(true)}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black ${
-                      showEmailOrPhoneFieldError ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="seu@email.com ou +55 11 99999 9999"
-                    autoComplete="username"
-                  />
-                  {showEmailOrPhoneFieldError && (
-                    <p className="mt-1 text-xs text-red-600">{emailOrPhoneValidation.error}</p>
+                <div className="space-y-3">
+                  <div className="flex rounded-lg border overflow-hidden text-sm font-semibold border-gray-300">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode('phone');
+                        setError('');
+                      }}
+                      className={`flex-1 px-3 py-2 ${loginMode === 'phone' ? 'bg-amber-600 text-white' : 'bg-white text-black'}`}
+                    >
+                      Telefone
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode('email');
+                        setError('');
+                      }}
+                      className={`flex-1 px-3 py-2 ${loginMode === 'email' ? 'bg-amber-600 text-white' : 'bg-white text-black'}`}
+                    >
+                      Email
+                    </button>
+                  </div>
+                  {loginMode === 'phone' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-black mb-2">
+                        <Phone className="w-4 h-4 inline mr-2" />
+                        Telefone
+                      </label>
+                      <PhoneWithCountryInput value={phone} onChange={setPhone} required variant="modal" />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-black mb-2">
+                        <Mail className="w-4 h-4 inline mr-2" />
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
+                        placeholder="seu@email.com"
+                        autoComplete="username"
+                      />
+                    </div>
                   )}
-                  <p className="mt-1 text-xs text-gray-600">Enviaremos um código SMS para confirmar.</p>
+                  <p className="text-xs text-gray-600">Enviaremos um código SMS para confirmar.</p>
                 </div>
               ) : (
                 <>

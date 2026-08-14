@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -7,7 +8,6 @@ import Owner from './pages/Owner';
 import Register from './pages/Register';
 import Delivery from './pages/Delivery';
 import DeliveryAuth from './pages/DeliveryAuth';
-import DeliveryMenu from './pages/DeliveryMenu';
 import Orders from './pages/Orders';
 import RestaurantAuth from './pages/RestaurantAuth';
 import BoraComerLanding from './pages/BoraComerLanding';
@@ -21,6 +21,9 @@ import { AuthProvider } from './contexts/AuthContext';
 import { TestModeProvider } from './contexts/TestModeContext';
 import { DeliveryAuthProvider } from './contexts/DeliveryAuthContext';
 import { RestaurantAuthProvider } from './contexts/RestaurantAuthContext';
+
+/** Cardápio + Stripe só carregam nesta rota — não na tela de login. */
+const DeliveryMenu = lazy(() => import('./pages/DeliveryMenu'));
 
 // Variável de ambiente para habilitar/desabilitar rota de testing
 // Para desabilitar em produção, defina VITE_ENABLE_TESTING_ROUTE=false no .env
@@ -86,7 +89,9 @@ function App() {
                 } />
                 <Route path="/delivery/:restaurantId" element={
                   <DeliveryAuthProvider>
-                    <DeliveryMenu />
+                    <Suspense fallback={<div className="min-h-screen" style={{ backgroundColor: '#FFF8F2' }} />}>
+                      <DeliveryMenu />
+                    </Suspense>
                   </DeliveryAuthProvider>
                 } />
                 <Route path="/delivery/:restaurantId/settings" element={<DeliverySettingsRedirect />} />

@@ -27,6 +27,8 @@ const app = initializeApp(firebaseConfig);
 // Initialize Auth (Phone OTP / SMS para clientes delivery)
 export const auth = getAuth(app);
 
+auth.languageCode = 'pt-BR';
+
 // Initialize Firestore
 export const db = getFirestore(app);
 
