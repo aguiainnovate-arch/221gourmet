@@ -13,7 +13,7 @@ import { saveDeliveryUser } from '../services/deliveryUserService';
 import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import type { Product } from '../types/product';
 import { withChannelPrice } from '../types/product';
-import { getFeeSettings, formatFeePreview } from '../utils/deliveryFee';
+import { getFeeSettings, formatFeePreview, previewDeliveryFee } from '../utils/deliveryFee';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
 import type { CreateDeliveryOrderData } from '../types/delivery';
@@ -73,7 +73,7 @@ export default function DeliveryMenu() {
   }, [checkoutOpen, stripePublishableKey]);
 
   const feeSettings = getFeeSettings(restaurant?.deliverySettings?.fee);
-  const deliveryFee = feeSettings.flatFee;
+  const deliveryFee = previewDeliveryFee(feeSettings);
   const openNowStatus = isRestaurantOpenNow(restaurant?.openingHours);
 
   const { products: displayProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(

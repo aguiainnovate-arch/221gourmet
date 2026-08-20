@@ -1,7 +1,21 @@
 import type { PartnershipSubscription } from './partnership';
 
 /** Taxa de entrega configurada pelo restaurante. */
-export type DeliveryFeeMode = 'flat' | 'distance';
+export type DeliveryFeeMode = 'flat' | 'distance' | 'neighborhood';
+
+/** Teto realista de área de entrega. Evita raios de dezenas/centenas de km. */
+export const MAX_DELIVERY_RADIUS_KM = 20;
+export const MIN_DELIVERY_RADIUS_KM = 1;
+export const MAX_NEIGHBORHOOD_ZONES = 40;
+
+export interface NeighborhoodDeliveryZone {
+  id: string;
+  name: string;
+  fee: number;
+  lat?: number;
+  lng?: number;
+  distanceKm?: number;
+}
 
 export interface DeliveryFeeSettings {
   mode: DeliveryFeeMode;
@@ -9,8 +23,9 @@ export interface DeliveryFeeSettings {
   flatFee: number;
   /** Valor cobrado por km no modo distance. */
   perKmFee: number;
-  /** Raio máximo em km. 0 = sem limite. */
+  /** Raio máximo em km, limitado a MAX_DELIVERY_RADIUS_KM. */
   maxRadiusKm: number;
+  neighborhoodZones?: NeighborhoodDeliveryZone[];
 }
 
 export interface DeliveryLocation {
@@ -41,7 +56,54 @@ export const DEFAULT_DELIVERY_FEE: DeliveryFeeSettings = {
   flatFee: 5,
   perKmFee: 1.5,
   maxRadiusKm: 10,
+  neighborhoodZones: [],
 };
+
+export function clampDeliveryRadiusKm(km: number): number {
+  if (!Number.isFinite(km) || km <= 0) return DEFAULT_DELIVERY_FEE.maxRadiusKm;
+  return Math.min(MAX_DELIVERY_RADIUS_KM, Math.max(MIN_DELIVERY_RADIUS_KM, km));
+}
+
+function parseFeeMode(value: unknown): DeliveryFeeMode {
+  if (value === 'distance' || value === 'neighborhood') return value;
+  return 'flat';
+}
+
+function normalizeNeighborhoodZones(raw: unknown): NeighborhoodDeliveryZone[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const zones: NeighborhoodDeliveryZone[] = [];
+
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const name = typeof rec.name === 'string' ? rec.name.trim() : '';
+    const fee = Number(rec.fee);
+    if (!name || !Number.isFinite(fee) || fee < 0) continue;
+    const key = name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const lat = Number(rec.lat);
+    const lng = Number(rec.lng);
+    const distanceKm = Number(rec.distanceKm);
+    zones.push({
+      id: typeof rec.id === 'string' && rec.id.trim() ? rec.id.trim() : `zone-${zones.length + 1}`,
+      name,
+      fee,
+      lat: Number.isFinite(lat) ? lat : undefined,
+      lng: Number.isFinite(lng) ? lng : undefined,
+      distanceKm: Number.isFinite(distanceKm) ? distanceKm : undefined,
+    });
+    if (zones.length >= MAX_NEIGHBORHOOD_ZONES) break;
+  }
+
+  return zones;
+}
 
 export function normalizeDeliverySettings(raw: unknown): RestaurantDeliverySettings {
   const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -59,10 +121,11 @@ export function normalizeDeliverySettings(raw: unknown): RestaurantDeliverySetti
     originAddress: typeof data.originAddress === 'string' ? data.originAddress : undefined,
     location: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined,
     fee: {
-      mode: feeRaw.mode === 'distance' ? 'distance' : 'flat',
+      mode: parseFeeMode(feeRaw.mode),
       flatFee: Number.isFinite(flatFee) && flatFee >= 0 ? flatFee : DEFAULT_DELIVERY_FEE.flatFee,
       perKmFee: Number.isFinite(perKmFee) && perKmFee >= 0 ? perKmFee : DEFAULT_DELIVERY_FEE.perKmFee,
-      maxRadiusKm: Number.isFinite(maxRadiusKm) && maxRadiusKm >= 0 ? maxRadiusKm : DEFAULT_DELIVERY_FEE.maxRadiusKm,
+      maxRadiusKm: clampDeliveryRadiusKm(maxRadiusKm),
+      neighborhoodZones: normalizeNeighborhoodZones(feeRaw.neighborhoodZones),
     },
   };
 }
@@ -76,12 +139,21 @@ export type Weekday =
   | 'saturday'
   | 'sunday';
 
-export interface DayOpeningHours {
-  closed: boolean;
+export interface OpeningHoursInterval {
   /** HH:mm */
   open: string;
   /** HH:mm */
   close: string;
+}
+
+export interface DayOpeningHours {
+  closed: boolean;
+  /** HH:mm — primeiro intervalo (compatibilidade com dados antigos). */
+  open: string;
+  /** HH:mm — primeiro intervalo (compatibilidade com dados antigos). */
+  close: string;
+  /** Períodos do dia (ex.: 09:00–14:00 e 17:00–23:00). */
+  intervals: OpeningHoursInterval[];
 }
 
 export type RestaurantOpeningHours = Record<Weekday, DayOpeningHours>;
@@ -96,21 +168,47 @@ export const WEEKDAY_ORDER: Weekday[] = [
   'sunday',
 ];
 
-export const DEFAULT_DAY_HOURS: DayOpeningHours = {
-  closed: false,
+export const MAX_OPENING_INTERVALS = 2;
+
+export const DEFAULT_INTERVAL: OpeningHoursInterval = {
   open: '11:00',
   close: '22:00',
 };
 
+export const DEFAULT_SECOND_INTERVAL: OpeningHoursInterval = {
+  open: '17:00',
+  close: '23:00',
+};
+
+export const DEFAULT_DAY_HOURS: DayOpeningHours = {
+  closed: false,
+  open: DEFAULT_INTERVAL.open,
+  close: DEFAULT_INTERVAL.close,
+  intervals: [{ ...DEFAULT_INTERVAL }],
+};
+
+export function cloneDayHours(day: DayOpeningHours): DayOpeningHours {
+  const intervals =
+    Array.isArray(day.intervals) && day.intervals.length > 0
+      ? day.intervals.map((interval) => ({ open: interval.open, close: interval.close }))
+      : [{ open: day.open, close: day.close }];
+  return {
+    closed: day.closed,
+    intervals,
+    open: intervals[0].open,
+    close: intervals[0].close,
+  };
+}
+
 export function createDefaultOpeningHours(): RestaurantOpeningHours {
   return {
-    monday: { ...DEFAULT_DAY_HOURS },
-    tuesday: { ...DEFAULT_DAY_HOURS },
-    wednesday: { ...DEFAULT_DAY_HOURS },
-    thursday: { ...DEFAULT_DAY_HOURS },
-    friday: { ...DEFAULT_DAY_HOURS },
-    saturday: { ...DEFAULT_DAY_HOURS },
-    sunday: { ...DEFAULT_DAY_HOURS },
+    monday: cloneDayHours(DEFAULT_DAY_HOURS),
+    tuesday: cloneDayHours(DEFAULT_DAY_HOURS),
+    wednesday: cloneDayHours(DEFAULT_DAY_HOURS),
+    thursday: cloneDayHours(DEFAULT_DAY_HOURS),
+    friday: cloneDayHours(DEFAULT_DAY_HOURS),
+    saturday: cloneDayHours(DEFAULT_DAY_HOURS),
+    sunday: cloneDayHours(DEFAULT_DAY_HOURS),
   };
 }
 
@@ -126,6 +224,26 @@ function normalizeTimeString(value: unknown, fallback: string): string {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
+function normalizeIntervals(dayData: Record<string, unknown>): OpeningHoursInterval[] {
+  if (Array.isArray(dayData.intervals) && dayData.intervals.length > 0) {
+    const parsed = dayData.intervals
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map((item) => ({
+        open: normalizeTimeString(item.open, DEFAULT_INTERVAL.open),
+        close: normalizeTimeString(item.close, DEFAULT_INTERVAL.close),
+      }))
+      .slice(0, MAX_OPENING_INTERVALS);
+    if (parsed.length > 0) return parsed;
+  }
+
+  return [
+    {
+      open: normalizeTimeString(dayData.open, DEFAULT_INTERVAL.open),
+      close: normalizeTimeString(dayData.close, DEFAULT_INTERVAL.close),
+    },
+  ];
+}
+
 export function normalizeOpeningHours(raw: unknown): RestaurantOpeningHours {
   const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const result = createDefaultOpeningHours();
@@ -134,10 +252,12 @@ export function normalizeOpeningHours(raw: unknown): RestaurantOpeningHours {
     const entry = data[day];
     if (!entry || typeof entry !== 'object') continue;
     const dayData = entry as Record<string, unknown>;
+    const intervals = normalizeIntervals(dayData);
     result[day] = {
       closed: dayData.closed === true,
-      open: normalizeTimeString(dayData.open, DEFAULT_DAY_HOURS.open),
-      close: normalizeTimeString(dayData.close, DEFAULT_DAY_HOURS.close),
+      intervals,
+      open: intervals[0].open,
+      close: intervals[0].close,
     };
   }
 

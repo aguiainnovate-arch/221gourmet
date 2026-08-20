@@ -7,7 +7,9 @@ import {
   CHIP_TONE_STYLES,
   COVER_BADGE_STYLES,
   getRestaurantVisualIdentity,
+  type CoverBadgeKind,
 } from '../../utils/restaurantVisualIdentity';
+import { isRestaurantOpenNow } from '../../utils/openingHours';
 
 interface Props {
   restaurant: Restaurant;
@@ -31,7 +33,10 @@ function DeliveryRestaurantCard({
   const feeLabel = formatFeePreview(getFeeSettings(restaurant.deliverySettings?.fee));
   const logoUrl = restaurant.theme?.logo?.trim();
   const LogoIcon = identity.logo.icon;
-  const coverBadge = COVER_BADGE_STYLES[identity.coverBadge];
+  const openNow = isRestaurantOpenNow(restaurant.openingHours);
+  const badgeKind: CoverBadgeKind =
+    openNow === true ? 'open' : openNow === false ? 'closed' : identity.coverBadge;
+  const coverBadge = COVER_BADGE_STYLES[badgeKind];
   const CoverBadgeIcon = coverBadge.icon;
 
   const handleCardKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -79,7 +84,7 @@ function DeliveryRestaurantCard({
             className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold text-white shadow-sm"
             style={{ backgroundColor: coverBadge.bg }}
           >
-            {identity.coverBadge === 'open' ? (
+            {badgeKind === 'open' ? (
               <Circle className="w-1.5 h-1.5 fill-white stroke-none" />
             ) : (
               <CoverBadgeIcon className="w-3 h-3" />

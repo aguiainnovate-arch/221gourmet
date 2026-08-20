@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Mail, Lock } from 'lucide-react';
+import { X, Mail, Lock, IdCard } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import PasswordInput from './PasswordInput';
 import { getRestaurants } from '../services/restaurantService';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { formatCpf } from '../utils/cpf';
 
 interface RestaurantLoginModalProps {
   isOpen: boolean;
@@ -12,25 +13,54 @@ interface RestaurantLoginModalProps {
   onSuccess?: () => void;
 }
 
+type AuthMode = 'restaurant' | 'waiter';
+
 export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: RestaurantLoginModalProps) {
   const navigate = useNavigate();
-  const { login } = useRestaurantAuth();
+  const { login, loginWaiter } = useRestaurantAuth();
+  const [mode, setMode] = useState<AuthMode>('restaurant');
   const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const resetForm = () => {
+    setError('');
+    setEmail('');
+    setCpf('');
+    setPassword('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
-      setError('Preencha todos os campos');
-      return;
-    }
-
     try {
       setIsSubmitting(true);
+
+      if (mode === 'waiter') {
+        if (!cpf || !password) {
+          setError('Preencha todos os campos');
+          return;
+        }
+        const result = await loginWaiter(cpf, password);
+        if (!result) {
+          setError('CPF ou senha incorretos');
+          return;
+        }
+        resetForm();
+        onClose();
+        navigate(`/${result.restaurantId}/settings`, { replace: true });
+        if (onSuccess) onSuccess();
+        return;
+      }
+
+      if (!email || !password) {
+        setError('Preencha todos os campos');
+        return;
+      }
+
       const success = await login(email, password);
 
       if (success) {
@@ -38,8 +68,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
         const restaurant = restaurants.find(
           (r) => r.email.toLowerCase() === email.toLowerCase()
         );
-        setEmail('');
-        setPassword('');
+        resetForm();
         onClose();
         if (restaurant && !hasRestaurantPlatformAccess(restaurant)) {
           navigate('/planos', { replace: true });
@@ -49,8 +78,8 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
       } else {
         setError('Email ou senha incorretos');
       }
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
+    } catch (err) {
+      console.error('Erro ao fazer login:', err);
       setError('Erro ao fazer login. Tente novamente.');
     } finally {
       setIsSubmitting(false);
@@ -58,9 +87,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
   };
 
   const handleClose = () => {
-    setError('');
-    setEmail('');
-    setPassword('');
+    resetForm();
     onClose();
   };
 
@@ -80,8 +107,37 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
             </button>
           </div>
 
+          <div className="mb-4 grid grid-cols-2 rounded-lg border border-gray-200 p-1 bg-gray-100">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('restaurant');
+                setError('');
+              }}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                mode === 'restaurant' ? 'bg-white text-black shadow-sm' : 'text-gray-600'
+              }`}
+            >
+              Restaurante
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('waiter');
+                setError('');
+              }}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                mode === 'waiter' ? 'bg-white text-black shadow-sm' : 'text-gray-600'
+              }`}
+            >
+              Garçom
+            </button>
+          </div>
+
           <p className="text-sm text-black mb-6">
-            Para acessar as configurações do restaurante, faça login com o email e senha cadastrados.
+            {mode === 'waiter'
+              ? 'Entre com o CPF e a senha cadastrados pelo restaurante.'
+              : 'Para acessar as configurações do restaurante, faça login com o email e senha cadastrados.'}
           </p>
 
           {error && (
@@ -90,21 +146,38 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-black mb-2">
-                <Mail className="w-4 h-4 inline mr-2" />
-                Email do restaurante
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                placeholder="restaurante@email.com"
-                autoFocus
-              />
-            </div>
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+            {mode === 'restaurant' ? (
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  <Mail className="w-4 h-4 inline mr-2" />
+                  Email do restaurante
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  placeholder="restaurante@email.com"
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  <IdCard className="w-4 h-4 inline mr-2" />
+                  CPF
+                </label>
+                <input
+                  value={cpf}
+                  onChange={(e) => setCpf(formatCpf(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  autoFocus
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-black mb-2">
@@ -145,4 +218,3 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
     </div>
   );
 }
-

@@ -4,6 +4,8 @@ import { recommendRestaurants } from '../services/openaiService';
 import { getAllRestaurantsWithMenus, type RestaurantWithMenu } from '../services/restaurantService';
 import { getChatbotConfig } from '../services/chatbotConfigService';
 import RestaurantChatCard from './RestaurantChatCard';
+import { restaurantMatchesRegion } from '../utils/restaurantRegion';
+import type { DeliveryLocation } from '../utils/deliveryLocationStorage';
 
 interface RecommendedRestaurant {
   id: string;
@@ -19,7 +21,13 @@ interface Message {
   restaurants?: RecommendedRestaurant[];
 }
 
-export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) {
+export default function AIRestaurantChat({
+  fabBottom,
+  userLocation,
+}: {
+  fabBottom?: string;
+  userLocation?: DeliveryLocation;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [greeting, setGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
 
@@ -30,6 +38,11 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const regionRestaurants = userLocation
+    ? restaurantsData.filter((restaurant) =>
+        restaurantMatchesRegion({ address: restaurant.address }, userLocation)
+      )
+    : restaurantsData;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -75,12 +88,12 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
     }
   };
 
-  const loadRestaurantsData = async () => {
+  const loadRestaurantsData = async (): Promise<RestaurantWithMenu[]> => {
     setIsLoadingData(true);
     try {
       const data = await getAllRestaurantsWithMenus();
       setRestaurantsData(data);
-      console.log('Dados dos restaurantes carregados:', data.length, 'restaurantes');
+      return data;
     } catch (error) {
       console.error('Erro ao carregar restaurantes:', error);
       setMessages(prev => [...prev, {
@@ -89,6 +102,7 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
         sender: 'ai',
         timestamp: new Date()
       }]);
+      return [];
     } finally {
       setIsLoadingData(false);
     }
@@ -109,10 +123,15 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
     setInputText('');
     setIsTyping(true);
 
-    // Se não há dados de restaurantes ainda, aguardar
-    if (restaurantsData.length === 0) {
-      await loadRestaurantsData();
+    let menuData = restaurantsData;
+    if (menuData.length === 0) {
+      menuData = await loadRestaurantsData();
     }
+    const restaurantsForAi = userLocation
+      ? menuData.filter((restaurant) =>
+          restaurantMatchesRegion({ address: restaurant.address }, userLocation)
+        )
+      : menuData;
 
     try {
       // Preparar histórico de conversa para a AI
@@ -125,7 +144,7 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
       const result = await recommendRestaurants(
         currentInput,
         conversationHistory,
-        restaurantsData
+        restaurantsForAi
       );
 
       if (result.success && result.response) {
@@ -383,9 +402,9 @@ export default function AIRestaurantChat({ fabBottom }: { fabBottom?: string }) 
                 <Send className="w-5 h-5" />
               </button>
             </div>
-            {restaurantsData.length > 0 && (
+            {regionRestaurants.length > 0 && (
               <p className="text-xs text-gray-400 mt-2 text-center">
-                Conhecendo {restaurantsData.length} restaurante{restaurantsData.length !== 1 ? 's' : ''} para te ajudar 🍽️
+                Conhecendo {regionRestaurants.length} restaurante{regionRestaurants.length !== 1 ? 's' : ''} para te ajudar 🍽️
               </p>
             )}
           </div>

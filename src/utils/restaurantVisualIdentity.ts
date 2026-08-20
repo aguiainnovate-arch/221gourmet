@@ -6,6 +6,7 @@ import {
   Fish,
   Zap,
   Coffee,
+  Clock,
   Flame,
   Salad,
   Sandwich,
@@ -37,7 +38,7 @@ export interface RestaurantContentChip {
   tone: 'promo' | 'trending' | 'benefit' | 'category';
 }
 
-export type CoverBadgeKind = 'fast' | 'open' | 'popular';
+export type CoverBadgeKind = 'fast' | 'open' | 'popular' | 'closed';
 
 export interface RestaurantVisualIdentity {
   kind: RestaurantCuisineKind;
@@ -211,10 +212,7 @@ function detectKind(restaurant: Restaurant): (typeof CUISINE_RULES)[number] {
 }
 
 function pickCoverBadge(restaurantId: string): CoverBadgeKind {
-  const code = restaurantId.charCodeAt(0) % 3;
-  if (code === 0) return 'fast';
-  if (code === 1) return 'open';
-  return 'popular';
+  return restaurantId.charCodeAt(0) % 2 === 0 ? 'fast' : 'popular';
 }
 
 function buildContentChips(
@@ -273,9 +271,10 @@ export const CHIP_TONE_STYLES: Record<RestaurantContentChip['tone'], { bg: strin
 
 export const COVER_BADGE_STYLES: Record<
   CoverBadgeKind,
-  { bg: string; icon: LucideIcon; labelKey: 'fastDelivery' | 'openNow' | 'mostOrdered' }
+  { bg: string; icon: LucideIcon; labelKey: 'fastDelivery' | 'openNow' | 'mostOrdered' | 'closed' }
 > = {
   fast: { bg: 'rgba(5, 150, 105, 0.92)', icon: Zap, labelKey: 'fastDelivery' },
-  open: { bg: 'rgba(233, 17, 32, 0.92)', icon: Coffee, labelKey: 'openNow' },
+  open: { bg: 'rgba(5, 150, 105, 0.92)', icon: Coffee, labelKey: 'openNow' },
   popular: { bg: 'rgba(217, 119, 6, 0.92)', icon: UtensilsCrossed, labelKey: 'mostOrdered' },
+  closed: { bg: 'rgba(55, 48, 46, 0.88)', icon: Clock, labelKey: 'closed' },
 };

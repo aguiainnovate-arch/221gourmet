@@ -79,6 +79,10 @@ import ThemeColorsPanel from '../components/ThemeColorsPanel';
 import OpeningHoursEditor from '../components/OpeningHoursEditor';
 import {
   createDefaultOpeningHours,
+  clampDeliveryRadiusKm,
+  MAX_DELIVERY_RADIUS_KM,
+  type DeliveryFeeMode,
+  type NeighborhoodDeliveryZone,
   type Restaurant,
   type RestaurantOpeningHours,
 } from '../types/restaurant';
@@ -97,12 +101,14 @@ import {
   panelLabelClass,
   panelSelectClass,
 } from '../components/panel';
+import WaitersPanel from '../components/WaitersPanel';
+import NeighborhoodZonesEditor from '../components/delivery/NeighborhoodZonesEditor';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { orders, updateOrderStatus, deleteOrder, refreshOrders, setRestaurantId } = useOrders();
   const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
-  const { isAuthenticated, currentRestaurantId, logout, isLoading: authLoading } = useRestaurantAuth();
+  const { isAuthenticated, currentRestaurantId, logout, isLoading: authLoading, isWaiter } = useRestaurantAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('mesas');
@@ -182,10 +188,11 @@ export default function Settings() {
   // Estados para delivery
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [deliveryDescription, setDeliveryDescription] = useState('');
-  const [feeMode, setFeeMode] = useState<'flat' | 'distance'>('flat');
+  const [feeMode, setFeeMode] = useState<DeliveryFeeMode>('flat');
   const [flatFeeInput, setFlatFeeInput] = useState('5');
   const [perKmFeeInput, setPerKmFeeInput] = useState('1.50');
   const [maxRadiusInput, setMaxRadiusInput] = useState('10');
+  const [neighborhoodZones, setNeighborhoodZones] = useState<NeighborhoodDeliveryZone[]>([]);
   const [deliveryOriginAddress, setDeliveryOriginAddress] = useState('');
   const [deliveryLocationLabel, setDeliveryLocationLabel] = useState('');
   const [productDeliverySettings, setProductDeliverySettings] = useState<Record<string, boolean>>({});
@@ -459,10 +466,13 @@ export default function Settings() {
             setDeliveryEnabled(restaurant.deliverySettings.enabled);
             setDeliveryDescription(restaurant.deliverySettings.aiDescription || '');
             const fee = restaurant.deliverySettings.fee;
-            setFeeMode(fee?.mode === 'distance' ? 'distance' : 'flat');
+            setFeeMode(
+              fee?.mode === 'distance' || fee?.mode === 'neighborhood' ? fee.mode : 'flat'
+            );
             setFlatFeeInput(String(fee?.flatFee ?? 5));
             setPerKmFeeInput(String(fee?.perKmFee ?? 1.5));
             setMaxRadiusInput(String(fee?.maxRadiusKm ?? 10));
+            setNeighborhoodZones(fee?.neighborhoodZones ?? []);
             setDeliveryOriginAddress(
               restaurant.deliverySettings.originAddress || restaurant.address || ''
             );
@@ -478,6 +488,7 @@ export default function Settings() {
             setFlatFeeInput('5');
             setPerKmFeeInput('1.50');
             setMaxRadiusInput('10');
+            setNeighborhoodZones([]);
             setDeliveryOriginAddress(restaurant?.address || '');
             setDeliveryLocationLabel('');
           }
@@ -1678,13 +1689,19 @@ export default function Settings() {
       // Salvar configurações gerais do restaurante
       const flatFee = parseFloat(String(flatFeeInput).replace(',', '.'));
       const perKmFee = parseFloat(String(perKmFeeInput).replace(',', '.'));
-      const maxRadiusKm = parseFloat(String(maxRadiusInput).replace(',', '.'));
+      const maxRadiusKm = clampDeliveryRadiusKm(
+        parseFloat(String(maxRadiusInput).replace(',', '.'))
+      );
       if (!Number.isFinite(flatFee) || flatFee < 0) {
         alert('Informe uma taxa de entrega válida.');
         return;
       }
       if (feeMode === 'distance' && (!Number.isFinite(perKmFee) || perKmFee < 0)) {
         alert('Informe um valor por km válido.');
+        return;
+      }
+      if (feeMode === 'neighborhood' && neighborhoodZones.length === 0) {
+        alert('Adicione pelo menos um bairro com taxa para atender delivery por região.');
         return;
       }
 
@@ -1698,16 +1715,16 @@ export default function Settings() {
           setDeliveryLocationLabel(
             `Localização encontrada (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`
           );
-        } else if (feeMode === 'distance') {
+        } else if (feeMode === 'distance' || feeMode === 'neighborhood') {
           alert(
-            'Não foi possível localizar o endereço de origem. Confira o endereço do restaurante para calcular a taxa por km.'
+            'Não foi possível localizar o endereço de origem. Confira o endereço do restaurante para definir a área de entrega.'
           );
           return;
         } else {
           setDeliveryLocationLabel('Endereço não localizado no mapa (taxa única não depende disso).');
         }
-      } else if (feeMode === 'distance') {
-        alert('Informe o endereço de origem da entrega para calcular a distância.');
+      } else if (feeMode === 'distance' || feeMode === 'neighborhood') {
+        alert('Informe o endereço de origem da entrega para limitar os bairros e a distância.');
         return;
       }
 
@@ -1720,7 +1737,13 @@ export default function Settings() {
           mode: feeMode,
           flatFee,
           perKmFee: Number.isFinite(perKmFee) ? perKmFee : 1.5,
-          maxRadiusKm: Number.isFinite(maxRadiusKm) && maxRadiusKm >= 0 ? maxRadiusKm : 10,
+          maxRadiusKm,
+          neighborhoodZones:
+            feeMode === 'neighborhood'
+              ? neighborhoodZones.filter(
+                  (zone) => zone.distanceKm == null || zone.distanceKm <= maxRadiusKm
+                )
+              : neighborhoodZones,
         },
       });
       console.log('   ✅ Configurações do restaurante salvas');
@@ -1802,11 +1825,17 @@ export default function Settings() {
     const tabParam = searchParams.get('tab');
     if (
       tabParam &&
-      ['mesas', 'cardapio', 'personalizacao', 'relatorios', 'cozinha', 'delivery'].includes(tabParam)
+      ['mesas', 'cardapio', 'personalizacao', 'relatorios', 'cozinha', 'delivery', 'garcons'].includes(tabParam)
     ) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (isWaiter && !['mesas', 'cozinha'].includes(activeTab)) {
+      setActiveTab('mesas');
+    }
+  }, [isWaiter, activeTab]);
 
   useEffect(() => {
     const sc = searchParams.get('stripe_connect');
@@ -2337,11 +2366,12 @@ export default function Settings() {
                 {restaurantDisplayName || 'Gerenciamento'}
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">
-                Painel de gerenciamento
+                {isWaiter ? 'Painel do garçom' : 'Painel de gerenciamento'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {!isWaiter && (
             <PanelButton
               variant="secondary"
               onClick={testFirestoreConnection}
@@ -2351,6 +2381,7 @@ export default function Settings() {
             >
               <span className="hidden sm:inline">Testar Conexão</span>
             </PanelButton>
+            )}
             <Link
               to="/settings?tab=cozinha"
               className="inline-flex items-center gap-1.5 p-2 sm:px-4 sm:py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
@@ -2423,11 +2454,12 @@ export default function Settings() {
             }`}
           >
             {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas', pendingWaiterCalls.length || undefined)}
-            {navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
-            {navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
-            {navButton('relatorios', <BarChart3 className="w-5 h-5 shrink-0" />, 'Relatórios')}
+            {!isWaiter && navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
+            {!isWaiter && navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
+            {!isWaiter && navButton('relatorios', <BarChart3 className="w-5 h-5 shrink-0" />, 'Relatórios')}
             {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha', deliveryPendingCount)}
-            {navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
+            {!isWaiter && navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
+            {!isWaiter && navButton('garcons', <Users className="w-5 h-5 shrink-0" />, 'Garçons')}
           </nav>
           <div
             className={`p-4 border-t border-gray-200 shrink-0 transition-[padding] duration-300 ease-in-out ${
@@ -2544,6 +2576,10 @@ export default function Settings() {
                 />
               )}
             </PanelPage>
+          )}
+
+          {activeTab === 'garcons' && restaurantId && !isWaiter && (
+            <WaitersPanel restaurantId={restaurantId} />
           )}
 
           {activeTab === 'cardapio' && (
@@ -2882,7 +2918,7 @@ export default function Settings() {
                       Horário de funcionamento
                     </label>
                     <p className="text-sm text-gray-500 mb-3">
-                      Defina os dias e horários em que o restaurante atende. Os clientes veem isso ao tocar em “Ver mais”.
+                      Defina os dias e horários em que o restaurante atende. Dá para cadastrar dois períodos no mesmo dia (ex.: 09:00–14:00 e 17:00–23:00). Os clientes veem o status Aberto/Fechado na listagem e ao tocar em “Ver mais”.
                     </p>
                     <OpeningHoursEditor
                       value={openingHoursForm}
@@ -3977,7 +4013,7 @@ export default function Settings() {
                 <PanelCard>
                   <h3 className="text-base font-semibold text-gray-900 mb-1">Taxa de entrega</h3>
                   <p className="text-sm text-gray-500 mb-4">
-                    Cada restaurante define a própria taxa: valor único ou cálculo por km até a casa do cliente.
+                    Defina taxa única, por km ou por bairro. A área máxima é de {MAX_DELIVERY_RADIUS_KM} km a partir do restaurante.
                   </p>
 
                   <div className="flex flex-wrap gap-2 mb-4">
@@ -4003,48 +4039,64 @@ export default function Settings() {
                     >
                       Por distância (km)
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeeMode('neighborhood')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                        feeMode === 'neighborhood'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      Por bairro
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <label className={panelLabelClass}>
-                        {feeMode === 'flat' ? 'Taxa única (R$)' : 'Taxa base (R$)'}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={flatFeeInput}
-                        onChange={(e) => setFlatFeeInput(e.target.value)}
-                        className={panelInputClass}
-                      />
-                    </div>
+                    {feeMode !== 'neighborhood' && (
+                      <div>
+                        <label className={panelLabelClass}>
+                          {feeMode === 'flat' ? 'Taxa única (R$)' : 'Taxa base (R$)'}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={flatFeeInput}
+                          onChange={(e) => setFlatFeeInput(e.target.value)}
+                          className={panelInputClass}
+                        />
+                      </div>
+                    )}
                     {feeMode === 'distance' && (
-                      <>
-                        <div>
-                          <label className={panelLabelClass}>Valor por km (R$)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={perKmFeeInput}
-                            onChange={(e) => setPerKmFeeInput(e.target.value)}
-                            className={panelInputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className={panelLabelClass}>Raio máximo (km)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={maxRadiusInput}
-                            onChange={(e) => setMaxRadiusInput(e.target.value)}
-                            className={panelInputClass}
-                          />
-                          <p className="text-xs text-gray-500 mt-1">0 = sem limite</p>
-                        </div>
-                      </>
+                      <div>
+                        <label className={panelLabelClass}>Valor por km (R$)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={perKmFeeInput}
+                          onChange={(e) => setPerKmFeeInput(e.target.value)}
+                          className={panelInputClass}
+                        />
+                      </div>
+                    )}
+                    {(feeMode === 'distance' || feeMode === 'neighborhood') && (
+                      <div>
+                        <label className={panelLabelClass}>Raio máximo (km)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={MAX_DELIVERY_RADIUS_KM}
+                          step="0.1"
+                          value={maxRadiusInput}
+                          onChange={(e) => setMaxRadiusInput(e.target.value)}
+                          className={panelInputClass}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Entre 1 e {MAX_DELIVERY_RADIUS_KM} km. Entregas longas (ex.: 100 km) não são permitidas.
+                        </p>
+                      </div>
                     )}
                   </div>
 
@@ -4058,12 +4110,23 @@ export default function Settings() {
                       className={panelInputClass}
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Usado para medir a distância até o cliente. Ao salvar, o sistema localiza este endereço no mapa.
+                      Ponto de partida do restaurante. Ao salvar, o sistema localiza este endereço para validar bairros e distância.
                     </p>
                     {deliveryLocationLabel && (
                       <p className="text-xs text-green-700 mt-1">{deliveryLocationLabel}</p>
                     )}
                   </div>
+
+                  {feeMode === 'neighborhood' && (
+                    <div className="mt-4">
+                      <NeighborhoodZonesEditor
+                        originAddress={deliveryOriginAddress}
+                        maxRadiusKm={Number(String(maxRadiusInput).replace(',', '.')) || 10}
+                        zones={neighborhoodZones}
+                        onChange={setNeighborhoodZones}
+                      />
+                    </div>
+                  )}
                 </PanelCard>
 
                 {/* Card: Descrição para IA */}

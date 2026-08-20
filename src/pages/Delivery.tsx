@@ -28,6 +28,7 @@ import { useDeliveryBottomNav } from '../hooks/useDeliveryBottomNav';
 import {
   getDeliveryLocation,
   setDeliveryLocation,
+  hasSavedDeliveryLocation,
   type DeliveryLocation,
 } from '../utils/deliveryLocationStorage';
 import {
@@ -35,6 +36,11 @@ import {
   toggleFavoriteRestaurantId,
 } from '../utils/deliveryFavoritesStorage';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { restaurantMatchesRegion } from '../utils/restaurantRegion';
+import {
+  detectDeliveryLocationFromGps,
+  enrichDeliveryLocationCoords,
+} from '../services/geocodingService';
 
 const FALLBACK_COVERS = getDefaultFoodImages();
 
@@ -80,30 +86,6 @@ export default function Delivery() {
   const CAROUSEL_GAP = 16;
   const CAROUSEL_STEP = CAROUSEL_ITEM_WIDTH + CAROUSEL_GAP;
   const AUTO_ADVANCE_MS = 2000;
-  const totalSlides = featuredImages.length;
-
-  useEffect(() => {
-    setCarouselIndex((prev) => (totalSlides <= 1 ? 0 : Math.min(prev, totalSlides - 1)));
-  }, [totalSlides]);
-
-  useEffect(() => {
-    if (loading || totalSlides <= 1) return;
-    const id = setInterval(() => {
-      setCarouselIndex((prev) => (prev + 1) % totalSlides);
-    }, AUTO_ADVANCE_MS);
-    return () => clearInterval(id);
-  }, [loading, totalSlides]);
-
-  useEffect(() => {
-    if (loading || !carouselRef.current) return;
-    isProgrammaticScrollRef.current = true;
-    const left = carouselIndex * CAROUSEL_STEP;
-    carouselRef.current.scrollTo({ left, behavior: 'smooth' });
-    const timer = setTimeout(() => {
-      isProgrammaticScrollRef.current = false;
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [carouselIndex, loading, CAROUSEL_STEP]);
 
   const handleCarouselScroll = () => {
     if (isProgrammaticScrollRef.current) return;
@@ -124,10 +106,27 @@ export default function Delivery() {
   }, [location.state]);
 
   useEffect(() => {
-    loadRestaurants();
-    fetchFeaturedProductImages().then((imgs) => {
-      if (imgs.length > 0) setFeaturedImages(imgs);
-    });
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      if (!hasSavedDeliveryLocation()) {
+        const gps = await detectDeliveryLocationFromGps();
+        if (!cancelled && gps) {
+          setUserLocation(gps);
+          setDeliveryLocation(gps);
+        }
+      }
+      if (!cancelled) {
+        await loadRestaurants();
+      }
+      const imgs = await fetchFeaturedProductImages();
+      if (!cancelled && imgs.length > 0) setFeaturedImages(imgs);
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const coverByRestaurant = useMemo(() => buildCoverMap(featuredImages), [featuredImages]);
@@ -161,8 +160,48 @@ export default function Delivery() {
     }
   };
 
+  const restaurantsInRegion = useMemo(
+    () => restaurants.filter((restaurant) => restaurantMatchesRegion(restaurant, userLocation)),
+    [restaurants, userLocation]
+  );
+
+  const featuredInRegion = useMemo(() => {
+    const ids = new Set(restaurantsInRegion.map((restaurant) => restaurant.id));
+    const fromRegion = featuredImages.filter(
+      (img) => img.restaurantId && ids.has(img.restaurantId)
+    );
+    if (fromRegion.length >= 2) return fromRegion;
+    if (fromRegion.length === 1) return [...fromRegion, ...FALLBACK_COVERS].slice(0, 8);
+    return FALLBACK_COVERS;
+  }, [featuredImages, restaurantsInRegion]);
+
+  const totalSlides = featuredInRegion.length;
+
+  useEffect(() => {
+    setCarouselIndex((prev) => (totalSlides <= 1 ? 0 : Math.min(prev, totalSlides - 1)));
+  }, [totalSlides]);
+
+  useEffect(() => {
+    if (loading || totalSlides <= 1) return;
+    const id = setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % totalSlides);
+    }, AUTO_ADVANCE_MS);
+    return () => clearInterval(id);
+  }, [loading, totalSlides]);
+
+  useEffect(() => {
+    if (loading || !carouselRef.current) return;
+    isProgrammaticScrollRef.current = true;
+    const left = carouselIndex * CAROUSEL_STEP;
+    carouselRef.current.scrollTo({ left, behavior: 'smooth' });
+    const timer = setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [carouselIndex, loading, CAROUSEL_STEP]);
+
   const filteredRestaurants = useMemo(() => {
-    return restaurants.filter((restaurant) => {
+    return restaurantsInRegion.filter((restaurant) => {
       if (navTab === 'favorites' && !favoriteIds.includes(restaurant.id)) return false;
 
       const term = searchTerm.trim().toLowerCase();
@@ -182,7 +221,17 @@ export default function Delivery() {
           return true;
       }
     });
-  }, [restaurants, searchTerm, selectedCategory, navTab, favoriteIds]);
+  }, [restaurantsInRegion, searchTerm, selectedCategory, navTab, favoriteIds]);
+
+  const handleSaveLocation = (loc: DeliveryLocation) => {
+    setUserLocation(loc);
+    setDeliveryLocation(loc);
+    void enrichDeliveryLocationCoords(loc).then((enriched) => {
+      if (enriched.lat === loc.lat && enriched.lng === loc.lng) return;
+      setUserLocation(enriched);
+      setDeliveryLocation(enriched);
+    });
+  };
 
   const categories = [
     { id: 'todos', label: t('delivery.categoryAll'), icon: LayoutGrid },
@@ -237,6 +286,7 @@ export default function Delivery() {
   }
 
   const hasSearch = searchTerm.trim().length > 0;
+  const hasRegionResults = restaurantsInRegion.length > 0;
 
   const boraComerLogo = (
     <img
@@ -323,7 +373,7 @@ export default function Delivery() {
                 role="region"
                 aria-label={t('delivery.highlightsOfTheDay')}
               >
-                {featuredImages.map((img, i) => {
+                {featuredInRegion.map((img, i) => {
                   const isClickable = !!(img.productId && img.restaurantId);
                   const handleClick = () => {
                     if (!isClickable) return;
@@ -508,7 +558,9 @@ export default function Delivery() {
                     ? t('delivery.noFavoritesYet')
                     : hasSearch
                       ? t('delivery.noRestaurantsFound')
-                      : t('delivery.noRestaurantsAvailable')}
+                      : hasRegionResults
+                        ? t('delivery.noRestaurantsAvailable')
+                        : t('delivery.noRestaurantsInRegion')}
               </h3>
               <p className="text-sm max-w-sm mx-auto" style={{ color: '#6B5A54' }}>
                 {loadError
@@ -517,7 +569,9 @@ export default function Delivery() {
                     ? t('delivery.noFavoritesHint')
                     : hasSearch
                       ? t('delivery.tryOtherTerms')
-                      : t('delivery.comingSoon')}
+                      : hasRegionResults
+                        ? t('delivery.comingSoon')
+                        : t('delivery.noRestaurantsInRegionHint')}
               </p>
               {loadError && (
                 <button
@@ -527,6 +581,16 @@ export default function Delivery() {
                   style={{ backgroundColor: '#E91120' }}
                 >
                   {t('delivery.retryLoadRestaurants')}
+                </button>
+              )}
+              {!loadError && !hasSearch && navTab !== 'favorites' && !hasRegionResults && (
+                <button
+                  type="button"
+                  onClick={() => setLocationModalOpen(true)}
+                  className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                  style={{ backgroundColor: '#E91120' }}
+                >
+                  {t('delivery.changeLocation')}
                 </button>
               )}
             </div>
@@ -549,16 +613,16 @@ export default function Delivery() {
 
       <DeliveryBottomNav active={navTab} onChange={handleNavChange} />
 
-      <AIRestaurantChat fabBottom="calc(5.25rem + env(safe-area-inset-bottom, 0px))" />
+      <AIRestaurantChat
+        fabBottom="calc(5.25rem + env(safe-area-inset-bottom, 0px))"
+        userLocation={userLocation}
+      />
 
       <DeliveryLocationModal
         open={locationModalOpen}
         current={userLocation}
         onClose={() => setLocationModalOpen(false)}
-        onSave={(loc) => {
-          setUserLocation(loc);
-          setDeliveryLocation(loc);
-        }}
+        onSave={handleSaveLocation}
       />
     </div>
   );

@@ -31,10 +31,11 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import type { Product } from '../../types/product';
 import type { DeliveryOrderItem, CreateDeliveryOrderData } from '../../types/delivery';
 import type { DeliveryUser } from '../../types/deliveryUser';
-import type { DeliveryFeeSettings, DeliveryLocation } from '../../types/restaurant';
+import type { DeliveryFeeMode, DeliveryFeeSettings, DeliveryLocation } from '../../types/restaurant';
 import { DEFAULT_DELIVERY_FEE } from '../../types/restaurant';
 import { calculateDeliveryFee, getFeeSettings } from '../../utils/deliveryFee';
 import { geocodeAddress, getDistanceKm } from '../../services/geocodingService';
+import { extractCityFromAddress } from '../../utils/restaurantRegion';
 import {
   createDeliveryPaymentIntent,
   createDeliverySetupIntent,
@@ -251,8 +252,16 @@ export default function CheckoutFlow({
 
   const resolvedFee = useMemo(
     () => getFeeSettings(feeSettings ?? { ...DEFAULT_DELIVERY_FEE, flatFee: baseDeliveryFee }),
-    [feeSettings?.mode, feeSettings?.flatFee, feeSettings?.perKmFee, feeSettings?.maxRadiusKm, baseDeliveryFee]
+    [
+      feeSettings?.mode,
+      feeSettings?.flatFee,
+      feeSettings?.perKmFee,
+      feeSettings?.maxRadiusKm,
+      feeSettings?.neighborhoodZones,
+      baseDeliveryFee,
+    ]
   );
+  const restaurantCity = extractCityFromAddress(restaurantOriginAddress ?? '') ?? undefined;
 
   const pixOrderBaseRef = useRef<Omit<
     CreateDeliveryOrderData,
@@ -544,7 +553,7 @@ export default function CheckoutFlow({
   }, [restaurantLocation, restaurantOriginAddress]);
 
   useEffect(() => {
-    if (resolvedFee.mode !== 'distance') {
+    if (resolvedFee.mode === 'flat') {
       setDistanceFee(resolvedFee.flatFee);
       setFeeOutOfRange(false);
       setFeeLoading(false);
@@ -552,14 +561,35 @@ export default function CheckoutFlow({
       return;
     }
 
+    const neighborhoodReady =
+      addressDraft.neighborhood.trim().length >= 2 && addressDraft.city.trim().length >= 2;
     const addressReady =
+      neighborhoodReady &&
       addressDraft.street.trim().length >= 3 &&
-      addressDraft.number.trim().length >= 1 &&
-      addressDraft.neighborhood.trim().length >= 2 &&
-      addressDraft.city.trim().length >= 2;
+      addressDraft.number.trim().length >= 1;
 
-    if (!addressReady) {
-      setDistanceFee(resolvedFee.flatFee);
+    if (resolvedFee.mode === 'neighborhood' && neighborhoodReady) {
+      const named = calculateDeliveryFee({
+        fee: resolvedFee,
+        neighborhood: addressDraft.neighborhood,
+        city: addressDraft.city,
+        restaurantCity,
+      });
+      if (named.outOfRange) {
+        setDistanceFee(0);
+        setFeeOutOfRange(true);
+        setFeeLoading(false);
+        setDistanceKm(null);
+        return;
+      }
+      setDistanceFee(named.fee);
+      setFeeOutOfRange(false);
+      if (!addressReady) {
+        setFeeLoading(false);
+        return;
+      }
+    } else if (!addressReady) {
+      setDistanceFee(resolvedFee.mode === 'neighborhood' ? 0 : resolvedFee.flatFee);
       setFeeOutOfRange(false);
       setFeeLoading(false);
       return;
@@ -579,13 +609,21 @@ export default function CheckoutFlow({
           const dest = await geocodeAddress(query);
           if (cancelled) return;
           if (!origin || !dest) {
-            setDistanceFee(resolvedFee.flatFee);
-            setFeeOutOfRange(false);
-            setDistanceKm(null);
+            if (resolvedFee.mode !== 'neighborhood') {
+              setDistanceFee(resolvedFee.flatFee);
+              setFeeOutOfRange(false);
+              setDistanceKm(null);
+            }
             return;
           }
           const km = getDistanceKm(origin, dest);
-          const result = calculateDeliveryFee({ fee: resolvedFee, distanceKm: km });
+          const result = calculateDeliveryFee({
+            fee: resolvedFee,
+            distanceKm: km,
+            neighborhood: addressDraft.neighborhood,
+            city: addressDraft.city,
+            restaurantCity,
+          });
           setDistanceKm(km);
           setFeeOutOfRange(result.outOfRange);
           setDistanceFee(result.outOfRange ? 0 : result.fee);
@@ -607,6 +645,7 @@ export default function CheckoutFlow({
     addressDraft.city,
     originPoint,
     restaurantOriginAddress,
+    restaurantCity,
   ]);
 
   const persistAddressHistory = useCallback(
@@ -1037,7 +1076,9 @@ export default function CheckoutFlow({
           onContinueAddress={() => {
             if (feeOutOfRange) {
               setErrorBanner(
-                `Este endereço está fora da área de entrega (${resolvedFee.maxRadiusKm} km).`
+                resolvedFee.mode === 'neighborhood'
+                  ? 'Este bairro não está na área de entrega deste restaurante.'
+                  : `Este endereço está fora da área de entrega (${resolvedFee.maxRadiusKm} km).`
               );
               return;
             }
@@ -1421,7 +1462,7 @@ function AddressStep({
   distanceKm: number | null;
   feeLoading: boolean;
   feeOutOfRange: boolean;
-  feeMode: 'flat' | 'distance';
+  feeMode: DeliveryFeeMode;
   maxRadiusKm: number;
 }) {
   const { t } = useTranslation();
@@ -1532,6 +1573,17 @@ function AddressStep({
                 : distanceKm != null
                   ? `Distância estimada: ${distanceKm.toFixed(1).replace('.', ',')} km`
                   : 'Preencha o endereço para calcular a taxa por km.'}
+          </p>
+        )}
+        {feeMode === 'neighborhood' && (
+          <p className="text-xs text-gray-500 mb-2">
+            {feeLoading
+              ? 'Validando bairro e distância…'
+              : feeOutOfRange
+                ? 'Este restaurante não entrega neste bairro (ou está longe demais).'
+                : addressDraft.neighborhood.trim()
+                  ? `Taxa do bairro ${addressDraft.neighborhood}: ${fmt(baseDeliveryFee)}`
+                  : 'Informe o bairro para calcular o frete.'}
           </p>
         )}
         <div className="space-y-2">

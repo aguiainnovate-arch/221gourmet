@@ -34,7 +34,12 @@
     "waiterCalled": "Camarero en camino",
     "waiterCalledHint": "Tu mesa ya llamó. Espera un momento.",
     "waiterCallError": "No se pudo llamar al camarero. Inténtalo de nuevo.",
-    "tableBlocked": "Esta mesa no está disponible en este momento."
+    "waiterCooldownHint": "Podrás volver a llamar en {{time}}.",
+    "tableBlocked": "Esta mesa no está disponible en este momento.",
+    "tableClosedTitle": "Tu mesa está cerrada",
+    "tableClosedMessage": "Pide al camarero que abra la mesa. Tu pedido quedó guardado para enviarlo cuando se abra.",
+    "orderWaitingTable": "Pedido guardado. Cuando el camarero abra la mesa, toca enviar.",
+    "sendingOrder": "Enviando pedido..."
   },
   "language": {
     "portuguese": "Português",

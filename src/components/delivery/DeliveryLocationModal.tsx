@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MapPin, X, Check } from 'lucide-react';
+import { MapPin, X, Check, LocateFixed } from 'lucide-react';
 import {
   DELIVERY_LOCATION_PRESETS,
   type DeliveryLocation,
 } from '../../utils/deliveryLocationStorage';
+import { detectDeliveryLocationFromGps } from '../../services/geocodingService';
 
 interface Props {
   open: boolean;
@@ -18,13 +19,36 @@ export default function DeliveryLocationModal({ open, current, onClose, onSave }
   const [customNeighborhood, setCustomNeighborhood] = useState('');
   const [customCity, setCustomCity] = useState('');
   const [selected, setSelected] = useState<DeliveryLocation>(current);
+  const [detectingGps, setDetectingGps] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setSelected(current);
     setCustomCity(current.city);
     setCustomNeighborhood(current.neighborhood ?? '');
+    setGpsError(null);
+    setDetectingGps(false);
   }, [open, current]);
+
+  const applyGps = async () => {
+    setDetectingGps(true);
+    setGpsError(null);
+    try {
+      const gps = await detectDeliveryLocationFromGps();
+      if (!gps) {
+        setGpsError(t('delivery.locationGpsError'));
+        return;
+      }
+      setSelected(gps);
+      onSave(gps);
+      onClose();
+    } catch {
+      setGpsError(t('delivery.locationGpsError'));
+    } finally {
+      setDetectingGps(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -73,6 +97,22 @@ export default function DeliveryLocationModal({ open, current, onClose, onSave }
           <p className="text-sm" style={{ color: '#6B5A54' }}>
             {t('delivery.locationModalHint')}
           </p>
+
+          <button
+            type="button"
+            onClick={() => void applyGps()}
+            disabled={detectingGps}
+            className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-bold text-white disabled:opacity-60"
+            style={{ backgroundColor: '#E91120', borderColor: '#E91120' }}
+          >
+            <LocateFixed className="w-4 h-4 shrink-0" />
+            {detectingGps ? t('delivery.locationDetecting') : t('delivery.locationUseGps')}
+          </button>
+          {gpsError ? (
+            <p className="text-xs font-medium" style={{ color: '#E91120' }}>
+              {gpsError}
+            </p>
+          ) : null}
 
           <div className="space-y-2">
             {DELIVERY_LOCATION_PRESETS.map((preset) => {

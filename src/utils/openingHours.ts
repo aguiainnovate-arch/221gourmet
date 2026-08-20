@@ -1,5 +1,6 @@
 import type {
   DayOpeningHours,
+  OpeningHoursInterval,
   RestaurantOpeningHours,
   Weekday,
 } from '../types/restaurant';
@@ -45,11 +46,40 @@ function parseTimeToMinutes(value: string): number | null {
   return hours * 60 + minutes;
 }
 
+export function getDayIntervals(day: DayOpeningHours): OpeningHoursInterval[] {
+  if (Array.isArray(day.intervals) && day.intervals.length > 0) {
+    return day.intervals;
+  }
+  if (day.open?.trim() && day.close?.trim()) {
+    return [{ open: day.open, close: day.close }];
+  }
+  return [];
+}
+
+function isTimeWithinInterval(currentMin: number, open: string, close: string): boolean {
+  const openMin = parseTimeToMinutes(open);
+  const closeMin = parseTimeToMinutes(close);
+  if (openMin === null || closeMin === null) return false;
+
+  // Intervalo atravessa meia-noite (ex.: 18:00–02:00)
+  if (closeMin <= openMin) {
+    return currentMin >= openMin || currentMin < closeMin;
+  }
+
+  return currentMin >= openMin && currentMin < closeMin;
+}
+
 export function formatDayHoursLabel(day: DayOpeningHours, closedLabel = 'Fechado'): string {
   if (day.closed) return closedLabel;
-  const open = day.open?.trim() || '--:--';
-  const close = day.close?.trim() || '--:--';
-  return `${open} - ${close}`;
+  const intervals = getDayIntervals(day);
+  if (intervals.length === 0) return closedLabel;
+  return intervals
+    .map((interval) => {
+      const open = interval.open?.trim() || '--:--';
+      const close = interval.close?.trim() || '--:--';
+      return `${open} - ${close}`;
+    })
+    .join('  ·  ');
 }
 
 export function hasConfiguredOpeningHours(hours?: RestaurantOpeningHours | null): boolean {
@@ -58,7 +88,9 @@ export function hasConfiguredOpeningHours(hours?: RestaurantOpeningHours | null)
     const entry = hours[day];
     if (!entry) return false;
     if (entry.closed) return true;
-    return Boolean(entry.open?.trim() && entry.close?.trim());
+    return getDayIntervals(entry).some(
+      (interval) => Boolean(interval.open?.trim() && interval.close?.trim())
+    );
   });
 }
 
@@ -72,18 +104,13 @@ export function isRestaurantOpenNow(
   const day = hours[weekday];
   if (!day || day.closed) return false;
 
-  const openMin = parseTimeToMinutes(day.open);
-  const closeMin = parseTimeToMinutes(day.close);
-  if (openMin === null || closeMin === null) return false;
+  const intervals = getDayIntervals(day);
+  if (intervals.length === 0) return false;
 
   const currentMin = now.getHours() * 60 + now.getMinutes();
-
-  // Intervalo atravessa meia-noite (ex.: 18:00–02:00)
-  if (closeMin <= openMin) {
-    return currentMin >= openMin || currentMin < closeMin;
-  }
-
-  return currentMin >= openMin && currentMin < closeMin;
+  return intervals.some((interval) =>
+    isTimeWithinInterval(currentMin, interval.open, interval.close)
+  );
 }
 
 export function getTodayHoursLabel(

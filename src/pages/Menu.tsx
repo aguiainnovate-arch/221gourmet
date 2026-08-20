@@ -1,8 +1,8 @@
 import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react';
-import { getTables, canOpenTable, ensureTableOpenByCustomer } from '../services/tableService';
+import { useEffect, useState, useCallback, useMemo, useRef, type CSSProperties } from 'react';
+import { subscribeToTables, type Table } from '../services/tableService';
 import {
   createWaiterCall,
   subscribeTableWaiterCall,
@@ -26,7 +26,6 @@ import MenuProductCard from '../components/menu/MenuProductCard';
 import { useLiveTranslations } from '../hooks/useLiveTranslations';
 import LoadingAnimation from '../components/LoadingAnimation';
 import { ArrowLeft, X, Tag, Check, Eye } from 'lucide-react';
-import type { Table } from '../services/tableService';
 import type { Product } from '../types/product';
 import type { OrderItem } from '../services/statisticsService';
 import ImageModal from '../components/ImageModal';
@@ -41,6 +40,71 @@ interface ExpandedItem {
   productId: string;
   quantity: number;
   observations: string;
+}
+
+const WAITER_CALL_COOLDOWN_MS = 2 * 60 * 1000;
+
+function isMesaAbertaParaPedidos(status: Table['status']): boolean {
+  return status === 'ocupada' || status === 'em_fechamento';
+}
+
+function formatCountdown(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function draftStorageKey(restaurantId: string, mesaNumero: string): string {
+  return `mesa-order-draft:${restaurantId}:${mesaNumero}`;
+}
+
+function waiterCallStorageKey(restaurantId: string, mesaNumero: string): string {
+  return `mesa-waiter-call:${restaurantId}:${mesaNumero}`;
+}
+
+function readDraft(restaurantId: string, mesaNumero: string): { items: SelectedItem[]; awaitingSend: boolean } | null {
+  try {
+    const raw = sessionStorage.getItem(draftStorageKey(restaurantId, mesaNumero));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { items?: SelectedItem[]; awaitingSend?: boolean };
+    if (!Array.isArray(parsed.items) || parsed.items.length === 0) return null;
+    return { items: parsed.items, awaitingSend: Boolean(parsed.awaitingSend) };
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(restaurantId: string, mesaNumero: string, items: SelectedItem[], awaitingSend: boolean): void {
+  try {
+    if (items.length === 0) {
+      sessionStorage.removeItem(draftStorageKey(restaurantId, mesaNumero));
+      return;
+    }
+    sessionStorage.setItem(
+      draftStorageKey(restaurantId, mesaNumero),
+      JSON.stringify({ items, awaitingSend })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function readLastWaiterCallAt(restaurantId: string, mesaNumero: string): number | null {
+  try {
+    const raw = sessionStorage.getItem(waiterCallStorageKey(restaurantId, mesaNumero));
+    const value = raw ? Number(raw) : NaN;
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastWaiterCallAt(restaurantId: string, mesaNumero: string, at: number): void {
+  try {
+    sessionStorage.setItem(waiterCallStorageKey(restaurantId, mesaNumero), String(at));
+  } catch {
+    // ignore
+  }
 }
 
 export default function Menu() {
@@ -70,6 +134,12 @@ export default function Menu() {
   const [meusPedidos, setMeusPedidos] = useState<FirestoreOrder[]>([]);
   const [pendingWaiterCall, setPendingWaiterCall] = useState<WaiterCall | null>(null);
   const [callingWaiter, setCallingWaiter] = useState(false);
+  const [orderAwaitingTable, setOrderAwaitingTable] = useState(false);
+  const [sendingOrder, setSendingOrder] = useState(false);
+  const [lastWaiterCallAt, setLastWaiterCallAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const sendingOrderRef = useRef(false);
+  const draftRestoredRef = useRef(false);
 
   // Configurações do restaurante da URL do QR (independente do SettingsProvider global)
   useEffect(() => {
@@ -97,34 +167,15 @@ export default function Menu() {
   }, [restaurantId, setRestaurantId]);
 
   useEffect(() => {
-    const carregarMesaInfo = async () => {
-      if (!mesaId || !restaurantId) return;
+    if (!mesaId || !restaurantId) return;
 
-      try {
-        setLoading(true);
-        const tables = await getTables(restaurantId);
-        const mesa = tables.find((table) => table.numero === mesaId) ?? null;
-        if (!mesa) {
-          setMesaInfo(null);
-          return;
-        }
-        try {
-          if (canOpenTable(mesa.status)) {
-            setMesaInfo(await ensureTableOpenByCustomer(restaurantId, mesa));
-          } else {
-            setMesaInfo(mesa);
-          }
-        } catch {
-          setMesaInfo(mesa);
-        }
-      } catch (error) {
-        // Erro silencioso
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    carregarMesaInfo();
+    setLoading(true);
+    const unsubscribe = subscribeToTables(restaurantId, (tables) => {
+      const mesa = tables.find((table) => table.numero === mesaId) ?? null;
+      setMesaInfo(mesa);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [mesaId, restaurantId]);
 
   // Pedidos desta mesa para o cliente acompanhar status (atualiza a cada 15s)
@@ -154,6 +205,39 @@ export default function Menu() {
     if (!restaurantId || !mesaInfo?.id) return;
     return subscribeTableWaiterCall(restaurantId, mesaInfo.id, setPendingWaiterCall);
   }, [restaurantId, mesaInfo?.id]);
+
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
+    if (!restaurantId || !mesaInfo?.numero || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    const draft = readDraft(restaurantId, mesaInfo.numero);
+    if (draft) {
+      setSelectedItems(draft.items);
+      setOrderAwaitingTable(draft.awaitingSend);
+      if (draft.awaitingSend) setShowConfirmation(true);
+    }
+    const storedCallAt = readLastWaiterCallAt(restaurantId, mesaInfo.numero);
+    if (storedCallAt) setLastWaiterCallAt(storedCallAt);
+  }, [restaurantId, mesaInfo?.numero]);
+
+  useEffect(() => {
+    if (!restaurantId || !mesaInfo?.numero) return;
+    writeDraft(restaurantId, mesaInfo.numero, selectedItems, orderAwaitingTable);
+  }, [restaurantId, mesaInfo?.numero, selectedItems, orderAwaitingTable]);
+
+  useEffect(() => {
+    const remoteCallAt = pendingWaiterCall?.createdAt.getTime() ?? 0;
+    if (remoteCallAt > 0 && (lastWaiterCallAt == null || remoteCallAt > lastWaiterCallAt)) {
+      setLastWaiterCallAt(remoteCallAt);
+      if (restaurantId && mesaInfo?.numero) {
+        writeLastWaiterCallAt(restaurantId, mesaInfo.numero, remoteCallAt);
+      }
+    }
+  }, [pendingWaiterCall, lastWaiterCallAt, restaurantId, mesaInfo?.numero]);
 
   // Aplicar cores personalizadas do restaurante no cardápio
   const menuThemeStyle = useMemo(() => {
@@ -397,14 +481,18 @@ export default function Menu() {
   };
 
   const handleCallWaiter = async () => {
-    if (!mesaInfo?.id || callingWaiter || pendingWaiterCall) return;
+    if (!mesaInfo?.id || callingWaiter) return;
+    const cooldownLeft = lastWaiterCallAt
+      ? lastWaiterCallAt + WAITER_CALL_COOLDOWN_MS - Date.now()
+      : 0;
+    if (cooldownLeft > 0) return;
+
     setCallingWaiter(true);
     try {
-      if (canOpenTable(mesaInfo.status)) {
-        const opened = await ensureTableOpenByCustomer(restaurantId, mesaInfo);
-        setMesaInfo(opened);
-      }
       await createWaiterCall(restaurantId, mesaInfo.id, mesaInfo.numero);
+      const at = Date.now();
+      setLastWaiterCallAt(at);
+      writeLastWaiterCallAt(restaurantId, mesaInfo.numero, at);
     } catch {
       alert(t('menu.waiterCallError'));
     } finally {
@@ -413,6 +501,7 @@ export default function Menu() {
   };
 
   const handleConfirmarPedido = async () => {
+    if (sendingOrderRef.current) return;
     if (!mesaInfo || !mesaInfo.id) {
       alert(t('menu.tableInfoNotFound'));
       return;
@@ -421,56 +510,68 @@ export default function Menu() {
       alert(t('menu.tableBlocked'));
       return;
     }
-
-    let mesaParaPedido = mesaInfo;
-    if (canOpenTable(mesaInfo.status)) {
-      try {
-        mesaParaPedido = await ensureTableOpenByCustomer(restaurantId, mesaInfo);
-        setMesaInfo(mesaParaPedido);
-      } catch {
-        alert(t('menu.tableInfoNotFound'));
-        return;
-      }
-    }
-
-    if (mesaParaPedido.status !== 'ocupada' && mesaParaPedido.status !== 'em_fechamento') {
-      alert(t('menu.tableBlocked'));
+    if (selectedItems.length === 0) {
+      alert(t('menu.selectAtLeastOne'));
       return;
     }
 
-    const itensSelecionados = selectedItems.map(item => {
-      const name = item.product.name;
-      return `${name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`;
-    });
+    if (!isMesaAbertaParaPedidos(mesaInfo.status)) {
+      setOrderAwaitingTable(true);
+      setShowConfirmation(true);
+      return;
+    }
 
-    // Preparar dados detalhados para estatísticas
-    const detailedItems: OrderItem[] = selectedItems.map(item => ({
-      productId: item.product.id,
-      productName: item.product.name,
-      categoryId: item.product.category || 'sem-categoria',
-      categoryName: item.product.category || 'Sem Categoria',
-      quantity: item.quantity,
-      price: item.product.price,
-      observations: item.observations
-    }));
-    
-    await addOrder({
-      restaurantId: restaurantId,
-      mesaId: mesaParaPedido.id,
-      mesaNumero: mesaParaPedido.numero,
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      status: 'novo',
-      itens: itensSelecionados,
-      tempoEspera: '15 min',
-      orderType: 'mesa'
-    }, detailedItems);
+    sendingOrderRef.current = true;
+    setSendingOrder(true);
+    try {
+      const itensSelecionados = selectedItems.map((item) => {
+        const name = item.product.name;
+        return `${name} (${item.quantity}x)${item.observations ? ` - ${item.observations}` : ''}`;
+      });
 
-    setSelectedItems([]);
-    setExpandedItems([]);
-    setShowConfirmation(false);
-    carregarMeusPedidos(); // atualiza "Seus pedidos" na hora
-    alert(t('menu.orderSent', { number: mesaParaPedido.numero }));
+      const detailedItems: OrderItem[] = selectedItems.map((item) => ({
+        productId: item.product.id,
+        productName: item.product.name,
+        categoryId: item.product.category || 'sem-categoria',
+        categoryName: item.product.category || 'Sem Categoria',
+        quantity: item.quantity,
+        price: item.product.price,
+        observations: item.observations
+      }));
+
+      await addOrder({
+        restaurantId: restaurantId,
+        mesaId: mesaInfo.id,
+        mesaNumero: mesaInfo.numero,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        status: 'novo',
+        itens: itensSelecionados,
+        tempoEspera: '15 min',
+        orderType: 'mesa'
+      }, detailedItems);
+
+      setSelectedItems([]);
+      setExpandedItems([]);
+      setShowConfirmation(false);
+      setOrderAwaitingTable(false);
+      writeDraft(restaurantId, mesaInfo.numero, [], false);
+      carregarMeusPedidos();
+      alert(t('menu.orderSent', { number: mesaInfo.numero }));
+    } catch {
+      setOrderAwaitingTable(true);
+      setShowConfirmation(true);
+    } finally {
+      sendingOrderRef.current = false;
+      setSendingOrder(false);
+    }
   };
+
+  useEffect(() => {
+    if (!orderAwaitingTable || sendingOrderRef.current) return;
+    if (!mesaInfo || selectedItems.length === 0) return;
+    if (!isMesaAbertaParaPedidos(mesaInfo.status)) return;
+    void handleConfirmarPedido();
+  }, [orderAwaitingTable, mesaInfo, selectedItems.length]);
 
   // Agrupar produtos por categoria quando "Todos" estiver selecionado
   const getGroupedProducts = () => {
@@ -532,6 +633,30 @@ export default function Menu() {
     );
   }
 
+  const mesaAberta = isMesaAbertaParaPedidos(mesaInfo.status);
+  const mesaBloqueada = mesaInfo.status === 'bloqueada';
+  const cooldownMs = lastWaiterCallAt
+    ? Math.max(0, lastWaiterCallAt + WAITER_CALL_COOLDOWN_MS - now)
+    : 0;
+  const cooldownSeconds = Math.ceil(cooldownMs / 1000);
+  const waiterOnCooldown = cooldownSeconds > 0;
+  const callWaiterButton = (
+    <CallWaiterButton
+      calling={callingWaiter}
+      pending={waiterOnCooldown}
+      disabled={mesaBloqueada}
+      callLabel={t('menu.callWaiter')}
+      calledLabel={t('menu.waiterCalled')}
+      hintLabel={t('menu.callWaiterHint')}
+      calledHintLabel={
+        waiterOnCooldown
+          ? t('menu.waiterCooldownHint', { time: formatCountdown(cooldownSeconds) })
+          : t('menu.waiterCalledHint')
+      }
+      onCall={() => void handleCallWaiter()}
+    />
+  );
+
   // Tela de Confirmação do Pedido
   if (showConfirmation) {
     return (
@@ -540,6 +665,18 @@ export default function Menu() {
           restaurantName={menuSettings?.restaurantName || 'Noctis'}
           tableLabel={t('menu.table', { number: mesaInfo.numero })}
         />
+
+        {!mesaAberta && !mesaBloqueada && (
+          <>
+            {callWaiterButton}
+            <div className="px-4 mb-4 max-w-lg mx-auto">
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 px-4 py-4">
+                <p className="font-serif text-lg font-bold">{t('menu.tableClosedTitle')}</p>
+                <p className="mt-1 text-sm">{t('menu.tableClosedMessage')}</p>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="max-w-lg mx-auto px-4 py-6">
           {/* Botão Voltar */}
@@ -609,13 +746,22 @@ export default function Menu() {
               {t('menu.cancel')}
             </button>
             <button
-              onClick={handleConfirmarPedido}
-              className="flex-1 bg-green-600 text-white py-4 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-lg"
+              onClick={() => void handleConfirmarPedido()}
+              disabled={!mesaAberta || sendingOrder || mesaBloqueada}
+              className={`flex-1 py-4 px-6 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-lg ${
+                !mesaAberta || sendingOrder || mesaBloqueada
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
             >
               <Check size={24} />
-              {t('menu.confirmOrderButton')}
+              {sendingOrder
+                ? t('menu.sendingOrder')
+                : mesaAberta
+                  ? t('menu.confirmOrderButton')
+                  : t('menu.orderWaitingTable')}
             </button>
-                  </div>
+          </div>
       </div>
       
       {/* Image Modal */}
@@ -626,10 +772,8 @@ export default function Menu() {
         imageAlt={imageModal.alt}
       />
     </div>
-  );
-}
-
-  const mesaBloqueada = mesaInfo.status === 'bloqueada';
+    );
+  }
 
   // Tela Normal do Menu
   return (
@@ -639,16 +783,19 @@ export default function Menu() {
         tableLabel={t('menu.table', { number: mesaInfo.numero })}
       />
 
-      <CallWaiterButton
-        calling={callingWaiter}
-        pending={!!pendingWaiterCall}
-        disabled={mesaBloqueada}
-        callLabel={t('menu.callWaiter')}
-        calledLabel={t('menu.waiterCalled')}
-        hintLabel={t('menu.callWaiterHint')}
-        calledHintLabel={t('menu.waiterCalledHint')}
-        onCall={() => void handleCallWaiter()}
-      />
+      {callWaiterButton}
+
+      {orderAwaitingTable && selectedItems.length > 0 && (
+        <div className="px-4 -mt-1 mb-4 max-w-lg mx-auto">
+          <button
+            type="button"
+            onClick={() => setShowConfirmation(true)}
+            className="w-full rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 px-4 py-3 text-sm text-left"
+          >
+            {t('menu.orderWaitingTable')}
+          </button>
+        </div>
+      )}
 
       {mesaBloqueada && (
         <div className="px-4 -mt-1 mb-4 max-w-lg mx-auto">
