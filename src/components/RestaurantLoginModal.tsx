@@ -5,7 +5,7 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import PasswordInput from './PasswordInput';
 import { getRestaurants } from '../services/restaurantService';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
-import { formatCpf } from '../utils/cpf';
+import { formatCpf, looksLikeCpf } from '../utils/cpf';
 
 interface RestaurantLoginModalProps {
   isOpen: boolean;
@@ -39,12 +39,12 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
     try {
       setIsSubmitting(true);
 
-      if (mode === 'waiter') {
-        if (!cpf || !password) {
+      if (mode === 'waiter' || looksLikeCpf(email)) {
+        if (!(mode === 'waiter' ? cpf : email) || !password) {
           setError('Preencha todos os campos');
           return;
         }
-        const result = await loginWaiter(cpf, password);
+        const result = await loginWaiter(mode === 'waiter' ? cpf : email, password);
         if (!result) {
           setError('CPF ou senha incorretos');
           return;
@@ -137,7 +137,7 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
           <p className="text-sm text-black mb-6">
             {mode === 'waiter'
               ? 'Entre com o CPF e a senha cadastrados pelo restaurante.'
-              : 'Para acessar as configurações do restaurante, faça login com o email e senha cadastrados.'}
+              : 'Email e senha do restaurante. O garçom também pode digitar o CPF neste campo de email.'}
           </p>
 
           {error && (
@@ -151,15 +151,16 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
               <div>
                 <label className="block text-sm font-medium text-black mb-2">
                   <Mail className="w-4 h-4 inline mr-2" />
-                  Email do restaurante
+                  Email ou CPF
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                  placeholder="restaurante@email.com"
+                  placeholder="restaurante@email.com ou CPF do garçom"
                   autoFocus
+                  autoComplete="username"
                 />
               </div>
             ) : (

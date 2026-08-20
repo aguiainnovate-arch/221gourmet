@@ -111,7 +111,9 @@ import { formatShiftHours } from '../utils/menuShifts';
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { orders, updateOrderStatus, deleteOrder, refreshOrders, setRestaurantId } = useOrders();
-  const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData();
+  const { products, categories, restaurantId, reload: reloadRestaurantData } = useRestaurantData({
+    includeUnavailable: true,
+  });
   const { isAuthenticated, currentRestaurantId, logout, isLoading: authLoading, isWaiter } = useRestaurantAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -2772,7 +2774,7 @@ export default function Settings() {
                       </thead>
                       <tbody className="divide-y">
                         {filteredProducts.map((product) => (
-                          <tr key={product.id} className="hover:bg-gray-50">
+                          <tr key={product.id} className={`hover:bg-gray-50 ${product.available ? '' : 'opacity-70'}`}>
                             <td className="p-4">
                               <div className="flex items-center space-x-3">
                                 {/* Imagem do Produto */}

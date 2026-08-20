@@ -5,7 +5,7 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
 import PasswordInput from '../components/PasswordInput';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
-import { formatCpf } from '../utils/cpf';
+import { formatCpf, looksLikeCpf } from '../utils/cpf';
 
 type AuthMode = 'restaurant' | 'waiter';
 
@@ -31,8 +31,9 @@ export default function RestaurantAuth() {
     e.preventDefault();
     setError('');
 
-    if (mode === 'waiter') {
-      if (!cpf || !password) {
+    if (mode === 'waiter' || looksLikeCpf(email)) {
+      const identifier = mode === 'waiter' ? cpf : email;
+      if (!identifier || !password) {
         setError('Preencha todos os campos');
         return;
       }
@@ -44,8 +45,8 @@ export default function RestaurantAuth() {
     try {
       setIsSubmitting(true);
 
-      if (mode === 'waiter') {
-        const result = await loginWaiter(cpf, password);
+      if (mode === 'waiter' || looksLikeCpf(email)) {
+        const result = await loginWaiter(mode === 'waiter' ? cpf : email, password);
         if (!result) {
           setError('CPF ou senha incorretos');
           return;
@@ -109,7 +110,7 @@ export default function RestaurantAuth() {
           </p>
         </div>
         <p className="text-white/70 text-xs">
-          Restaurante: email e senha. Garçom: CPF e senha.
+          Restaurante: email e senha. Garçom: CPF (também no campo de email) e senha.
         </p>
       </div>
 
@@ -130,7 +131,7 @@ export default function RestaurantAuth() {
             <p className="mt-1 text-black text-sm">
               {mode === 'waiter'
                 ? 'Entre com seu CPF e senha cadastrados pelo restaurante.'
-                : 'Entre com seu email e senha para gerenciar seu restaurante.'}
+                : 'Entre com email e senha. Garçom também pode digitar o CPF neste campo de email.'}
             </p>
           </div>
 
@@ -171,18 +172,19 @@ export default function RestaurantAuth() {
             {mode === 'restaurant' ? (
               <div>
                 <label className="block text-xs font-semibold text-black mb-1">
-                  Email *
+                  Email ou CPF *
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-black"
-                    placeholder="seu@email.com"
+                    placeholder="seu@email.com ou CPF do garçom"
                     required={mode === 'restaurant'}
                     autoComplete="username"
+                    inputMode={looksLikeCpf(email) ? 'numeric' : 'email'}
                   />
                 </div>
               </div>

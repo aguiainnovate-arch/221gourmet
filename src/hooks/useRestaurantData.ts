@@ -5,8 +5,14 @@ import { getCategories } from '../services/categoryService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 
-export const useRestaurantData = () => {
+interface UseRestaurantDataOptions {
+  /** Gestão do cardápio: mantém itens indisponíveis visíveis para o restaurante. */
+  includeUnavailable?: boolean;
+}
+
+export const useRestaurantData = (options?: UseRestaurantDataOptions) => {
   const restaurantId = useRestaurantId();
+  const includeUnavailable = options?.includeUnavailable === true;
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,8 +28,7 @@ export const useRestaurantData = () => {
         getCategories(restaurantId)
       ]);
       
-      // Filtrar apenas produtos disponíveis
-      setProducts(productsData.filter(p => p.available));
+      setProducts(includeUnavailable ? productsData : productsData.filter(p => p.available));
       setCategories(categoriesData);
     } catch (err) {
       console.error('Erro ao carregar dados do restaurante:', err);
@@ -35,7 +40,7 @@ export const useRestaurantData = () => {
 
   useEffect(() => {
     loadData();
-  }, [restaurantId]);
+  }, [restaurantId, includeUnavailable]);
 
   return {
     products,

@@ -2,6 +2,10 @@ export function normalizeCpf(value: string): string {
   return value.replace(/\D/g, '').slice(0, 11);
 }
 
+export function looksLikeCpf(value: string): boolean {
+  return normalizeCpf(value).length === 11;
+}
+
 export function formatCpf(value: string): string {
   const digits = normalizeCpf(value);
   if (digits.length <= 3) return digits;
