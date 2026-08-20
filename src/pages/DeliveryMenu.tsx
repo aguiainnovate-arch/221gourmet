@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import type { Stripe } from '@stripe/stripe-js';
 import { getNativeSafeAreaTop, isNativePlatform } from '../utils/capacitorUtils';
 import { ArrowLeft, Plus, Minus, MapPin, Bike, Search, ChevronDown, ShoppingCart } from 'lucide-react';
