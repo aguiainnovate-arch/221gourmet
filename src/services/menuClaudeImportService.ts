@@ -16,7 +16,7 @@ const importFn = httpsCallable<
 >(functions, 'importMenuFromClaudeText');
 
 /**
- * Envia o texto do cardápio para o Claude (via Cloud Function) e grava
+ * Envia o texto do cardápio para a OpenAI (via Cloud Function) e grava
  * categorias e produtos no Firestore do restaurante.
  */
 export async function importMenuFromClaudeText(

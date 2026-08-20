@@ -26,7 +26,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.recommendRestaurantsWithAI = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
+exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.recommendRestaurantsWithAI = exports.confirmPartnershipSubscriptionCheckout = exports.createPartnershipSubscriptionCheckout = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const openai_1 = __importStar(require("openai"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -41,6 +41,9 @@ Object.defineProperty(exports, "importMenuFromClaudeText", { enumerable: true, g
 var stripeRestaurantConnect_2 = require("./stripeRestaurantConnect");
 Object.defineProperty(exports, "createRestaurantStripeConnectOnboardingLink", { enumerable: true, get: function () { return stripeRestaurantConnect_2.createRestaurantStripeConnectOnboardingLink; } });
 Object.defineProperty(exports, "syncRestaurantStripeConnectStatus", { enumerable: true, get: function () { return stripeRestaurantConnect_2.syncRestaurantStripeConnectStatus; } });
+var stripePartnershipBilling_1 = require("./stripePartnershipBilling");
+Object.defineProperty(exports, "createPartnershipSubscriptionCheckout", { enumerable: true, get: function () { return stripePartnershipBilling_1.createPartnershipSubscriptionCheckout; } });
+Object.defineProperty(exports, "confirmPartnershipSubscriptionCheckout", { enumerable: true, get: function () { return stripePartnershipBilling_1.confirmPartnershipSubscriptionCheckout; } });
 var recommendRestaurantsWithAI_1 = require("./recommendRestaurantsWithAI");
 Object.defineProperty(exports, "recommendRestaurantsWithAI", { enumerable: true, get: function () { return recommendRestaurantsWithAI_1.recommendRestaurantsWithAI; } });
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';

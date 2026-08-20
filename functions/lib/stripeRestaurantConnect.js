@@ -3,7 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = void 0;
+exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.publicAppUrl = void 0;
+exports.connectAppOrigin = connectAppOrigin;
 exports.parsePlatformFeeBps = parsePlatformFeeBps;
 exports.resolveDestinationAndFee = resolveDestinationAndFee;
 const params_1 = require("firebase-functions/params");
@@ -22,6 +23,7 @@ const publicAppUrl = (0, params_1.defineString)('PUBLIC_APP_URL', {
     default: 'http://localhost:5173',
     description: 'Origem do app (ex. https://site.com). Sem path; retorno Stripe = /{id}/settings',
 });
+exports.publicAppUrl = publicAppUrl;
 function connectAppOrigin(raw) {
     const trimmed = raw.trim().replace(/\/$/, '');
     if (!trimmed)

@@ -22,20 +22,21 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importMenuFromClaudeText = void 0;
 /**
- * Usa Claude (Anthropic) para interpretar texto de cardápio e gravar
+ * Usa GPT-4o-mini (OpenAI) para interpretar texto de cardápio e gravar
  * categorias + produtos no Firestore do restaurante.
  */
 const admin = __importStar(require("firebase-admin"));
 const firestore_1 = require("firebase-admin/firestore");
-const params_1 = require("firebase-functions/params");
+const openai_1 = __importDefault(require("openai"));
 const https_1 = require("firebase-functions/v2/https");
-const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
-/** Mesma família já usada em moderateLead; ajuste se a conta suportar outro ID. */
-const MODEL = 'claude-3-haiku-20240307';
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const openaiSecret_1 = require("./openaiSecret");
+const MODEL = 'gpt-4o-mini';
 const RESTAURANT_ID_REGEX = /^[A-Za-z0-9_-]{6,128}$/;
 const MAX_MENU_TEXT_CHARS = 70000;
 function ensureAdmin() {
@@ -84,7 +85,8 @@ Regras:
 - Pratos com proteína principal costumam ir em "Pratos principais" ou nome similar.
 - Batata frita, arroz, feijão, saladas simples como lado: "Acompanhamentos" quando fizer sentido.
 - Cada item deve ter: "name" (string), "description" (string, pode ser vazia), "price" (número em reais, use ponto decimal, ex: 12.9 ou 24.5).
-- Se não houver preço confiável para um item, NÃO invente: omita o item ou use categoria "Outros" só se indispensável.
+- Se não houver preço confiável para um item, NÃO invente: omita o item.
+- Se o texto listar tamanhos com preço (Pizza M/G/GG/XG) e sabores sem preço individual, crie um produto por sabor e tamanho ("Calabresa (G)") com o preço daquele tamanho.
 - Remova duplicatas óbvias (mesmo nome e preço).
 - Não inclua cabeçalhos de restaurante, endereço, telefone, formas de pagamento como item.
 - Responda APENAS com JSON válido, sem markdown, sem texto antes ou depois.
@@ -101,7 +103,7 @@ function buildUserPrompt(menuText, existingCategoryNames) {
     return `Categorias já cadastradas neste restaurante (reutilize o nome EXATAMENTE igual quando o item se encaixar; pode criar novas categorias se precisar):\n${existing}\n\n---\nTEXTO DO CARDÁPIO:\n\n${truncated}\n\n---\nRetorne apenas o JSON no formato especificado.`;
 }
 exports.importMenuFromClaudeText = (0, https_1.onCall)({
-    secrets: [anthropicApiKey],
+    secrets: [openaiSecret_1.openaiApiKey],
     region: 'us-central1',
     cors: true,
     memory: '1GiB',
@@ -117,9 +119,9 @@ exports.importMenuFromClaudeText = (0, https_1.onCall)({
     if (typeof menuText !== 'string' || !menuText.trim()) {
         throw new https_1.HttpsError('invalid-argument', 'menuText é obrigatório.');
     }
-    const apiKey = anthropicApiKey.value();
+    const apiKey = openaiSecret_1.openaiApiKey.value();
     if (!apiKey) {
-        throw new https_1.HttpsError('failed-precondition', 'Chave Anthropic não configurada.');
+        throw new https_1.HttpsError('failed-precondition', 'Chave OpenAI não configurada no servidor (OPENAI_API_KEY).');
     }
     const db = admin.firestore();
     const catSnap = await db
@@ -137,30 +139,27 @@ exports.importMenuFromClaudeText = (0, https_1.onCall)({
         existingNames.push(name);
     });
     const userMessage = buildUserPrompt(menuText, existingNames.sort((a, b) => a.localeCompare(b)));
-    const res = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
+    const client = new openai_1.default({ apiKey });
+    let raw;
+    try {
+        const completion = await client.chat.completions.create({
             model: MODEL,
-            // Haiku 3: máximo de saída é 4096 (8192 gera HTTP 400 da API).
+            temperature: 0.2,
             max_tokens: 4096,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: userMessage }],
-        }),
-    });
-    if (!res.ok) {
-        const errBody = await res.text();
-        console.error('[importMenuFromClaudeText] Anthropic HTTP', res.status, errBody.slice(0, 800));
-        throw new https_1.HttpsError('internal', `Erro ao consultar Claude (HTTP ${res.status}). Verifique chave Anthropic, billing e logs da função.`, { anthropicStatus: res.status });
+            response_format: { type: 'json_object' },
+            messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: userMessage },
+            ],
+        });
+        raw = (_d = (_c = completion.choices[0]) === null || _c === void 0 ? void 0 : _c.message) === null || _d === void 0 ? void 0 : _d.content;
     }
-    const data = (await res.json());
-    const raw = (_d = (_c = data.content) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.text;
+    catch (e) {
+        console.error('[importMenuFromClaudeText] OpenAI:', e);
+        throw new https_1.HttpsError('internal', 'Erro ao consultar a OpenAI. Verifique OPENAI_API_KEY, billing e logs da função.');
+    }
     if (!raw || typeof raw !== 'string') {
-        throw new https_1.HttpsError('internal', 'Resposta vazia do Claude.');
+        throw new https_1.HttpsError('internal', 'Resposta vazia da IA.');
     }
     let parsed;
     try {
@@ -168,7 +167,7 @@ exports.importMenuFromClaudeText = (0, https_1.onCall)({
     }
     catch (e) {
         console.warn('[importMenuFromClaudeText] JSON inválido:', e, raw.slice(0, 500));
-        throw new https_1.HttpsError('internal', 'Claude não retornou JSON válido. Tente um trecho menor ou mais claro.');
+        throw new https_1.HttpsError('internal', 'A IA não retornou JSON válido. Tente um trecho menor ou mais claro.');
     }
     if (!Array.isArray(parsed.categories)) {
         throw new https_1.HttpsError('internal', 'JSON sem array "categories".');

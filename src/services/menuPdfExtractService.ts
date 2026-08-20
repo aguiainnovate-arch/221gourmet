@@ -6,6 +6,7 @@ export interface ExtractMenuPdfTextResult {
   pageCount: number;
   charCount: number;
   truncated: boolean;
+  usedVision?: boolean;
 }
 
 const extractFn = httpsCallable<{ storagePath: string }, ExtractMenuPdfTextResult>(

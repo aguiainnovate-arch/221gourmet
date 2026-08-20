@@ -304,6 +304,7 @@ export default function Settings() {
     pageCount: number;
     charCount: number;
     truncated: boolean;
+    usedVision?: boolean;
   } | null>(null);
   const [pdfClaudeLoading, setPdfClaudeLoading] = useState(false);
   const [pdfClaudeResult, setPdfClaudeResult] = useState<ImportMenuFromClaudeResponse | null>(null);
@@ -1504,8 +1505,14 @@ export default function Settings() {
       setPdfExtractMeta({
         pageCount: extracted.pageCount,
         charCount: extracted.charCount,
-        truncated: extracted.truncated
+        truncated: extracted.truncated,
+        usedVision: extracted.usedVision === true,
       });
+      if (!extracted.text.trim()) {
+        setPdfExtractError(
+          'Este PDF não tem texto selecionável. Envie um arquivo com texto ou fotos nítidas do cardápio.'
+        );
+      }
     } catch (e: unknown) {
       const msg =
         e && typeof e === 'object' && 'message' in e
@@ -4900,7 +4907,7 @@ export default function Settings() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Extrair texto do cardápio (PDF)</h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  O arquivo é enviado ao Storage e processado no servidor. PDFs escaneados (só imagem) precisam de OCR em outra etapa.
+                  Envie o PDF. Se for um cardápio em imagem (sem texto selecionável), a IA lê as páginas e monta os itens.
                 </p>
               </div>
               <button
@@ -4926,7 +4933,7 @@ export default function Settings() {
               {pdfExtractLoading && (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Enviando e extraindo texto…
+                  Enviando PDF e lendo o cardápio (texto ou IA)…
                 </div>
               )}
               {pdfExtractError && (
@@ -4937,9 +4944,15 @@ export default function Settings() {
               {pdfExtractMeta && (
                 <p className="text-xs text-gray-600">
                   Páginas: {pdfExtractMeta.pageCount} · Caracteres: {pdfExtractMeta.charCount}
+                  {pdfExtractMeta.usedVision ? ' · Lido por IA (PDF era imagem)' : ''}
                   {pdfExtractMeta.truncated ? ' · Texto truncado na resposta (limite de segurança).' : ''}
                 </p>
               )}
+              {pdfExtractMeta?.usedVision && pdfExtractedText ? (
+                <p className="text-sm text-violet-800 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+                  Este PDF não tinha texto selecionável. A IA leu as páginas. Revise os itens abaixo e clique em importar para cadastrar no cardápio.
+                </p>
+              ) : null}
               {pdfExtractedText ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Texto extraído</label>
@@ -4970,10 +4983,10 @@ export default function Settings() {
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      {pdfClaudeLoading ? 'Importando com IA…' : 'Importar cardápio com IA (Claude)'}
+                      {pdfClaudeLoading ? 'Importando com IA…' : 'Importar cardápio com IA'}
                     </button>
                     <p className="text-xs text-gray-500 max-w-md">
-                      O Claude lê o texto, sugere categorias (Bebidas, Pratos, etc.), cria categorias que faltam e cadastra os produtos neste restaurante.
+                      A IA lê o texto, sugere categorias (Bebidas, Pratos, etc.), cria categorias que faltam e cadastra os produtos neste restaurante.
                     </p>
                   </div>
                   {pdfClaudeResult && (
