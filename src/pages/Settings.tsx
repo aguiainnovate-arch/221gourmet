@@ -4,13 +4,14 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
+import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight, Printer, Bell } from 'lucide-react';
 import {
   getTables,
   updateTable,
   deleteTable,
   generateTableUrl,
   canOpenTable,
+  subscribeToTables,
   type Table
 } from '../services/tableService';
 import {
@@ -25,6 +26,11 @@ import {
   getTableAuditEvents,
   type TableAuditEvent
 } from '../services/tableAuditService';
+import {
+  subscribePendingWaiterCalls,
+  acknowledgeWaiterCall,
+  type WaiterCall
+} from '../services/waiterCallService';
 import { getMaxTablesForRestaurant } from '../services/planService';
 import { addProduct, updateProduct, deleteProduct } from '../services/productService';
 import { addCategory, updateCategory, deleteCategory as deleteCategoryService } from '../services/categoryService';
@@ -194,6 +200,8 @@ export default function Settings() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [deliveryToast, setDeliveryToast] = useState<{ message: string; orderId: string } | null>(null);
   const [deliveryPendingCount, setDeliveryPendingCount] = useState(0);
+  const [pendingWaiterCalls, setPendingWaiterCalls] = useState<WaiterCall[]>([]);
+  const [waiterCallToast, setWaiterCallToast] = useState<string | null>(null);
 
   const [stripeConnectBanner, setStripeConnectBanner] = useState<string | null>(null);
   const [restaurantAccountEmail, setRestaurantAccountEmail] = useState('');
@@ -218,6 +226,8 @@ export default function Settings() {
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<string>('all');
   const [deliverySearch, setDeliverySearch] = useState('');
   const deliveryOrderIdsRef = useRef<Set<string>>(new Set());
+  const waiterCallIdsRef = useRef<Set<string>>(new Set());
+  const waiterCallsReadyRef = useRef(false);
 
   // Nome da loja (exibido no header após login)
   const [restaurantDisplayName, setRestaurantDisplayName] = useState<string>('');
@@ -372,8 +382,22 @@ export default function Settings() {
 
   // Carregar mesas e áreas do Firestore
   useEffect(() => {
-    loadTables();
+    if (!restaurantId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     loadAreas();
+    getMaxTablesForRestaurant(restaurantId)
+      .then(setMaxTables)
+      .catch((error) => {
+        console.error('Erro ao carregar limite de mesas:', error);
+      });
+    const unsubscribe = subscribeToTables(restaurantId, (tables) => {
+      setMesas(tables);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [restaurantId]);
 
   // Carregar produtos do Firestore
@@ -844,7 +868,6 @@ export default function Settings() {
       await openSession(restaurantId, mesa.id, mesa.numero, 'gerente', responsavel ?? null);
       await updateTable(mesa.id, { status: 'ocupada', responsavel: responsavel ?? null, observacao: observacao ?? null });
       await logTableEvent(restaurantId, mesa.id, 'mesa_aberta', 'gerente', { mesaNumero: mesa.numero, detalhe: responsavel ?? undefined });
-      await loadTables();
     } catch (e) {
       console.error(e);
       alert('Erro ao abrir mesa.');
@@ -856,10 +879,18 @@ export default function Settings() {
     try {
       await updateTable(mesa.id, { responsavel });
       await logTableEvent(restaurantId, mesa.id, 'responsavel_alterado', 'gerente', { mesaNumero: mesa.numero, detalhe: responsavel });
-      await loadTables();
     } catch (e) {
       console.error(e);
       alert('Erro ao atribuir responsável.');
+    }
+  };
+
+  const handleAcknowledgeWaiterCall = async (call: WaiterCall) => {
+    try {
+      await acknowledgeWaiterCall(call.id);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao atender o chamado da mesa.');
     }
   };
 
@@ -1835,6 +1866,36 @@ export default function Settings() {
     return () => clearTimeout(t);
   }, [deliveryToast]);
 
+  useEffect(() => {
+    if (!restaurantId) return;
+    waiterCallsReadyRef.current = false;
+    waiterCallIdsRef.current = new Set();
+    const unsubscribe = subscribePendingWaiterCalls(restaurantId, (calls) => {
+      setPendingWaiterCalls(calls);
+      const currentIds = new Set(calls.map((c) => c.id));
+      if (waiterCallsReadyRef.current) {
+        const newCalls = calls.filter((c) => !waiterCallIdsRef.current.has(c.id));
+        if (newCalls.length > 0) {
+          const first = newCalls[0];
+          setWaiterCallToast(`Mesa ${first.mesaNumero} está chamando o garçom`);
+          if (getNotificationSoundEnabled(restaurantId)) {
+            playNotificationSound();
+          }
+        }
+      } else {
+        waiterCallsReadyRef.current = true;
+      }
+      waiterCallIdsRef.current = currentIds;
+    });
+    return () => unsubscribe();
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (!waiterCallToast) return;
+    const t = setTimeout(() => setWaiterCallToast(null), 8000);
+    return () => clearTimeout(t);
+  }, [waiterCallToast]);
+
   // Polling fallback (a cada 30s) quando estiver na aba Pedidos Delivery
   useEffect(() => {
     if (activeTab !== 'cozinha' || kitchenSubTab !== 'delivery' || !restaurantId) return;
@@ -2235,6 +2296,24 @@ export default function Settings() {
         </div>
       )}
 
+      {/* Toast: mesa chamando garçom */}
+      {waiterCallToast && (
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('mesas');
+            setMesasSubTab('salao');
+            setWaiterCallToast(null);
+          }}
+          className="fixed top-4 right-4 z-[100] max-w-sm animate-in fade-in slide-in-from-top-2 rounded-lg bg-red-600 text-white px-4 py-3 shadow-lg flex items-center gap-3 text-left"
+          role="alert"
+        >
+          <Bell className="w-5 h-5 shrink-0 animate-bounce" />
+          <span className="font-medium">{waiterCallToast}</span>
+          <X className="w-4 h-4 shrink-0 opacity-80" />
+        </button>
+      )}
+
       {/* Header — safe-area para não ficar sob a barra de status (Capacitor/mobile) */}
       <div
         className="bg-white border-b border-gray-200 p-3 sm:px-6 sm:py-4 shrink-0 z-30"
@@ -2343,7 +2422,7 @@ export default function Settings() {
               sidebarCollapsed ? 'md:px-2' : ''
             }`}
           >
-            {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas')}
+            {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas', pendingWaiterCalls.length || undefined)}
             {navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
             {navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
             {navButton('relatorios', <BarChart3 className="w-5 h-5 shrink-0" />, 'Relatórios')}
@@ -2368,6 +2447,24 @@ export default function Settings() {
         {/* Conteúdo Principal */}
         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
           <div className="max-w-[1600px] mx-auto w-full">
+          {pendingWaiterCalls.length > 0 && activeTab !== 'mesas' && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('mesas');
+                setMesasSubTab('salao');
+              }}
+              className="mb-4 w-full rounded-xl border-2 border-red-400 bg-red-50 px-4 py-3 flex items-center gap-3 text-left hover:bg-red-100"
+            >
+              <Bell className="w-5 h-5 text-red-600 shrink-0 animate-bounce" />
+              <span className="text-sm font-semibold text-red-800">
+                {pendingWaiterCalls.length === 1
+                  ? `Mesa ${pendingWaiterCalls[0].mesaNumero} está chamando o garçom`
+                  : `${pendingWaiterCalls.length} mesas chamando o garçom`}
+                {' · '}Ver no salão
+              </span>
+            </button>
+          )}
           {activeTab === 'mesas' && (
             <PanelPage>
               <PanelPageHeader
@@ -2408,7 +2505,6 @@ export default function Settings() {
                   visualizarQRCode={visualizarQRCode}
                   baixarQRCode={baixarQRCode}
                   onMesaCreated={(mesa) => {
-                    setMesas((prev) => [...prev, mesa]);
                     setMesaToast({
                       type: 'success',
                       message: `Mesa ${mesa.numero} adicionada com sucesso!`,
@@ -2420,6 +2516,8 @@ export default function Settings() {
                       message: 'Erro ao adicionar mesa. Tente novamente.',
                     });
                   }}
+                  waiterCalls={pendingWaiterCalls}
+                  onAcknowledgeWaiterCall={(call) => void handleAcknowledgeWaiterCall(call)}
                 />
               )}
 

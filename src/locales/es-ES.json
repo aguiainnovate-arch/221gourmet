@@ -28,7 +28,13 @@
     "observations": "Obs: {{text}}",
     "selectAtLeastOne": "¡Selecciona al menos un artículo para ver el pedido!",
     "tableInfoNotFound": "¡Información de la mesa no encontrada!",
-    "orderSent": "¡Pedido enviado desde la Mesa {{number}}! Verifica en la página de la cocina."
+    "orderSent": "¡Pedido enviado desde la Mesa {{number}}! Verifica en la página de la cocina.",
+    "callWaiter": "Llamar al camarero",
+    "callWaiterHint": "¿Necesitas ayuda? El equipo será avisado al instante.",
+    "waiterCalled": "Camarero en camino",
+    "waiterCalledHint": "Tu mesa ya llamó. Espera un momento.",
+    "waiterCallError": "No se pudo llamar al camarero. Inténtalo de nuevo.",
+    "tableBlocked": "Esta mesa no está disponible en este momento."
   },
   "language": {
     "portuguese": "Português",

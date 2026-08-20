@@ -53,8 +53,9 @@ export default defineConfig({
   plugins: [react(), devClientLogPlugin()],
   base: isCapacitorBuild ? './' : '/',
   server: {
-    host: true, // escuta em 0.0.0.0 — acessível na rede (ex.: celular/outro PC na mesma Wi‑Fi)
+    host: '127.0.0.1',
     port: 5173,
+    strictPort: true,
     /**
      * OpenAI não envia CORS para o browser em chamadas diretas com API key.
      * O front chama /__proxy-openai/v1/... (mesma origem) e o Vite repassa para api.openai.com.

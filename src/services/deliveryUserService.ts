@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, getDoc, updateDoc, doc, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryUser, CreateDeliveryUserData } from '../types/deliveryUser';
 import { normalizePhone } from '../utils/authInputUtils';
@@ -165,6 +165,11 @@ export const getDeliveryUserById = async (userId: string): Promise<DeliveryUser 
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
   }
+};
+
+/** Remove o perfil de delivery do Firestore. */
+export const deleteDeliveryUserAccount = async (userId: string): Promise<void> => {
+  await deleteDoc(doc(db, 'deliveryUsers', userId));
 };
 
 /** Atualiza perfil do usuário logado (por ID). */

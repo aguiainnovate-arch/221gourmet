@@ -2,7 +2,12 @@ import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react';
-import { getTables } from '../services/tableService';
+import { getTables, canOpenTable, ensureTableOpenByCustomer } from '../services/tableService';
+import {
+  createWaiterCall,
+  subscribeTableWaiterCall,
+  type WaiterCall,
+} from '../services/waiterCallService';
 import { getOrdersByRestaurant } from '../services/orderService';
 import type { FirestoreOrder } from '../services/orderService';
 import { useRestaurantData } from '../hooks/useRestaurantData';
@@ -13,6 +18,7 @@ import {
   type RestaurantSettings,
 } from '../services/settingsService';
 import MenuHeader from '../components/menu/MenuHeader';
+import CallWaiterButton from '../components/menu/CallWaiterButton';
 import MenuOrdersSection from '../components/menu/MenuOrdersSection';
 import MenuCategoryFilters from '../components/menu/MenuCategoryFilters';
 import MenuCategorySectionHeader from '../components/menu/MenuCategorySectionHeader';
@@ -62,6 +68,8 @@ export default function Menu() {
   const [loading, setLoading] = useState(true);
   const [showLoadingAnimation, setShowLoadingAnimation] = useState(true);
   const [meusPedidos, setMeusPedidos] = useState<FirestoreOrder[]>([]);
+  const [pendingWaiterCall, setPendingWaiterCall] = useState<WaiterCall | null>(null);
+  const [callingWaiter, setCallingWaiter] = useState(false);
 
   // Configurações do restaurante da URL do QR (independente do SettingsProvider global)
   useEffect(() => {
@@ -95,8 +103,20 @@ export default function Menu() {
       try {
         setLoading(true);
         const tables = await getTables(restaurantId);
-        const mesa = tables.find((table) => table.numero === mesaId);
-        setMesaInfo(mesa || null);
+        const mesa = tables.find((table) => table.numero === mesaId) ?? null;
+        if (!mesa) {
+          setMesaInfo(null);
+          return;
+        }
+        try {
+          if (canOpenTable(mesa.status)) {
+            setMesaInfo(await ensureTableOpenByCustomer(restaurantId, mesa));
+          } else {
+            setMesaInfo(mesa);
+          }
+        } catch {
+          setMesaInfo(mesa);
+        }
       } catch (error) {
         // Erro silencioso
       } finally {
@@ -129,6 +149,11 @@ export default function Menu() {
     const interval = setInterval(carregarMeusPedidos, 5 * 60 * 1000); // a cada 5 min
     return () => clearInterval(interval);
   }, [carregarMeusPedidos, restaurantId, mesaInfo?.id]);
+
+  useEffect(() => {
+    if (!restaurantId || !mesaInfo?.id) return;
+    return subscribeTableWaiterCall(restaurantId, mesaInfo.id, setPendingWaiterCall);
+  }, [restaurantId, mesaInfo?.id]);
 
   // Aplicar cores personalizadas do restaurante no cardápio
   const menuThemeStyle = useMemo(() => {
@@ -371,14 +396,45 @@ export default function Menu() {
     setShowConfirmation(false);
   };
 
+  const handleCallWaiter = async () => {
+    if (!mesaInfo?.id || callingWaiter || pendingWaiterCall) return;
+    setCallingWaiter(true);
+    try {
+      if (canOpenTable(mesaInfo.status)) {
+        const opened = await ensureTableOpenByCustomer(restaurantId, mesaInfo);
+        setMesaInfo(opened);
+      }
+      await createWaiterCall(restaurantId, mesaInfo.id, mesaInfo.numero);
+    } catch {
+      alert(t('menu.waiterCallError'));
+    } finally {
+      setCallingWaiter(false);
+    }
+  };
+
   const handleConfirmarPedido = async () => {
     if (!mesaInfo || !mesaInfo.id) {
       alert(t('menu.tableInfoNotFound'));
       return;
     }
-    const statusAceito = mesaInfo.status === 'ocupada' || mesaInfo.status === 'em_fechamento';
-    if (!statusAceito) {
-      alert('Esta mesa não está aberta para pedidos. Peça ao garçom para abrir a mesa no painel.');
+    if (mesaInfo.status === 'bloqueada') {
+      alert(t('menu.tableBlocked'));
+      return;
+    }
+
+    let mesaParaPedido = mesaInfo;
+    if (canOpenTable(mesaInfo.status)) {
+      try {
+        mesaParaPedido = await ensureTableOpenByCustomer(restaurantId, mesaInfo);
+        setMesaInfo(mesaParaPedido);
+      } catch {
+        alert(t('menu.tableInfoNotFound'));
+        return;
+      }
+    }
+
+    if (mesaParaPedido.status !== 'ocupada' && mesaParaPedido.status !== 'em_fechamento') {
+      alert(t('menu.tableBlocked'));
       return;
     }
 
@@ -400,8 +456,8 @@ export default function Menu() {
     
     await addOrder({
       restaurantId: restaurantId,
-      mesaId: mesaInfo.id,
-      mesaNumero: mesaInfo.numero,
+      mesaId: mesaParaPedido.id,
+      mesaNumero: mesaParaPedido.numero,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       status: 'novo',
       itens: itensSelecionados,
@@ -413,7 +469,7 @@ export default function Menu() {
     setExpandedItems([]);
     setShowConfirmation(false);
     carregarMeusPedidos(); // atualiza "Seus pedidos" na hora
-    alert(t('menu.orderSent', { number: mesaInfo.numero }));
+    alert(t('menu.orderSent', { number: mesaParaPedido.numero }));
   };
 
   // Agrupar produtos por categoria quando "Todos" estiver selecionado
@@ -573,7 +629,7 @@ export default function Menu() {
   );
 }
 
-  const mesaAbertaParaPedidos = mesaInfo.status === 'ocupada' || mesaInfo.status === 'em_fechamento';
+  const mesaBloqueada = mesaInfo.status === 'bloqueada';
 
   // Tela Normal do Menu
   return (
@@ -583,10 +639,21 @@ export default function Menu() {
         tableLabel={t('menu.table', { number: mesaInfo.numero })}
       />
 
-      {!mesaAbertaParaPedidos && (
+      <CallWaiterButton
+        calling={callingWaiter}
+        pending={!!pendingWaiterCall}
+        disabled={mesaBloqueada}
+        callLabel={t('menu.callWaiter')}
+        calledLabel={t('menu.waiterCalled')}
+        hintLabel={t('menu.callWaiterHint')}
+        calledHintLabel={t('menu.waiterCalledHint')}
+        onCall={() => void handleCallWaiter()}
+      />
+
+      {mesaBloqueada && (
         <div className="px-4 -mt-1 mb-4 max-w-lg mx-auto">
-          <div className="rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-center text-sm">
-            Esta mesa não está aberta para pedidos no momento. Avise o garçom para abrir a mesa no painel.
+          <div className="rounded-2xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-center text-sm">
+            {t('menu.tableBlocked')}
           </div>
         </div>
       )}

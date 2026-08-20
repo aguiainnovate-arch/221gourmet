@@ -22,6 +22,10 @@ export function getSavedAddresses(userId: string, primaryAddress?: string): stri
   }
 }
 
+export function clearSavedAddresses(userId: string): void {
+  localStorage.removeItem(storageKey(userId));
+}
+
 export function saveAddresses(userId: string, addresses: string[]): void {
   const unique = addresses
     .map((a) => a.trim())

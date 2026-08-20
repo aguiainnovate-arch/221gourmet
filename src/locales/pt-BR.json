@@ -29,7 +29,13 @@
     "observations": "Obs: {{text}}",
     "selectAtLeastOne": "Selecione pelo menos um item para ver o pedido!",
     "tableInfoNotFound": "Informações da mesa não encontradas!",
-    "orderSent": "Pedido enviado da Mesa {{number}}! Verifique na página da cozinha."
+    "orderSent": "Pedido enviado da Mesa {{number}}! Verifique na página da cozinha.",
+    "callWaiter": "Chamar garçom",
+    "callWaiterHint": "Precisa de ajuda? A equipe será avisada na hora.",
+    "waiterCalled": "Garçom a caminho",
+    "waiterCalledHint": "Sua mesa já chamou. Aguarde um momento.",
+    "waiterCallError": "Não foi possível chamar o garçom. Tente novamente.",
+    "tableBlocked": "Esta mesa está indisponível no momento."
   },
   "delivery": {
     "backToRestaurantList": "Voltar para lista de restaurantes",
@@ -212,7 +218,10 @@
     "profilePrimaryAddress": "Principal",
     "profileAddAddress": "Adicionar endereço",
     "profileSave": "Salvar alterações",
-    "profileSaved": "Salvo!"
+    "profileSaved": "Salvo!",
+    "profileDeleteAccount": "Excluir conta",
+    "profileDeleteAccountConfirm": "Isso apaga sua conta do sistema. Esta ação não pode ser desfeita. Continuar?",
+    "profileDeleteAccountError": "Não foi possível excluir a conta. Tente novamente."
   },
   "language": {
     "portuguese": "Português",

@@ -14,9 +14,12 @@ import {
   Check,
 } from 'lucide-react';
 import type { DeliveryUser } from '../../types/deliveryUser';
-import { updateDeliveryUserProfile } from '../../services/deliveryUserService';
+import { deleteDeliveryUserAccount, updateDeliveryUserProfile } from '../../services/deliveryUserService';
+import { deleteUser } from 'firebase/auth';
+import { auth } from '../../../firebase';
 import {
   addAddress,
+  clearSavedAddresses,
   getSavedAddresses,
   removeAddress,
   saveAddresses,
@@ -36,6 +39,7 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout, open
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
   const [phone, setPhone] = useState(user.phone);
@@ -83,6 +87,30 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout, open
       console.error('[DeliveryProfileMenu] save', err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm(t('delivery.profileDeleteAccountConfirm'))) return;
+    setDeleting(true);
+    try {
+      await deleteDeliveryUserAccount(user.id);
+      clearSavedAddresses(user.id);
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        try {
+          await deleteUser(fbUser);
+        } catch {
+          // sessão antiga: o perfil no Firestore já foi apagado
+        }
+      }
+      setOpen(false);
+      onLogout();
+    } catch (err) {
+      console.error('[DeliveryProfileMenu] delete account', err);
+      window.alert(t('delivery.profileDeleteAccountError'));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -259,6 +287,16 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout, open
                 <Check className="w-4 h-4" />
               ) : null}
               {saved ? t('delivery.profileSaved') : t('delivery.profileSave')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={saving || deleting}
+              className="w-full pt-1 text-center text-[11px] font-medium tracking-wide opacity-35 hover:opacity-80 transition-opacity disabled:opacity-20"
+              style={{ color: '#E91120' }}
+            >
+              {deleting ? `${t('delivery.profileDeleteAccount')}…` : t('delivery.profileDeleteAccount')}
             </button>
           </div>
 

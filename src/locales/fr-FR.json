@@ -29,7 +29,13 @@
     "observations": "Obs : {{text}}",
     "selectAtLeastOne": "Sélectionnez au moins un article pour voir la commande !",
     "tableInfoNotFound": "Informations de la table non trouvées !",
-    "orderSent": "Commande envoyée de la Table {{number}} ! Vérifiez la page de la cuisine."
+    "orderSent": "Commande envoyée de la Table {{number}} ! Vérifiez la page de la cuisine.",
+    "callWaiter": "Appeler le serveur",
+    "callWaiterHint": "Besoin d'aide ? L'équipe sera prévenue tout de suite.",
+    "waiterCalled": "Serveur en chemin",
+    "waiterCalledHint": "Votre table a déjà appelé. Veuillez patienter.",
+    "waiterCallError": "Impossible d'appeler le serveur. Réessayez.",
+    "tableBlocked": "Cette table est indisponible pour le moment."
   },
   "delivery": {
     "backToRestaurantList": "Retour à la liste des restaurants",
@@ -212,7 +218,10 @@
     "profilePrimaryAddress": "Principale",
     "profileAddAddress": "Ajouter une adresse",
     "profileSave": "Enregistrer",
-    "profileSaved": "Enregistré !"
+    "profileSaved": "Enregistré !",
+    "profileDeleteAccount": "Supprimer le compte",
+    "profileDeleteAccountConfirm": "Cela supprime définitivement votre compte. Continuer ?",
+    "profileDeleteAccountError": "Impossible de supprimer le compte. Réessayez."
   },
   "language": {
     "portuguese": "Português",

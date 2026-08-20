@@ -8,9 +8,12 @@ import {
   query,
   orderBy,
   where,
-  Timestamp
+  Timestamp,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { getActiveSessionByTable, openSession } from './tableSessionService';
+import { logTableEvent } from './tableAuditService';
 
 export type TableStatus = 'livre' | 'ocupada' | 'em_fechamento' | 'fechada' | 'bloqueada';
 
@@ -91,6 +94,55 @@ export const addTable = async (
     console.error('Erro ao adicionar mesa:', error);
     throw new Error('Falha ao adicionar mesa');
   }
+};
+
+export const subscribeToTables = (
+  restaurantId: string,
+  onChange: (tables: Table[]) => void
+): (() => void) => {
+  const q = query(collection(db, 'tables'), where('restaurantId', '==', restaurantId));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const tables: Table[] = [];
+      snapshot.forEach((d) => {
+        tables.push(toTable(d.id, d.data(), restaurantId));
+      });
+      tables.sort((a, b) => a.ordem - b.ordem || a.numero.localeCompare(b.numero));
+      onChange(tables);
+    },
+    (error) => {
+      console.error('Erro ao observar mesas:', error);
+    }
+  );
+};
+
+/**
+ * Abre a mesa automaticamente quando o cliente escaneia o QR.
+ * Não exige ação prévia no painel. Mesas bloqueadas permanecem fechadas.
+ */
+export const ensureTableOpenByCustomer = async (
+  restaurantId: string,
+  mesa: Table
+): Promise<Table> => {
+  if (mesa.status === 'ocupada' || mesa.status === 'em_fechamento') {
+    return mesa;
+  }
+  if (!canOpenTable(mesa.status)) {
+    return mesa;
+  }
+
+  const existing = await getActiveSessionByTable(mesa.id);
+  if (!existing) {
+    await openSession(restaurantId, mesa.id, mesa.numero, 'cliente', 'Cliente');
+    await logTableEvent(restaurantId, mesa.id, 'mesa_aberta', 'cliente', {
+      mesaNumero: mesa.numero,
+      detalhe: 'Aberta pelo QR do cliente'
+    });
+  }
+
+  await updateTable(mesa.id, { status: 'ocupada' });
+  return { ...mesa, status: 'ocupada' };
 };
 
 export const getTables = async (restaurantId: string): Promise<Table[]> => {

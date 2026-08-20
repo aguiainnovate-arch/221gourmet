@@ -29,7 +29,13 @@
     "observations": "Notes: {{text}}",
     "selectAtLeastOne": "Select at least one item to view the order!",
     "tableInfoNotFound": "Table information not found!",
-    "orderSent": "Order sent from Table {{number}}! Check the kitchen page."
+    "orderSent": "Order sent from Table {{number}}! Check the kitchen page.",
+    "callWaiter": "Call waiter",
+    "callWaiterHint": "Need help? The team will be notified right away.",
+    "waiterCalled": "Waiter on the way",
+    "waiterCalledHint": "Your table already called. Please wait a moment.",
+    "waiterCallError": "Could not call the waiter. Please try again.",
+    "tableBlocked": "This table is unavailable right now."
   },
   "delivery": {
     "backToRestaurantList": "Back to restaurant list",
@@ -213,7 +219,10 @@
     "profilePrimaryAddress": "Primary",
     "profileAddAddress": "Add address",
     "profileSave": "Save changes",
-    "profileSaved": "Saved!"
+    "profileSaved": "Saved!",
+    "profileDeleteAccount": "Delete account",
+    "profileDeleteAccountConfirm": "This permanently deletes your account from the system. Continue?",
+    "profileDeleteAccountError": "Could not delete the account. Please try again."
   },
   "language": {
     "portuguese": "Português",

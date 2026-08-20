@@ -17,12 +17,14 @@ import {
   Armchair,
   LayoutGrid,
   List,
+  Bell,
 } from 'lucide-react';
 import type { Table } from '../../services/tableService';
 import { addTable, canOpenTable } from '../../services/tableService';
 import type { Area } from '../../services/areaService';
 import { getSessionsByRestaurant } from '../../services/tableSessionService';
 import { getOrdersByRestaurant } from '../../services/orderService';
+import type { WaiterCall } from '../../services/waiterCallService';
 import ModalOverlay from '../ModalOverlay';
 import FilterDropdown, { type FilterOption } from './FilterDropdown';
 
@@ -101,12 +103,14 @@ interface MesaItemProps {
   ctx: MesaLiveContext | undefined;
   now: number;
   layout: MesaViewMode;
+  waiterCall: WaiterCall | null;
   responsavelToast: { mesaId: string; nome: string } | null;
   onOpenModal: (mesa: Table) => void;
   onVerDetalhe: (mesa: Table) => void;
   onAtribuirResponsavel: (mesa: Table, responsavel: string) => void;
   onResponsavelToast: (toast: { mesaId: string; nome: string }) => void;
   onRemoveTable: (id: string) => void;
+  onAcknowledgeWaiterCall: (call: WaiterCall) => void;
   visualizarQRCode: (numero: string) => void;
   baixarQRCode: (numero: string) => void;
 }
@@ -116,16 +120,19 @@ function MesaItem({
   ctx,
   now,
   layout,
+  waiterCall,
   responsavelToast,
   onOpenModal,
   onVerDetalhe,
   onAtribuirResponsavel,
   onResponsavelToast,
   onRemoveTable,
+  onAcknowledgeWaiterCall,
   visualizarQRCode,
   baixarQRCode,
 }: MesaItemProps) {
   const isActive = mesa.status === 'ocupada' || mesa.status === 'em_fechamento';
+  const isCalling = Boolean(waiterCall);
   const subtitle = [mesa.areaName, `${mesa.capacidade} lugar${mesa.capacidade !== 1 ? 'es' : ''}`]
     .filter(Boolean)
     .join(' · ');
@@ -138,6 +145,16 @@ function MesaItem({
 
   const openCloseBtn = (
     <>
+      {isCalling && waiterCall && (
+        <button
+          type="button"
+          onClick={() => onAcknowledgeWaiterCall(waiterCall)}
+          className={`${primaryBtn} bg-red-600 text-white hover:bg-red-700 px-3 py-2 animate-pulse ${layout === 'grid' ? 'w-full' : ''}`}
+        >
+          <Bell className="w-4 h-4" />
+          Atender chamado
+        </button>
+      )}
       {canOpenTable(mesa.status) && (
         <button
           type="button"
@@ -239,6 +256,12 @@ function MesaItem({
 
   const infoBlock = (
     <div className={layout === 'grid' ? 'space-y-1.5 mb-3 flex-1' : 'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600'}>
+      {isCalling && (
+        <p className="flex items-center gap-1.5 text-red-700 font-semibold">
+          <Bell className="w-3.5 h-3.5 shrink-0 animate-bounce" />
+          Chamando garçom
+        </p>
+      )}
       {isActive && (
         <p className={`flex items-center gap-1.5 ${layout === 'grid' ? 'text-sm text-gray-800' : ''}`}>
           <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -290,7 +313,7 @@ function MesaItem({
     return (
       <div
         className={`flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-l-4 ${
-          STATUS_BORDER[mesa.status] ?? 'border-l-gray-300'
+          isCalling ? 'border-l-red-600 bg-red-50' : STATUS_BORDER[mesa.status] ?? 'border-l-gray-300'
         }`}
       >
         <div className="flex-1 min-w-0">
@@ -299,6 +322,11 @@ function MesaItem({
               <Table2 className="w-4 h-4 text-amber-600 shrink-0" />
               Mesa {mesa.numero}
             </span>
+            {isCalling && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-600 text-white animate-pulse">
+                Chamando
+              </span>
+            )}
             <span
               className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                 STATUS_COLOR[mesa.status] ?? 'bg-gray-100 text-gray-800'
@@ -317,22 +345,30 @@ function MesaItem({
 
   return (
     <div
-      className={`bg-white rounded-lg shadow-sm border border-gray-100 border-l-4 ${
-        STATUS_BORDER[mesa.status] ?? 'border-l-gray-300'
-      } p-4 flex flex-col min-h-[11.5rem]`}
+      className={`bg-white rounded-lg shadow-sm border border-l-4 p-4 flex flex-col min-h-[11.5rem] ${
+        isCalling
+          ? 'border-red-300 border-l-red-600 ring-2 ring-red-400 bg-red-50'
+          : `border-gray-100 ${STATUS_BORDER[mesa.status] ?? 'border-l-gray-300'}`
+      }`}
     >
       <div className="flex justify-between items-start gap-2 mb-2">
         <span className="font-semibold text-gray-900 flex items-center gap-1.5">
           <Table2 className="w-4 h-4 text-amber-600 shrink-0" />
           Mesa {mesa.numero}
         </span>
-        <span
-          className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-            STATUS_COLOR[mesa.status] ?? 'bg-gray-100 text-gray-800'
-          }`}
-        >
-          {STATUS_LABEL[mesa.status] ?? mesa.status}
-        </span>
+        {isCalling ? (
+          <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-600 text-white">
+            Chamando
+          </span>
+        ) : (
+          <span
+            className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+              STATUS_COLOR[mesa.status] ?? 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {STATUS_LABEL[mesa.status] ?? mesa.status}
+          </span>
+        )}
       </div>
       {subtitle && <p className="text-xs text-gray-500 mb-2">{subtitle}</p>}
       {infoBlock}
@@ -357,6 +393,8 @@ interface VisaoSalaoProps {
   baixarQRCode: (numero: string) => void;
   onMesaCreated: (mesa: Table) => void;
   onMesaCreateError: () => void;
+  waiterCalls?: WaiterCall[];
+  onAcknowledgeWaiterCall?: (call: WaiterCall) => void;
 }
 
 export default function VisaoSalao({
@@ -375,6 +413,8 @@ export default function VisaoSalao({
   baixarQRCode,
   onMesaCreated,
   onMesaCreateError,
+  waiterCalls = [],
+  onAcknowledgeWaiterCall,
 }: VisaoSalaoProps) {
   const [filterArea, setFilterArea] = useState<string>('todos');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
@@ -526,6 +566,18 @@ export default function VisaoSalao({
     []
   );
 
+  const waiterCallsByMesa = useMemo(() => {
+    const map = new Map<string, WaiterCall>();
+    for (const call of waiterCalls) {
+      if (!map.has(call.mesaId)) map.set(call.mesaId, call);
+    }
+    return map;
+  }, [waiterCalls]);
+
+  const handleAckWaiterCall = (call: WaiterCall) => {
+    onAcknowledgeWaiterCall?.(call);
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -645,6 +697,17 @@ export default function VisaoSalao({
           Adicionar mesa
         </button>
       </div>
+
+      {waiterCalls.length > 0 && (
+        <div className="rounded-xl border-2 border-red-400 bg-red-50 px-4 py-3 flex flex-wrap items-center gap-3">
+          <Bell className="w-5 h-5 text-red-600 shrink-0 animate-bounce" />
+          <p className="text-sm font-semibold text-red-800 flex-1 min-w-0">
+            {waiterCalls.length === 1
+              ? `Mesa ${waiterCalls[0].mesaNumero} está chamando o garçom`
+              : `Mesas ${waiterCalls.map((c) => c.mesaNumero).join(', ')} estão chamando o garçom`}
+          </p>
+        </div>
+      )}
 
       {atLimit && (
         <p className="text-sm text-amber-700 px-1">
@@ -786,12 +849,14 @@ export default function VisaoSalao({
                   ctx={liveContext[mesa.id]}
                   now={now}
                   layout="grid"
+                  waiterCall={waiterCallsByMesa.get(mesa.id) ?? null}
                   responsavelToast={responsavelToast}
                   onOpenModal={setOpenModalMesa}
                   onVerDetalhe={onVerDetalhe}
                   onAtribuirResponsavel={onAtribuirResponsavel}
                   onResponsavelToast={setResponsavelToast}
                   onRemoveTable={onRemoveTable}
+                  onAcknowledgeWaiterCall={handleAckWaiterCall}
                   visualizarQRCode={visualizarQRCode}
                   baixarQRCode={baixarQRCode}
                 />
@@ -806,12 +871,14 @@ export default function VisaoSalao({
                   ctx={liveContext[mesa.id]}
                   now={now}
                   layout="list"
+                  waiterCall={waiterCallsByMesa.get(mesa.id) ?? null}
                   responsavelToast={responsavelToast}
                   onOpenModal={setOpenModalMesa}
                   onVerDetalhe={onVerDetalhe}
                   onAtribuirResponsavel={onAtribuirResponsavel}
                   onResponsavelToast={setResponsavelToast}
                   onRemoveTable={onRemoveTable}
+                  onAcknowledgeWaiterCall={handleAckWaiterCall}
                   visualizarQRCode={visualizarQRCode}
                   baixarQRCode={baixarQRCode}
                 />
