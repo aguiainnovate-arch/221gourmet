@@ -29,6 +29,9 @@ import { ArrowLeft, X, Tag, Check, Eye } from 'lucide-react';
 import type { Product } from '../types/product';
 import type { OrderItem } from '../services/statisticsService';
 import ImageModal from '../components/ImageModal';
+import { getRestaurantById } from '../services/restaurantService';
+import type { MenuShift } from '../types/menuShift';
+import { filterProductsByMenuShift } from '../utils/menuShifts';
 
 interface SelectedItem {
   product: Product;
@@ -113,11 +116,12 @@ export default function Menu() {
   const { t, i18n } = useTranslation();
   const { products, categories, restaurantId } = useRestaurantData();
   const [menuSettings, setMenuSettings] = useState<RestaurantSettings | null>(null);
-  const { products: displayProducts, categories: displayCategories } = useLiveTranslations(
+  const { products: translatedProducts, categories: displayCategories } = useLiveTranslations(
     products,
     categories,
     i18n.language
   );
+  const [menuShifts, setMenuShifts] = useState<MenuShift[]>([]);
   const [mesaInfo, setMesaInfo] = useState<Table | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -160,6 +164,22 @@ export default function Menu() {
       unsubscribe();
     };
   }, [restaurantId]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    let cancelled = false;
+    getRestaurantById(restaurantId).then((restaurant) => {
+      if (!cancelled) setMenuShifts(restaurant?.menuShifts ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantId]);
+
+  const displayProducts = useMemo(
+    () => filterProductsByMenuShift(translatedProducts, menuShifts, 'dine_in', new Date(now)),
+    [translatedProducts, menuShifts, now]
+  );
 
   // Sincroniza o contexto de pedidos com o restaurante da URL (quando abre pelo QR)
   useEffect(() => {

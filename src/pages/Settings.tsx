@@ -103,6 +103,10 @@ import {
 } from '../components/panel';
 import WaitersPanel from '../components/WaitersPanel';
 import NeighborhoodZonesEditor from '../components/delivery/NeighborhoodZonesEditor';
+import MenuShiftsModal from '../components/MenuShiftsModal';
+import type { MenuShift } from '../types/menuShift';
+import { menuShiftChannelLabel } from '../types/menuShift';
+import { formatShiftHours } from '../utils/menuShifts';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
@@ -197,6 +201,9 @@ export default function Settings() {
   const [deliveryLocationLabel, setDeliveryLocationLabel] = useState('');
   const [productDeliverySettings, setProductDeliverySettings] = useState<Record<string, boolean>>({});
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
+  const [menuShifts, setMenuShifts] = useState<MenuShift[]>([]);
+  const [showMenuShiftsModal, setShowMenuShiftsModal] = useState(false);
+  const [savingMenuShifts, setSavingMenuShifts] = useState(false);
 
   // Estados para gerenciamento de pedidos de delivery na cozinha
   const [kitchenSubTab, setKitchenSubTab] = useState<'mesa' | 'delivery'>('mesa');
@@ -250,7 +257,8 @@ export default function Settings() {
     category: '',
     preparationTime: '',
     available: true,
-    image: ''
+    image: '',
+    shiftIds: [] as string[],
   });
 
   /** Loading do upload de foto do produto (evita múltiplos envios e dá feedback visual) */
@@ -457,6 +465,7 @@ export default function Settings() {
           setStripeConnectDisabledReason(restaurant?.stripeConnectDisabledReason ?? null);
           setStripeConnectRequirementsSummary(restaurant?.stripeConnectRequirementsSummary ?? null);
           setOpeningHoursForm(restaurant?.openingHours ?? createDefaultOpeningHours());
+          setMenuShifts(restaurant?.menuShifts ?? []);
           
           console.log('📖 Carregando configurações de delivery...');
           console.log('   Restaurante encontrado:', restaurant?.name);
@@ -857,6 +866,25 @@ export default function Settings() {
     }
   };
 
+  const handleSaveMenuShifts = async (nextShifts: MenuShift[]) => {
+    if (!restaurantId) {
+      alert('Restaurante não identificado.');
+      return;
+    }
+    try {
+      setSavingMenuShifts(true);
+      const { updateRestaurant } = await import('../services/restaurantService');
+      await updateRestaurant(restaurantId, { menuShifts: nextShifts });
+      setMenuShifts(nextShifts);
+      setShowMenuShiftsModal(false);
+    } catch (error) {
+      console.error('Erro ao salvar turnos:', error);
+      alert('Não foi possível salvar os turnos. Tente novamente.');
+    } finally {
+      setSavingMenuShifts(false);
+    }
+  };
+
 
   const removerMesa = async (id: string) => {
     const mesa = mesas.find((m) => m.id === id);
@@ -985,7 +1013,8 @@ export default function Settings() {
         category: product.category,
         preparationTime: product.preparationTime?.toString() || '',
         available: product.available,
-        image: product.image || ''
+        image: product.image || '',
+        shiftIds: product.shiftIds ?? [],
       });
       setProductTranslations(product.translations || {});
     } else {
@@ -998,7 +1027,8 @@ export default function Settings() {
         category: '',
         preparationTime: '',
         available: true,
-        image: ''
+        image: '',
+        shiftIds: [],
       });
       setProductTranslations({});
     }
@@ -1034,6 +1064,7 @@ export default function Settings() {
         category: productForm.category,
         available: productForm.available,
         image: productForm.image || '',
+        shiftIds: productForm.shiftIds,
       };
 
       if (productForm.preparationTime.trim()) {
@@ -2586,10 +2617,18 @@ export default function Settings() {
             <PanelPage>
               <PanelPageHeader
                 title="Gerenciar Cardápio"
-                description="Cadastre produtos, organize categorias e importe itens em lote."
+                description="Cadastre produtos e defina turnos: de manhã um cardápio, à noite outro — no delivery, nas mesas ou nos dois."
                 icon={<Utensils className="w-5 h-5" />}
                 actions={
                   <>
+                    <PanelButton
+                      variant="secondary"
+                      onClick={() => setShowMenuShiftsModal(true)}
+                      icon={<Clock className="w-4 h-4" />}
+                      title="Definir horários em que cada grupo de pratos aparece no delivery e no QR Code das mesas"
+                    >
+                      Definir turnos do cardápio
+                    </PanelButton>
                     <PanelButton
                       variant="secondary"
                       onClick={() => setShowCSVModal(true)}
@@ -2754,6 +2793,16 @@ export default function Settings() {
                                 <div>
                                   <div className="font-medium text-black">{product.name}</div>
                                   <div className="text-sm text-black">{product.description}</div>
+                                  {menuShifts.length > 0 && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      {(product.shiftIds ?? []).length === 0
+                                        ? 'Dia todo · mesas e delivery'
+                                        : menuShifts
+                                            .filter((shift) => (product.shiftIds ?? []).includes(shift.id))
+                                            .map((shift) => `${shift.name} (${formatShiftHours(shift)})`)
+                                            .join(' · ') || 'Turno removido'}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -4560,6 +4609,46 @@ export default function Settings() {
                 </div>
               </div>
 
+              {menuShifts.length > 0 && (
+                <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-4">
+                  <p className="text-sm font-medium text-gray-900 mb-1">Turnos em que este prato aparece</p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Sem marcação, o item fica o dia inteiro nos dois canais. Marque os turnos para ele só
+                    aparecer naquele horário — no delivery, nas mesas (QR) ou nos dois, conforme o turno.
+                  </p>
+                  <div className="space-y-2">
+                    {menuShifts.map((shift) => {
+                      const checked = productForm.shiftIds.includes(shift.id);
+                      return (
+                        <label key={shift.id} className="flex items-start gap-2 text-sm text-gray-800">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setProductForm((prev) => ({
+                                ...prev,
+                                shiftIds: e.target.checked
+                                  ? [...prev.shiftIds, shift.id]
+                                  : prev.shiftIds.filter((id) => id !== shift.id),
+                              }));
+                            }}
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                          />
+                          <span>
+                            <span className="font-medium">{shift.name}</span>
+                            <span className="text-gray-500">
+                              {' '}
+                              · {formatShiftHours(shift)} · {menuShiftChannelLabel(shift.channels)}
+                              {!shift.enabled ? ' · desativado' : ''}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Botão de Tradução Automática */}
               <div className="mb-6">
                 <div className="flex items-center justify-between">
@@ -4936,6 +5025,14 @@ export default function Settings() {
       )}
 
       {/* Modal de Importação CSV */}
+      <MenuShiftsModal
+        open={showMenuShiftsModal}
+        shifts={menuShifts}
+        saving={savingMenuShifts}
+        onClose={() => setShowMenuShiftsModal(false)}
+        onSave={handleSaveMenuShifts}
+      />
+
       {showCSVModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">

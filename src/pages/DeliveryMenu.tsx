@@ -25,6 +25,7 @@ import RestaurantInfoModal from '../components/delivery/RestaurantInfoModal';
 import type { CartLine } from '../components/delivery/CheckoutFlow';
 import { isRestaurantOpenNow } from '../utils/openingHours';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { filterProductsByMenuShift } from '../utils/menuShifts';
 
 export default function DeliveryMenu() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
@@ -45,6 +46,7 @@ export default function DeliveryMenu() {
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   // Modal de detalhes do produto (slide de baixo + arrastar para fechar)
   const [productModalProduct, setProductModalProduct] = useState<Product | null>(null);
@@ -76,10 +78,20 @@ export default function DeliveryMenu() {
   const deliveryFee = previewDeliveryFee(feeSettings);
   const openNowStatus = isRestaurantOpenNow(restaurant?.openingHours);
 
-  const { products: displayProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(
+  const { products: translatedProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(
     products,
     categories,
     i18n.language
+  );
+  const displayProducts = useMemo(
+    () =>
+      filterProductsByMenuShift(
+        translatedProducts,
+        restaurant?.menuShifts,
+        'delivery',
+        new Date(now)
+      ),
+    [translatedProducts, restaurant?.menuShifts, now]
   );
 
   // Seções por categoria: ordem das categorias que têm produtos + produtos agrupados (inclui categorias só dos produtos)
@@ -103,6 +115,11 @@ export default function DeliveryMenu() {
   useEffect(() => {
     loadRestaurantData();
   }, [restaurantId]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     document.title = restaurant?.name ? `${restaurant.name} - Bora Comer!` : 'Bora Comer!';

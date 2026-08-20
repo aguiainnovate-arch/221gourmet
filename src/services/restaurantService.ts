@@ -14,6 +14,7 @@ import { db } from '../../firebase';
 import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
 import type { Restaurant, CreateRestaurantData, UpdateRestaurantData, RestaurantDeliverySettings } from '../types/restaurant';
 import { normalizeDeliverySettings, normalizeOpeningHours } from '../types/restaurant';
+import { normalizeMenuShifts } from '../types/menuShift';
 import {
   createTrialPartnershipSubscription,
   normalizePartnershipSubscription,
@@ -62,6 +63,7 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
     permissions: data.permissions as Restaurant['permissions'],
     deliverySettings: normalizeDeliverySettings(data.deliverySettings),
     openingHours: data.openingHours ? normalizeOpeningHours(data.openingHours) : undefined,
+    menuShifts: normalizeMenuShifts(data.menuShifts),
     partnershipSubscription: normalizePartnershipSubscription(data.partnershipSubscription),
     stripeConnectAccountId:
       typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,

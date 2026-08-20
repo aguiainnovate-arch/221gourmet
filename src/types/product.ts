@@ -17,6 +17,8 @@ export interface Product {
   restaurantId?: string; // Opcional para compatibilidade
   preparationTime?: number; // em minutos
   availableForDelivery?: boolean; // Se o produto está disponível para delivery
+  /** Turnos em que o produto aparece. Vazio = o dia todo. */
+  shiftIds?: string[];
   // Traduções
   translations?: {
     name?: Translation;

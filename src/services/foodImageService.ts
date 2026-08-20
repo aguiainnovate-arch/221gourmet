@@ -18,6 +18,7 @@ import { getRestaurants } from './restaurantService';
 import { getRestaurantPermissions } from './permissionService';
 import { getProducts } from './productService';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { isProductVisibleForMenuShift } from '../utils/menuShifts';
 
 const UNSPLASH_ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
 
@@ -163,6 +164,7 @@ export async function fetchFeaturedProductImages(): Promise<FoodImage[]> {
               (p) =>
                 p.available &&
                 (p.availableForDelivery ?? true) &&
+                isProductVisibleForMenuShift(p, r.menuShifts, 'delivery') &&
                 typeof p.image === 'string' &&
                 p.image.trim().length > 0
             )

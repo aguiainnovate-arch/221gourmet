@@ -13,6 +13,35 @@ import {
 import { db } from '../../firebase';
 import type { Product } from '../types/product';
 
+function parseShiftIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+}
+
+function coercePrice(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mapProductDoc(id: string, data: Record<string, unknown>): Product {
+  return {
+    id,
+    name: String(data.name ?? ''),
+    description: String(data.description ?? ''),
+    price: coercePrice(data.price),
+    deliveryPrice:
+      data.deliveryPrice !== undefined ? coercePrice(data.deliveryPrice) : coercePrice(data.price),
+    category: String(data.category ?? ''),
+    available: data.available === true,
+    image: typeof data.image === 'string' ? data.image : '',
+    preparationTime: typeof data.preparationTime === 'number' ? data.preparationTime : undefined,
+    translations: data.translations as Product['translations'],
+    availableForDelivery: data.availableForDelivery !== false,
+    shiftIds: parseShiftIds(data.shiftIds),
+  };
+}
+
 // Adicionar novo produto
 export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: string): Promise<Product> => {
   try {
@@ -26,7 +55,8 @@ export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: st
       image: product.image || '',
       restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD', // Usar ID específico como padrão
       createdAt: new Date(),
-      availableForDelivery: product.availableForDelivery ?? true
+      availableForDelivery: product.availableForDelivery ?? true,
+      shiftIds: product.shiftIds ?? [],
     };
 
     // Adicionar preparationTime apenas se não for undefined
@@ -44,7 +74,8 @@ export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: st
       id: docRef.id,
       ...product,
       restaurantId: restaurantId || 'YcL3Q98o8zkWRT1ak4BD',
-      availableForDelivery: product.availableForDelivery ?? true
+      availableForDelivery: product.availableForDelivery ?? true,
+      shiftIds: product.shiftIds ?? [],
     };
   } catch (error) {
     console.error('Erro detalhado ao adicionar produto:', error);
@@ -63,21 +94,8 @@ export const getProducts = async (restaurantId: string): Promise<Product[]> => {
     const querySnapshot = await getDocs(q);
     
     const products: Product[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      products.push({
-        id: doc.id,
-        name: data.name,
-        description: data.description,
-        price: coercePrice(data.price),
-        deliveryPrice: data.deliveryPrice !== undefined ? coercePrice(data.deliveryPrice) : coercePrice(data.price),
-        category: data.category,
-        available: data.available,
-        image: data.image || '',
-        preparationTime: data.preparationTime,
-        translations: data.translations,
-        availableForDelivery: data.availableForDelivery ?? true
-      });
+    querySnapshot.forEach((docSnap) => {
+      products.push(mapProductDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
     });
 
     // Ordenar por nome no JavaScript
@@ -100,21 +118,8 @@ export const getProductsByCategory = async (category: string, restaurantId: stri
     const querySnapshot = await getDocs(q);
     
     const products: Product[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      products.push({
-        id: doc.id,
-        name: data.name,
-        description: data.description,
-        price: coercePrice(data.price),
-        deliveryPrice: data.deliveryPrice !== undefined ? coercePrice(data.deliveryPrice) : coercePrice(data.price),
-        category: data.category,
-        available: data.available,
-        image: data.image || '',
-        preparationTime: data.preparationTime,
-        translations: data.translations,
-        availableForDelivery: data.availableForDelivery ?? true
-      });
+    querySnapshot.forEach((docSnap) => {
+      products.push(mapProductDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
     });
 
     // Ordenar por nome no JavaScript
@@ -137,12 +142,6 @@ function omitUndefinedDeep(value: unknown): unknown {
     if (next !== undefined) cleaned[key] = next;
   }
   return cleaned;
-}
-
-function coercePrice(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  const parsed = parseFloat(String(value ?? '').replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 // Atualizar produto

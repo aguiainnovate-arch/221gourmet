@@ -56,7 +56,7 @@ export function getDayIntervals(day: DayOpeningHours): OpeningHoursInterval[] {
   return [];
 }
 
-function isTimeWithinInterval(currentMin: number, open: string, close: string): boolean {
+export function isTimeWithinInterval(currentMin: number, open: string, close: string): boolean {
   const openMin = parseTimeToMinutes(open);
   const closeMin = parseTimeToMinutes(close);
   if (openMin === null || closeMin === null) return false;
