@@ -1,9 +1,10 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { Capacitor } from "@capacitor/core";
 
 // Configuração lida de variáveis de ambiente (.env)
 // Em ambiente Node (scripts com tsx) usa process.env; no browser usa import.meta.env
@@ -29,8 +30,21 @@ export const auth = getAuth(app);
 
 auth.languageCode = 'pt-BR';
 
-// Initialize Firestore
-export const db = getFirestore(app);
+/**
+ * No Capacitor (WKWebView/Android WebView) o transporte WebChannel do Firestore
+ * costuma travar para sempre — a home fica em "Carregando restaurantes…".
+ * Long polling é o fix oficial nesses runtimes.
+ */
+function createFirestore() {
+  if (Capacitor.isNativePlatform()) {
+    return initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    });
+  }
+  return getFirestore(app);
+}
+
+export const db = createFirestore();
 
 // Initialize Firebase Storage
 export const storage = getStorage(app);

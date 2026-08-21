@@ -96,18 +96,30 @@ function toNightPath(relPath) {
 }
 
 async function composeSplash(logoBuffer, width, height) {
+  // Logo bem maior no splash nativo (abertura do app).
   const isPortrait = height >= width
-  const maxW = Math.floor(width * (isPortrait ? 0.88 : 0.55))
-  const maxH = Math.floor(height * (isPortrait ? 0.38 : 0.72))
-  const yRatio = isPortrait ? 0.1 : 0.12
+  const isSquare = Math.abs(width - height) / Math.max(width, height) < 0.08
+  let maxW
+  let maxH
+  if (isSquare) {
+    // Canvas iOS 2732²: a arte é quadrada — precisa ~85%+ do lado, senão fica miúda.
+    maxW = Math.floor(width * 0.88)
+    maxH = Math.floor(height * 0.88)
+  } else if (isPortrait) {
+    maxW = Math.floor(width * 0.9)
+    maxH = Math.floor(height * 0.45)
+  } else {
+    maxW = Math.floor(width * 0.72)
+    maxH = Math.floor(height * 0.78)
+  }
 
   const fitted = await sharp(logoBuffer)
-    .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: true })
+    .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .png()
     .toBuffer({ resolveWithObject: true })
 
   const x = Math.floor((width - fitted.info.width) / 2)
-  const y = Math.floor(height * yRatio)
+  const y = Math.floor((height - fitted.info.height) / 2)
 
   return sharp({
     create: {
@@ -120,6 +132,35 @@ async function composeSplash(logoBuffer, width, height) {
     .composite([{ input: fitted.data, left: x, top: y }])
     .png()
     .toBuffer()
+}
+
+const IOS_SPLASH_DIR = path.join(
+  ROOT,
+  'ios',
+  'App',
+  'App',
+  'Assets.xcassets',
+  'Splash.imageset',
+)
+
+async function generateIosSplashImages(logoBuffer) {
+  mkdirSync(IOS_SPLASH_DIR, { recursive: true })
+  // Capacitor usa canvas quadrado 2732; logo grande e centralizada.
+  const png = await composeSplash(logoBuffer, 2732, 2732)
+  const names = [
+    'Default@1x~universal~anyany.png',
+    'Default@2x~universal~anyany.png',
+    'Default@3x~universal~anyany.png',
+    'Default@1x~universal~anyany-dark.png',
+    'Default@2x~universal~anyany-dark.png',
+    'Default@3x~universal~anyany-dark.png',
+    'splash-2732x2732.png',
+    'splash-2732x2732-1.png',
+    'splash-2732x2732-2.png',
+  ]
+  for (const name of names) {
+    writeFileSync(path.join(IOS_SPLASH_DIR, name), png)
+  }
 }
 
 async function syncResourceFiles() {
@@ -242,10 +283,11 @@ async function main() {
   generateLauncherIcons()
   const logoBuffer = await sharp(LOGO_PATH).png().toBuffer()
   await generateSplashImages(logoBuffer)
+  await generateIosSplashImages(logoBuffer)
   await generateIosAppIcon(logoBuffer)
   cleanupStaleAssets()
   console.log(
-    'Branding atualizado: ícone fundo claro + splash (Android/iOS)',
+    'Branding atualizado: ícone fundo claro + splash maior (Android/iOS)',
   )
 }
 

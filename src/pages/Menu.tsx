@@ -2,7 +2,7 @@ import { useParams } from 'react-router-dom';
 import { useOrders } from '../contexts/OrderContext';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useCallback, useMemo, useRef, type CSSProperties } from 'react';
-import { subscribeToTables, type Table } from '../services/tableService';
+import { getTables, subscribeToTables, type Table } from '../services/tableService';
 import {
   createWaiterCall,
   subscribeTableWaiterCall,
@@ -189,13 +189,62 @@ export default function Menu() {
   useEffect(() => {
     if (!mesaId || !restaurantId) return;
 
+    let cancelled = false;
     setLoading(true);
-    const unsubscribe = subscribeToTables(restaurantId, (tables) => {
-      const mesa = tables.find((table) => table.numero === mesaId) ?? null;
-      setMesaInfo(mesa);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+
+    // Se o WebChannel do Firestore travar, o snapshot nunca chega e a tela fica em loop de loading.
+    const hangTimeout = window.setTimeout(() => {
+      if (cancelled) return;
+      console.warn('Timeout ao observar mesas; tentando leitura única.');
+      void getTables(restaurantId)
+        .then((tables) => {
+          if (cancelled) return;
+          const mesa = tables.find((table) => table.numero === mesaId) ?? null;
+          setMesaInfo(mesa);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error('Falha ao carregar mesa:', err);
+          if (!cancelled) {
+            setMesaInfo(null);
+            setLoading(false);
+          }
+        });
+    }, 12_000);
+
+    const unsubscribe = subscribeToTables(
+      restaurantId,
+      (tables) => {
+        if (cancelled) return;
+        window.clearTimeout(hangTimeout);
+        const mesa = tables.find((table) => table.numero === mesaId) ?? null;
+        setMesaInfo(mesa);
+        setLoading(false);
+      },
+      () => {
+        if (cancelled) return;
+        window.clearTimeout(hangTimeout);
+        void getTables(restaurantId)
+          .then((tables) => {
+            if (cancelled) return;
+            const mesa = tables.find((table) => table.numero === mesaId) ?? null;
+            setMesaInfo(mesa);
+            setLoading(false);
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setMesaInfo(null);
+              setLoading(false);
+            }
+          });
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(hangTimeout);
+      unsubscribe();
+    };
   }, [mesaId, restaurantId]);
 
   // Pedidos desta mesa para o cliente acompanhar status (atualiza a cada 15s)
@@ -271,8 +320,11 @@ export default function Menu() {
   }, [menuSettings?.primaryColor, menuSettings?.secondaryColor]);
 
   // Reproduzir áudio de boas-vindas e controlar animação
+  // Depende de mesaInfo.id (estável), não do objeto inteiro — senão cada snapshot reinicia o timer e a animação fica em loop.
   useEffect(() => {
-    if (menuSettings?.audioUrl && mesaInfo && showLoadingAnimation) {
+    if (!mesaInfo?.id || !showLoadingAnimation) return;
+
+    if (menuSettings?.audioUrl) {
       // Criar um botão invisível para simular interação do usuário
       const createInvisibleButton = () => {
         const button = document.createElement('button');
@@ -386,17 +438,27 @@ export default function Menu() {
         }
       }, 1000);
 
-      return () => clearTimeout(timer);
-    } else if (!menuSettings?.audioUrl && mesaInfo) {
-      // Se não há áudio, esconder animação após tempo menor
-      const timer = setTimeout(() => {
+      // Failsafe: mesmo com áudio, não deixa a animação presa para sempre
+      const failsafe = setTimeout(() => {
         setShowLoadingAnimation(false);
-      }, 3000); // 3 segundos sem áudio
-      
-      return () => clearTimeout(timer);
-    }
-  }, [menuSettings?.audioUrl, mesaInfo, showLoadingAnimation]);
+      }, 12_000);
 
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(failsafe);
+      };
+    }
+
+    const timer = setTimeout(() => {
+      setShowLoadingAnimation(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [menuSettings?.audioUrl, mesaInfo?.id, showLoadingAnimation]);
+
+  const handleAnimationComplete = useCallback(() => {
+    setShowLoadingAnimation(false);
+  }, []);
 
   // Atualizar título da aba do navegador
   useEffect(() => {
@@ -618,10 +680,6 @@ export default function Menu() {
 
   const totalItems = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-
-  const handleAnimationComplete = () => {
-    setShowLoadingAnimation(false);
-  };
 
   if (loading) {
     return (

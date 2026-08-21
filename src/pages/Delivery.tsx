@@ -20,6 +20,7 @@ import {
 import { fetchFeaturedProductImages, getDefaultFoodImages } from '../services/foodImageService';
 import type { FoodImage } from '../services/foodImageService';
 import type { Restaurant } from '../types/restaurant';
+import type { PermissionKey } from '../types/permission';
 import AIRestaurantChat from '../components/AIRestaurantChat';
 import LanguageSelector from '../components/LanguageSelector';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
@@ -44,8 +45,11 @@ import {
   detectDeliveryLocationFromGps,
   enrichDeliveryLocationCoords,
 } from '../services/geocodingService';
+import { withTimeout } from '../utils/withTimeout';
 
 const FALLBACK_COVERS = getDefaultFoodImages();
+const RESTAURANTS_FETCH_MS = 12_000;
+const PERMISSIONS_FETCH_MS = 8_000;
 
 function buildCoverMap(images: FoodImage[]): Map<string, string> {
   const map = new Map<string, string>();
@@ -143,10 +147,25 @@ export default function Delivery() {
     try {
       setLoading(true);
       setLoadError(null);
-      const [data, permissionsByRestaurant] = await Promise.all([
+
+      const data = await withTimeout(
         getRestaurants(),
-        getAllRestaurantPermissionsMap(),
-      ]);
+        RESTAURANTS_FETCH_MS,
+        'getRestaurants'
+      );
+
+      let permissionsByRestaurant = new Map<string, Record<PermissionKey, boolean>>();
+      try {
+        permissionsByRestaurant = await withTimeout(
+          getAllRestaurantPermissionsMap(),
+          PERMISSIONS_FETCH_MS,
+          'getAllRestaurantPermissionsMap'
+        );
+      } catch (permErr) {
+        // Não bloqueia a home: DEFAULT_PERMISSIONS.delivery = true
+        console.warn('Permissões indisponíveis; usando defaults.', permErr);
+      }
+
       const allowedRestaurants = data.filter((restaurant) => {
         if (!restaurant.active || !hasRestaurantPlatformAccess(restaurant)) return false;
         const permissions = resolveRestaurantPermissions(

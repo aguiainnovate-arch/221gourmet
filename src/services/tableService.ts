@@ -96,7 +96,8 @@ export const addTable = async (
 
 export const subscribeToTables = (
   restaurantId: string,
-  onChange: (tables: Table[]) => void
+  onChange: (tables: Table[]) => void,
+  onError?: (error: Error) => void
 ): (() => void) => {
   const q = query(collection(db, 'tables'), where('restaurantId', '==', restaurantId));
   return onSnapshot(
@@ -111,6 +112,7 @@ export const subscribeToTables = (
     },
     (error) => {
       console.error('Erro ao observar mesas:', error);
+      onError?.(error);
     }
   );
 };

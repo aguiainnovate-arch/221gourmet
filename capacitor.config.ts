@@ -12,10 +12,11 @@ const config: CapacitorConfig = {
     // Não habilitar CapacitorHttp globalmente — quebra Firestore no Android/iOS.
     // Use nativeFetch() em chamadas externas (OpenAI) quando necessário.
     SplashScreen: {
-      launchShowDuration: 2000,
+      launchShowDuration: 0,
+      launchAutoHide: true,
       backgroundColor: "#FFF8F2",
       androidSplashResourceName: "splash",
-      androidScaleType: "FIT_CENTER",
+      androidScaleType: "CENTER_CROP",
       showSpinner: false,
       splashFullScreen: true,
       splashImmersive: true

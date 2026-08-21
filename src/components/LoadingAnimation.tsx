@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Beef, Utensils, Sparkles } from 'lucide-react';
 
 interface LoadingAnimationProps {
@@ -10,6 +10,12 @@ interface LoadingAnimationProps {
   onAnimationComplete: () => void;
 }
 
+const STEPS = [
+  { icon: Beef, text: 'Preparando sua experiência...', duration: 2000 },
+  { icon: Utensils, text: 'Carregando o cardápio...', duration: 2000 },
+  { icon: Sparkles, text: 'Quase pronto!', duration: 1500 },
+] as const;
+
 export default function LoadingAnimation({
   restaurantName,
   bannerUrl,
@@ -20,15 +26,11 @@ export default function LoadingAnimation({
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [showContent, setShowContent] = useState(false);
-
-  const steps = [
-    { icon: Beef, text: 'Preparando sua experiência...', duration: 2000 },
-    { icon: Utensils, text: 'Carregando o cardápio...', duration: 2000 },
-    { icon: Sparkles, text: 'Quase pronto!', duration: 1500 }
-  ];
+  // Ref evita reiniciar a animação a cada re-render do pai (callback muda de identidade).
+  const onCompleteRef = useRef(onAnimationComplete);
+  onCompleteRef.current = onAnimationComplete;
 
   useEffect(() => {
-    // Aguardar um pouco antes de mostrar o conteúdo
     const initialDelay = setTimeout(() => {
       setShowContent(true);
     }, 300);
@@ -39,10 +41,20 @@ export default function LoadingAnimation({
   useEffect(() => {
     if (!showContent) return;
 
+    setProgress(0);
+    setCurrentStep(0);
+
     let currentProgress = 0;
-    const totalDuration = steps.reduce((sum, step) => sum + step.duration, 0);
-    const progressInterval = 50; // Atualizar a cada 50ms
+    const totalDuration = STEPS.reduce((sum, step) => sum + step.duration, 0);
+    const progressInterval = 50;
     const progressIncrement = (progressInterval / totalDuration) * 100;
+    let completed = false;
+
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      onCompleteRef.current();
+    };
 
     const progressTimer = setInterval(() => {
       currentProgress += progressIncrement;
@@ -50,34 +62,22 @@ export default function LoadingAnimation({
 
       if (currentProgress >= 100) {
         clearInterval(progressTimer);
-        // Aguardar um pouco antes de completar
-        setTimeout(() => {
-          onAnimationComplete();
-        }, 500);
+        setTimeout(finish, 500);
       }
     }, progressInterval);
 
-    // Controlar os steps
-    let stepIndex = 0;
-    let accumulatedTime = 0;
-
-    const stepTimer = setInterval(() => {
-      if (stepIndex < steps.length) {
-        setCurrentStep(stepIndex);
-        accumulatedTime += steps[stepIndex].duration;
-        stepIndex++;
-      } else {
-        clearInterval(stepTimer);
-      }
-    }, steps[0].duration);
+    const stepTimeouts = STEPS.map((step, index) => {
+      const delay = STEPS.slice(0, index).reduce((sum, s) => sum + s.duration, 0);
+      return setTimeout(() => setCurrentStep(index), delay);
+    });
 
     return () => {
       clearInterval(progressTimer);
-      clearInterval(stepTimer);
+      stepTimeouts.forEach(clearTimeout);
     };
-  }, [showContent, onAnimationComplete]);
+  }, [showContent]);
 
-  const CurrentIcon = steps[currentStep]?.icon || Beef;
+  const CurrentIcon = STEPS[currentStep]?.icon || Beef;
 
   return (
     <div 
@@ -156,7 +156,7 @@ export default function LoadingAnimation({
             className="text-xl font-medium"
             style={{ color: primaryColor }}
           >
-            {steps[currentStep]?.text || 'Carregando...'}
+            {STEPS[currentStep]?.text || 'Carregando...'}
           </p>
         </div>
 

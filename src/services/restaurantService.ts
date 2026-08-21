@@ -171,14 +171,15 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
 // Buscar todos os restaurantes
 export const getRestaurants = async (): Promise<Restaurant[]> => {
   try {
-    const q = query(collection(db, 'restaurants'), orderBy('name'));
-    const querySnapshot = await getDocs(q);
-    
+    // Sem orderBy: evita índice composto e falhas silenciosas; ordena no cliente.
+    const querySnapshot = await getDocs(collection(db, 'restaurants'));
+
     const restaurants: Restaurant[] = [];
     querySnapshot.forEach((docSnap) => {
       restaurants.push(mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
     });
 
+    restaurants.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     return restaurants;
   } catch (error) {
     console.error('Erro ao buscar restaurantes:', error);
