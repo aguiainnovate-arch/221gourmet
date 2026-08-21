@@ -15,10 +15,14 @@
  */
 
 import { getRestaurants } from './restaurantService';
-import { getRestaurantPermissions } from './permissionService';
+import {
+  getAllRestaurantPermissionsMap,
+  resolveRestaurantPermissions,
+} from './permissionService';
 import { getProducts } from './productService';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { isProductVisibleForMenuShift } from '../utils/menuShifts';
+import type { Restaurant } from '../types/restaurant';
 
 const UNSPLASH_ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
 
@@ -132,31 +136,36 @@ export function getDefaultFoodImages(): FoodImage[] {
  * Quando não houver pelo menos 2 produtos elegíveis, faz fallback para a API
  * Unsplash (ou para as imagens estáticas de fallback) — preservando o
  * comportamento anterior em ambientes sem cardápio cadastrado.
+ *
+ * @param preloadedDeliveryRestaurants Se já filtrados (ativos + delivery),
+ * evita reconsultar Firestore por restaurants/permissions.
  */
-export async function fetchFeaturedProductImages(): Promise<FoodImage[]> {
+export async function fetchFeaturedProductImages(
+  preloadedDeliveryRestaurants?: Restaurant[]
+): Promise<FoodImage[]> {
   try {
-    const restaurants = await getRestaurants();
-    const activeRestaurants = restaurants.filter(
-      (r) => r.active && hasRestaurantPlatformAccess(r)
-    );
+    let allowedRestaurants: Restaurant[];
 
-    const allowed = await Promise.all(
-      activeRestaurants.map(async (r) => {
-        try {
-          const perms = await getRestaurantPermissions(r.id);
-          const enabled = r.deliverySettings?.enabled ?? true;
-          return perms.delivery && enabled ? r : null;
-        } catch {
-          return null;
-        }
-      })
-    );
-    const allowedRestaurants = allowed.filter(
-      (r): r is NonNullable<typeof r> => r !== null
-    );
+    if (preloadedDeliveryRestaurants) {
+      allowedRestaurants = preloadedDeliveryRestaurants;
+    } else {
+      const [restaurants, permissionsByRestaurant] = await Promise.all([
+        getRestaurants(),
+        getAllRestaurantPermissionsMap(),
+      ]);
+      allowedRestaurants = restaurants.filter((r) => {
+        if (!r.active || !hasRestaurantPlatformAccess(r)) return false;
+        const perms = resolveRestaurantPermissions(r.id, permissionsByRestaurant);
+        const enabled = r.deliverySettings?.enabled ?? true;
+        return perms.delivery && enabled;
+      });
+    }
+
+    // Limita fan-out no cold start (TestFlight/cellular): carrossel não precisa de todos.
+    const restaurantsForCarousel = allowedRestaurants.slice(0, 12);
 
     const productLists = await Promise.all(
-      allowedRestaurants.map(async (r) => {
+      restaurantsForCarousel.map(async (r) => {
         try {
           const prods = await getProducts(r.id);
           return prods

@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getRestaurants } from '../services/restaurantService';
-import { getRestaurantPermissions } from '../services/permissionService';
+import {
+  getAllRestaurantPermissionsMap,
+  resolveRestaurantPermissions,
+} from '../services/permissionService';
 import { fetchFeaturedProductImages, getDefaultFoodImages } from '../services/foodImageService';
 import type { FoodImage } from '../services/foodImageService';
 import type { Restaurant } from '../types/restaurant';
@@ -109,17 +112,22 @@ export default function Delivery() {
     let cancelled = false;
 
     const bootstrap = async () => {
+      // GPS não pode bloquear a lista: no TestFlight o timeout + reverse geocode
+      // facilmente somam vários segundos antes de qualquer restaurante aparecer.
       if (!hasSavedDeliveryLocation()) {
-        const gps = await detectDeliveryLocationFromGps();
-        if (!cancelled && gps) {
-          setUserLocation(gps);
-          setDeliveryLocation(gps);
-        }
+        void detectDeliveryLocationFromGps().then((gps) => {
+          if (!cancelled && gps) {
+            setUserLocation(gps);
+            setDeliveryLocation(gps);
+          }
+        });
       }
-      if (!cancelled) {
-        await loadRestaurants();
-      }
-      const imgs = await fetchFeaturedProductImages();
+
+      const allowed = cancelled ? [] : await loadRestaurants();
+      if (cancelled) return;
+
+      // Reusa a lista já filtrada — evita 2ª leitura de restaurants + N permissions + produtos.
+      const imgs = await fetchFeaturedProductImages(allowed);
       if (!cancelled && imgs.length > 0) setFeaturedImages(imgs);
     };
 
@@ -131,30 +139,30 @@ export default function Delivery() {
 
   const coverByRestaurant = useMemo(() => buildCoverMap(featuredImages), [featuredImages]);
 
-  const loadRestaurants = async () => {
+  const loadRestaurants = async (): Promise<Restaurant[]> => {
     try {
       setLoading(true);
       setLoadError(null);
-      const data = await getRestaurants();
-      const activeRestaurants = data.filter(
-        (r) => r.active && hasRestaurantPlatformAccess(r)
-      );
-      const restaurantsWithPermissions = await Promise.all(
-        activeRestaurants.map(async (restaurant) => {
-          const permissions = await getRestaurantPermissions(restaurant.id);
-          const hasPermission = permissions.delivery;
-          const isEnabledByRestaurant = restaurant.deliverySettings?.enabled ?? true;
-          return { restaurant, hasDeliveryPermission: hasPermission, isEnabledByRestaurant };
-        })
-      );
-      const allowedRestaurants = restaurantsWithPermissions
-        .filter((r) => r.hasDeliveryPermission && r.isEnabledByRestaurant)
-        .map((r) => r.restaurant);
+      const [data, permissionsByRestaurant] = await Promise.all([
+        getRestaurants(),
+        getAllRestaurantPermissionsMap(),
+      ]);
+      const allowedRestaurants = data.filter((restaurant) => {
+        if (!restaurant.active || !hasRestaurantPlatformAccess(restaurant)) return false;
+        const permissions = resolveRestaurantPermissions(
+          restaurant.id,
+          permissionsByRestaurant
+        );
+        const isEnabledByRestaurant = restaurant.deliverySettings?.enabled ?? true;
+        return permissions.delivery && isEnabledByRestaurant;
+      });
       setRestaurants(allowedRestaurants);
+      return allowedRestaurants;
     } catch (error) {
       console.error('Erro ao carregar restaurantes:', error);
       setLoadError(t('delivery.loadRestaurantsError'));
       setRestaurants([]);
+      return [];
     } finally {
       setLoading(false);
     }

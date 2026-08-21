@@ -14,6 +14,35 @@ import { DEFAULT_PERMISSIONS } from '../types/permission';
 // Re-exportar os tipos para facilitar imports
 export type { PermissionKey } from '../types/permission';
 
+/** Uma leitura da coleção — evita N queries na home de delivery. */
+export const getAllRestaurantPermissionsMap = async (): Promise<
+  Map<string, Record<PermissionKey, boolean>>
+> => {
+  const map = new Map<string, Record<PermissionKey, boolean>>();
+  try {
+    const querySnapshot = await getDocs(collection(db, 'restaurantPermissions'));
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const restaurantId = typeof data.restaurantId === 'string' ? data.restaurantId : '';
+      if (!restaurantId) return;
+      map.set(restaurantId, {
+        ...DEFAULT_PERMISSIONS,
+        ...(data.permissions as Record<PermissionKey, boolean> | undefined),
+      });
+    });
+  } catch (error) {
+    console.error('Erro ao buscar permissões dos restaurantes:', error);
+  }
+  return map;
+};
+
+export function resolveRestaurantPermissions(
+  restaurantId: string,
+  permissionsByRestaurant: Map<string, Record<PermissionKey, boolean>>
+): Record<PermissionKey, boolean> {
+  return permissionsByRestaurant.get(restaurantId) ?? DEFAULT_PERMISSIONS;
+}
+
 // Buscar permissões de um restaurante
 export const getRestaurantPermissions = async (restaurantId: string): Promise<Record<PermissionKey, boolean>> => {
   try {
