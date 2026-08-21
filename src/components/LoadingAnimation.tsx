@@ -66,7 +66,7 @@ export default function LoadingAnimation({
       }
     }, progressInterval);
 
-    const stepTimeouts = STEPS.map((step, index) => {
+    const stepTimeouts = STEPS.map((_, index) => {
       const delay = STEPS.slice(0, index).reduce((sum, s) => sum + s.duration, 0);
       return setTimeout(() => setCurrentStep(index), delay);
     });
