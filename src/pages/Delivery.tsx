@@ -32,7 +32,6 @@ import { useDeliveryBottomNav } from '../hooks/useDeliveryBottomNav';
 import {
   getDeliveryLocation,
   setDeliveryLocation,
-  hasSavedDeliveryLocation,
   type DeliveryLocation,
 } from '../utils/deliveryLocationStorage';
 import {
@@ -41,10 +40,7 @@ import {
 } from '../utils/deliveryFavoritesStorage';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { restaurantMatchesRegion } from '../utils/restaurantRegion';
-import {
-  detectDeliveryLocationFromGps,
-  enrichDeliveryLocationCoords,
-} from '../services/geocodingService';
+import { enrichDeliveryLocationCoords } from '../services/geocodingService';
 import { withTimeout } from '../utils/withTimeout';
 
 const FALLBACK_COVERS = getDefaultFoodImages();
@@ -116,21 +112,12 @@ export default function Delivery() {
     let cancelled = false;
 
     const bootstrap = async () => {
-      // GPS não pode bloquear a lista: no TestFlight o timeout + reverse geocode
-      // facilmente somam vários segundos antes de qualquer restaurante aparecer.
-      if (!hasSavedDeliveryLocation()) {
-        void detectDeliveryLocationFromGps().then((gps) => {
-          if (!cancelled && gps) {
-            setUserLocation(gps);
-            setDeliveryLocation(gps);
-          }
-        });
-      }
-
+      // GPS automático removido daqui: no iPhone a cidade do reverse-geocode
+      // (ex. município ≠ "São Paulo") zerava a lista mesmo com restaurantes.
+      // O usuário usa o botão GPS no modal de localização.
       const allowed = cancelled ? [] : await loadRestaurants();
       if (cancelled) return;
 
-      // Reusa a lista já filtrada — evita 2ª leitura de restaurants + N permissions + produtos.
       const imgs = await fetchFeaturedProductImages(allowed);
       if (!cancelled && imgs.length > 0) setFeaturedImages(imgs);
     };
@@ -162,7 +149,6 @@ export default function Delivery() {
           'getAllRestaurantPermissionsMap'
         );
       } catch (permErr) {
-        // Não bloqueia a home: DEFAULT_PERMISSIONS.delivery = true
         console.warn('Permissões indisponíveis; usando defaults.', permErr);
       }
 
@@ -192,15 +178,21 @@ export default function Delivery() {
     [restaurants, userLocation]
   );
 
+  // Se a cidade/GPS não casa com o endereço cadastrado, não esconde tudo no app.
+  const regionFallbackActive =
+    !loading && restaurants.length > 0 && restaurantsInRegion.length === 0;
+
+  const restaurantsForList = regionFallbackActive ? restaurants : restaurantsInRegion;
+
   const featuredInRegion = useMemo(() => {
-    const ids = new Set(restaurantsInRegion.map((restaurant) => restaurant.id));
+    const ids = new Set(restaurantsForList.map((restaurant) => restaurant.id));
     const fromRegion = featuredImages.filter(
       (img) => img.restaurantId && ids.has(img.restaurantId)
     );
     if (fromRegion.length >= 2) return fromRegion;
     if (fromRegion.length === 1) return [...fromRegion, ...FALLBACK_COVERS].slice(0, 8);
     return FALLBACK_COVERS;
-  }, [featuredImages, restaurantsInRegion]);
+  }, [featuredImages, restaurantsForList]);
 
   const totalSlides = featuredInRegion.length;
 
@@ -228,7 +220,7 @@ export default function Delivery() {
   }, [carouselIndex, loading, CAROUSEL_STEP]);
 
   const filteredRestaurants = useMemo(() => {
-    return restaurantsInRegion.filter((restaurant) => {
+    return restaurantsForList.filter((restaurant) => {
       if (navTab === 'favorites' && !favoriteIds.includes(restaurant.id)) return false;
 
       const term = searchTerm.trim().toLowerCase();
@@ -248,7 +240,7 @@ export default function Delivery() {
           return true;
       }
     });
-  }, [restaurantsInRegion, searchTerm, selectedCategory, navTab, favoriteIds]);
+  }, [restaurantsForList, searchTerm, selectedCategory, navTab, favoriteIds]);
 
   const handleSaveLocation = (loc: DeliveryLocation) => {
     setUserLocation(loc);
@@ -313,7 +305,7 @@ export default function Delivery() {
   }
 
   const hasSearch = searchTerm.trim().length > 0;
-  const hasRegionResults = restaurantsInRegion.length > 0;
+  const hasRegionResults = restaurantsForList.length > 0;
 
   const boraComerLogo = (
     <img
@@ -572,6 +564,15 @@ export default function Delivery() {
             </span>
           </div>
 
+          {regionFallbackActive && (
+            <p
+              className="text-[11px] leading-snug mb-3 px-1"
+              style={{ color: '#6B5A54' }}
+            >
+              {t('delivery.regionFallbackHint')}
+            </p>
+          )}
+
           {/* Lista */}
           {filteredRestaurants.length === 0 ? (
             <div className="rounded-3xl border shadow-sm p-10 text-center" style={{ backgroundColor: '#FAF0DB', borderColor: '#E9D7C4' }}>
@@ -581,36 +582,40 @@ export default function Delivery() {
               <h3 className="text-lg font-bold mb-2" style={{ color: '#2A1E1A' }}>
                 {loadError
                   ? t('delivery.loadRestaurantsErrorTitle')
-                  : navTab === 'favorites'
-                    ? t('delivery.noFavoritesYet')
-                    : hasSearch
-                      ? t('delivery.noRestaurantsFound')
-                      : hasRegionResults
-                        ? t('delivery.noRestaurantsAvailable')
-                        : t('delivery.noRestaurantsInRegion')}
+                  : restaurants.length === 0
+                    ? t('delivery.noRestaurantsLoaded')
+                    : navTab === 'favorites'
+                      ? t('delivery.noFavoritesYet')
+                      : hasSearch
+                        ? t('delivery.noRestaurantsFound')
+                        : hasRegionResults
+                          ? t('delivery.noRestaurantsAvailable')
+                          : t('delivery.noRestaurantsInRegion')}
               </h3>
               <p className="text-sm max-w-sm mx-auto" style={{ color: '#6B5A54' }}>
                 {loadError
                   ? loadError
-                  : navTab === 'favorites'
-                    ? t('delivery.noFavoritesHint')
-                    : hasSearch
-                      ? t('delivery.tryOtherTerms')
-                      : hasRegionResults
-                        ? t('delivery.comingSoon')
-                        : t('delivery.noRestaurantsInRegionHint')}
+                  : restaurants.length === 0
+                    ? t('delivery.noRestaurantsLoadedHint')
+                    : navTab === 'favorites'
+                      ? t('delivery.noFavoritesHint')
+                      : hasSearch
+                        ? t('delivery.tryOtherTerms')
+                        : hasRegionResults
+                          ? t('delivery.comingSoon')
+                          : t('delivery.noRestaurantsInRegionHint')}
               </p>
-              {loadError && (
+              {(loadError || restaurants.length === 0) && (
                 <button
                   type="button"
-                  onClick={loadRestaurants}
+                  onClick={() => void loadRestaurants()}
                   className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold text-white"
                   style={{ backgroundColor: '#E91120' }}
                 >
                   {t('delivery.retryLoadRestaurants')}
                 </button>
               )}
-              {!loadError && !hasSearch && navTab !== 'favorites' && !hasRegionResults && (
+              {!loadError && restaurants.length > 0 && !hasSearch && navTab !== 'favorites' && !hasRegionResults && (
                 <button
                   type="button"
                   onClick={() => setLocationModalOpen(true)}

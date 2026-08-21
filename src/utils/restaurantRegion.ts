@@ -46,6 +46,8 @@ function addressMentionsCity(address: string, city: string): boolean {
   const haystack = normalizeCityName(address);
   const needle = normalizeCityName(city);
   if (!haystack || !needle) return false;
+  // Contém a cidade (evita falso negativo quando o endereço não tem hífen/UF).
+  if (haystack.includes(needle)) return true;
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
   return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(haystack);
 }

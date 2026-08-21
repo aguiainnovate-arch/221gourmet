@@ -32,13 +32,12 @@ auth.languageCode = 'pt-BR';
 
 /**
  * No Capacitor (WKWebView/Android WebView) o transporte WebChannel do Firestore
- * costuma travar para sempre — a home fica em "Carregando restaurantes…".
- * Long polling é o fix oficial nesses runtimes.
+ * costuma travar. Auto-detect ativa long polling só quando necessário.
  */
 function createFirestore() {
   if (Capacitor.isNativePlatform()) {
     return initializeFirestore(app, {
-      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
     });
   }
   return getFirestore(app);
