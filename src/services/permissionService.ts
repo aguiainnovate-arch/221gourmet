@@ -10,6 +10,7 @@ import {
 import { db } from '../../firebase';
 import type { PermissionKey } from '../types/permission';
 import { DEFAULT_PERMISSIONS } from '../types/permission';
+import { isCapacitorRuntime, listFirestoreCollection } from '../utils/firestoreRest';
 
 // Re-exportar os tipos para facilitar imports
 export type { PermissionKey } from '../types/permission';
@@ -20,6 +21,20 @@ export const getAllRestaurantPermissionsMap = async (): Promise<
 > => {
   const map = new Map<string, Record<PermissionKey, boolean>>();
   try {
+    if (isCapacitorRuntime()) {
+      const docs = await listFirestoreCollection('restaurantPermissions');
+      for (const docSnap of docs) {
+        const restaurantId =
+          typeof docSnap.data.restaurantId === 'string' ? docSnap.data.restaurantId : '';
+        if (!restaurantId) continue;
+        map.set(restaurantId, {
+          ...DEFAULT_PERMISSIONS,
+          ...(docSnap.data.permissions as Record<PermissionKey, boolean> | undefined),
+        });
+      }
+      return map;
+    }
+
     const querySnapshot = await getDocs(collection(db, 'restaurantPermissions'));
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();

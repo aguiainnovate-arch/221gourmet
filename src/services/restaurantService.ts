@@ -20,6 +20,7 @@ import {
   normalizePartnershipSubscription,
   partnershipSubscriptionToFirestore,
 } from '../types/partnership';
+import { isCapacitorRuntime, listFirestoreCollection } from '../utils/firestoreRest';
 
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
@@ -39,6 +40,18 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+function toJsDate(value: unknown): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
+
 function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant {
   return {
     id,
@@ -50,14 +63,8 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
     password: typeof data.password === 'string' ? data.password : '',
     planId: typeof data.planId === 'string' ? data.planId : undefined,
     active: data.active === true,
-    createdAt:
-      data.createdAt && typeof (data.createdAt as { toDate?: () => Date }).toDate === 'function'
-        ? (data.createdAt as { toDate: () => Date }).toDate()
-        : new Date(),
-    updatedAt:
-      data.updatedAt && typeof (data.updatedAt as { toDate?: () => Date }).toDate === 'function'
-        ? (data.updatedAt as { toDate: () => Date }).toDate()
-        : new Date(),
+    createdAt: toJsDate(data.createdAt),
+    updatedAt: toJsDate(data.updatedAt),
     theme: data.theme as Restaurant['theme'],
     settings: data.settings as Restaurant['settings'],
     permissions: data.permissions as Restaurant['permissions'],
@@ -168,22 +175,40 @@ export const addRestaurant = async (restaurantData: CreateRestaurantData): Promi
   }
 };
 
+async function getRestaurantsFromSdk(): Promise<Restaurant[]> {
+  const querySnapshot = await getDocs(collection(db, 'restaurants'));
+  const restaurants: Restaurant[] = [];
+  querySnapshot.forEach((docSnap) => {
+    restaurants.push(mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
+  });
+  restaurants.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  return restaurants;
+}
+
+async function getRestaurantsFromRest(): Promise<Restaurant[]> {
+  const docs = await listFirestoreCollection('restaurants');
+  const restaurants = docs.map((doc) => mapRestaurantDoc(doc.id, doc.data));
+  restaurants.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  return restaurants;
+}
+
 // Buscar todos os restaurantes
 export const getRestaurants = async (): Promise<Restaurant[]> => {
   try {
-    // Sem orderBy: evita índice composto e falhas silenciosas; ordena no cliente.
-    const querySnapshot = await getDocs(collection(db, 'restaurants'));
-
-    const restaurants: Restaurant[] = [];
-    querySnapshot.forEach((docSnap) => {
-      restaurants.push(mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
-    });
-
-    restaurants.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-    return restaurants;
-  } catch (error) {
-    console.error('Erro ao buscar restaurantes:', error);
-    throw new Error('Falha ao buscar restaurantes');
+    if (isCapacitorRuntime()) {
+      return await getRestaurantsFromRest();
+    }
+    return await getRestaurantsFromSdk();
+  } catch (sdkOrRestError) {
+    console.error('Erro ao buscar restaurantes (primário):', sdkOrRestError);
+    try {
+      return isCapacitorRuntime()
+        ? await getRestaurantsFromSdk()
+        : await getRestaurantsFromRest();
+    } catch (fallbackError) {
+      console.error('Erro ao buscar restaurantes (fallback):', fallbackError);
+      throw new Error('Falha ao buscar restaurantes');
+    }
   }
 };
 
@@ -409,51 +434,40 @@ export interface RestaurantWithMenu {
 // Buscar todos os restaurantes ativos com seus cardápios para AI
 export const getAllRestaurantsWithMenus = async (): Promise<RestaurantWithMenu[]> => {
   try {
-    // Buscar todos os restaurantes ativos
-    const q = query(
-      collection(db, 'restaurants'), 
-      where('active', '==', true)
-    );
-    const restaurantsSnapshot = await getDocs(q);
-    
-    const restaurantsWithMenus: RestaurantWithMenu[] = [];
-    
-    // Para cada restaurante, buscar seus produtos
-    for (const restaurantDoc of restaurantsSnapshot.docs) {
-      const restaurantData = restaurantDoc.data();
-      
-      // Buscar produtos do restaurante
-      const productsQuery = query(
-        collection(db, 'products'),
-        where('restaurantId', '==', restaurantDoc.id),
-        where('available', '==', true)
-      );
-      const productsSnapshot = await getDocs(productsQuery);
-      
-      const products = productsSnapshot.docs.map(productDoc => {
-        const data = productDoc.data();
-        return {
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          category: data.category,
-          preparationTime: data.preparationTime
-        };
-      });
-      
-      // Adicionar restaurante com seus produtos
-      if (products.length > 0) { // Apenas restaurantes com produtos
-        restaurantsWithMenus.push({
-          id: restaurantDoc.id,
-          name: restaurantData.name,
-          address: restaurantData.address,
-          phone: restaurantData.phone,
-          products
-        });
-      }
+    const restaurants = (await getRestaurants()).filter((r) => r.active);
+    let productDocs: Array<{ data: Record<string, unknown> }> = [];
+    try {
+      productDocs = await listFirestoreCollection('products');
+    } catch (productError) {
+      console.warn('Cardápios indisponíveis para o chat; usando só restaurantes.', productError);
     }
-    
-    return restaurantsWithMenus;
+
+    const productsByRestaurant = new Map<string, RestaurantWithMenu['products']>();
+    for (const product of productDocs) {
+      if (product.data.available === false) continue;
+      const restaurantId = String(product.data.restaurantId ?? '');
+      if (!restaurantId) continue;
+      const list = productsByRestaurant.get(restaurantId) ?? [];
+      list.push({
+        name: String(product.data.name ?? ''),
+        description: String(product.data.description ?? ''),
+        price: Number(product.data.price ?? 0),
+        category: String(product.data.category ?? ''),
+        preparationTime:
+          typeof product.data.preparationTime === 'number'
+            ? product.data.preparationTime
+            : undefined,
+      });
+      productsByRestaurant.set(restaurantId, list);
+    }
+
+    return restaurants.map((restaurant) => ({
+      id: restaurant.id,
+      name: restaurant.name,
+      address: restaurant.address,
+      phone: restaurant.phone,
+      products: productsByRestaurant.get(restaurant.id) ?? [],
+    }));
   } catch (error) {
     console.error('Erro ao buscar restaurantes com cardápios:', error);
     throw new Error('Falha ao buscar restaurantes com cardápios');

@@ -53,13 +53,25 @@ export async function nativeFetch(
   const body =
     request.body != null ? await readBody(await request.clone().text()) : undefined;
 
-  const response = await CapacitorHttp.request({
-    url: request.url,
-    method,
-    headers,
-    data: body,
-    responseType: 'text',
-  });
+    const url = request.url;
+    const payload: {
+      url: string;
+      method: string;
+      headers: Record<string, string>;
+      data?: string;
+      responseType: 'text';
+    } = {
+      url,
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...headers,
+      },
+      responseType: 'text',
+    };
+    if (body) payload.data = body;
+
+    const response = await CapacitorHttp.request(payload);
 
   const responseHeaders = new Headers();
   if (response.headers && typeof response.headers === 'object') {

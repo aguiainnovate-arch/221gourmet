@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "tsc -b && vite build",
-    "build:capacitor": "cross-env CAPACITOR_BUILD=true npm run build",
+    "build:capacitor": "cross-env CAPACITOR_BUILD=true VITE_CAPACITOR_BUILD=true npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "migrate:delivery": "tsx src/scripts/migrateDeliveryPermission.ts",

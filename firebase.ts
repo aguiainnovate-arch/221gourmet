@@ -30,14 +30,26 @@ export const auth = getAuth(app);
 
 auth.languageCode = 'pt-BR';
 
+function isNativeApp(): boolean {
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CAPACITOR_BUILD === 'true') {
+    return true;
+  }
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
 /**
- * No Capacitor (WKWebView/Android WebView) o transporte WebChannel do Firestore
- * costuma travar. Auto-detect ativa long polling só quando necessário.
+ * WKWebView do Capacitor quebra o WebChannel do Firestore (listen/channel).
+ * Force long polling no binário nativo — detectado no build (VITE_CAPACITOR_BUILD),
+ * não só em runtime (isNativePlatform() pode ser false na importação do módulo).
  */
 function createFirestore() {
-  if (Capacitor.isNativePlatform()) {
+  if (isNativeApp()) {
     return initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     });
   }
   return getFirestore(app);

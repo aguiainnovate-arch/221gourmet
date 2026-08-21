@@ -44,8 +44,8 @@ import { enrichDeliveryLocationCoords } from '../services/geocodingService';
 import { withTimeout } from '../utils/withTimeout';
 
 const FALLBACK_COVERS = getDefaultFoodImages();
-const RESTAURANTS_FETCH_MS = 12_000;
-const PERMISSIONS_FETCH_MS = 8_000;
+const RESTAURANTS_FETCH_MS = 20_000;
+const PERMISSIONS_FETCH_MS = 12_000;
 
 function buildCoverMap(images: FoodImage[]): Map<string, string> {
   const map = new Map<string, string>();
@@ -648,6 +648,7 @@ export default function Delivery() {
       <AIRestaurantChat
         fabBottom="calc(5.25rem + env(safe-area-inset-bottom, 0px))"
         userLocation={userLocation}
+        restaurants={restaurants}
       />
 
       <DeliveryLocationModal

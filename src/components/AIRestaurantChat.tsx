@@ -6,6 +6,7 @@ import { getChatbotConfig } from '../services/chatbotConfigService';
 import RestaurantChatCard from './RestaurantChatCard';
 import { restaurantMatchesRegion } from '../utils/restaurantRegion';
 import type { DeliveryLocation } from '../utils/deliveryLocationStorage';
+import type { Restaurant } from '../types/restaurant';
 
 interface RecommendedRestaurant {
   id: string;
@@ -21,12 +22,24 @@ interface Message {
   restaurants?: RecommendedRestaurant[];
 }
 
+function toChatRestaurants(restaurants: Restaurant[]): RestaurantWithMenu[] {
+  return restaurants.map((restaurant) => ({
+    id: restaurant.id,
+    name: restaurant.name,
+    address: restaurant.address,
+    phone: restaurant.phone,
+    products: [],
+  }));
+}
+
 export default function AIRestaurantChat({
   fabBottom,
   userLocation,
+  restaurants = [],
 }: {
   fabBottom?: string;
   userLocation?: DeliveryLocation;
+  restaurants?: Restaurant[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [greeting, setGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
@@ -34,7 +47,9 @@ export default function AIRestaurantChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [restaurantsData, setRestaurantsData] = useState<RestaurantWithMenu[]>([]);
+  const [restaurantsData, setRestaurantsData] = useState<RestaurantWithMenu[]>(() =>
+    toChatRestaurants(restaurants)
+  );
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -57,11 +72,19 @@ export default function AIRestaurantChat({
     loadChatbotGreeting();
   }, []);
 
-  // Carregar dados dos restaurantes ao abrir o chat
   useEffect(() => {
-    if (isOpen && restaurantsData.length === 0) {
-      loadRestaurantsData();
-    }
+    if (restaurants.length === 0) return;
+    setRestaurantsData((prev) => {
+      if (prev.length > 0 && prev.some((item) => item.products.length > 0)) return prev;
+      return toChatRestaurants(restaurants);
+    });
+  }, [restaurants]);
+
+  // Cardápios em background — não bloqueia digitação.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (restaurantsData.some((item) => item.products.length > 0)) return;
+    void loadRestaurantsData();
   }, [isOpen]);
 
   // Inicializar mensagens quando greeting for carregado
@@ -92,24 +115,21 @@ export default function AIRestaurantChat({
     setIsLoadingData(true);
     try {
       const data = await getAllRestaurantsWithMenus();
-      setRestaurantsData(data);
-      return data;
+      if (data.length > 0) {
+        setRestaurantsData(data);
+        return data;
+      }
+      return restaurantsData.length > 0 ? restaurantsData : toChatRestaurants(restaurants);
     } catch (error) {
       console.error('Erro ao carregar restaurantes:', error);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        text: '⚠️ Desculpe, tive um problema ao carregar os dados dos restaurantes. Vou tentar novamente...',
-        sender: 'ai',
-        timestamp: new Date()
-      }]);
-      return [];
+      return restaurantsData.length > 0 ? restaurantsData : toChatRestaurants(restaurants);
     } finally {
       setIsLoadingData(false);
     }
   };
 
   const handleSendMessage = async () => {
-    if (!inputText.trim() || isLoadingData) return;
+    if (!inputText.trim()) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -388,14 +408,13 @@ export default function AIRestaurantChat({
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !isLoadingData && handleSendMessage()}
-                placeholder={isLoadingData ? "Carregando dados..." : "Digite sua mensagem..."}
-                disabled={isLoadingData}
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-black placeholder:text-gray-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Digite sua mensagem..."
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-black placeholder:text-gray-500"
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!inputText.trim() || isLoadingData}
+                disabled={!inputText.trim()}
                 className="text-white p-2.5 rounded-full hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
                 style={{ backgroundColor: '#E91120' }}
               >
