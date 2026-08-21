@@ -26,6 +26,9 @@ import PasswordInput from '../components/PasswordInput';
 import PhoneOtpForm from '../components/PhoneOtpForm';
 import PhoneWithCountryInput from '../components/PhoneWithCountryInput';
 import PhoneRecaptcha from '../components/PhoneRecaptcha';
+import { withTimeout } from '../utils/withTimeout';
+
+const LOOKUP_TIMEOUT_MS = 15_000;
 
 type Step = 'email' | 'captcha' | 'otp' | 'restaurant_password' | 'delivery_register';
 type OtpPurpose = 'login' | 'register';
@@ -129,7 +132,11 @@ export default function DeliveryAuth() {
           setStep('restaurant_password');
           return;
         }
-        const deliveryUser = await getDeliveryUserByEmail(normalizedEmail);
+        const deliveryUser = await withTimeout(
+          getDeliveryUserByEmail(normalizedEmail),
+          LOOKUP_TIMEOUT_MS,
+          'getDeliveryUserByEmail'
+        );
         if (deliveryUser) {
           if (!deliveryUser.phone) {
             setError('Esta conta não tem telefone cadastrado. Entre com o telefone ou atualize o cadastro.');
@@ -146,7 +153,11 @@ export default function DeliveryAuth() {
           setError('Informe DDD e número com o país selecionado.');
           return;
         }
-        const deliveryUser = await getDeliveryUserByPhone(phoneE164);
+        const deliveryUser = await withTimeout(
+          getDeliveryUserByPhone(phoneE164),
+          LOOKUP_TIMEOUT_MS,
+          'getDeliveryUserByPhone'
+        );
         if (deliveryUser) {
           queuePhoneOtp(phoneE164, 'login');
           return;

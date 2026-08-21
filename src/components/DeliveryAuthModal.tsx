@@ -21,6 +21,9 @@ import {
 import type { CreateDeliveryUserData } from '../types/deliveryUser';
 import PhoneOtpForm from './PhoneOtpForm';
 import PhoneWithCountryInput from './PhoneWithCountryInput';
+import { withTimeout } from '../utils/withTimeout';
+
+const LOOKUP_TIMEOUT_MS = 15_000;
 
 interface DeliveryAuthModalProps {
   isOpen: boolean;
@@ -83,7 +86,11 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             setError('Informe um email válido.');
             return;
           }
-          const foundUser = await getDeliveryUserByEmail(normalizedEmail);
+          const foundUser = await withTimeout(
+            getDeliveryUserByEmail(normalizedEmail),
+            LOOKUP_TIMEOUT_MS,
+            'getDeliveryUserByEmail'
+          );
           if (!foundUser) {
             setError('Usuário não encontrado. Crie uma conta primeiro.');
             return;
@@ -99,7 +106,11 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             setError('Informe DDD e número com o país selecionado.');
             return;
           }
-          const foundUser = await getDeliveryUserByPhone(phoneE164);
+          const foundUser = await withTimeout(
+            getDeliveryUserByPhone(phoneE164),
+            LOOKUP_TIMEOUT_MS,
+            'getDeliveryUserByPhone'
+          );
           if (!foundUser) {
             setError('Usuário não encontrado. Crie uma conta primeiro.');
             return;

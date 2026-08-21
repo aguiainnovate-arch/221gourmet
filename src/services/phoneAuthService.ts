@@ -7,6 +7,8 @@ import {
 } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { normalizePhone } from '../utils/authInputUtils';
+import { isCapacitorRuntime } from '../utils/firestoreRest';
+import { withTimeout } from '../utils/withTimeout';
 
 /** Container do widget (docs do Firebase usam o id em string, não o HTMLElement). */
 export const RECAPTCHA_CONTAINER_ID = 'delivery-phone-recaptcha';
@@ -50,8 +52,9 @@ export function preparePhoneRecaptcha(): RecaptchaVerifier {
     throw new Error('Container do reCAPTCHA não encontrado na página.');
   }
 
+  // No Capacitor, widget visível costuma falhar no WKWebView.
   recaptchaVerifier = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
-    size: 'normal',
+    size: isCapacitorRuntime() ? 'invisible' : 'normal',
     callback: () => {},
     'expired-callback': () => {},
   });
@@ -76,7 +79,11 @@ export async function sendPhoneOtp(phone: string): Promise<ConfirmationResult> {
   const run = (async (): Promise<ConfirmationResult> => {
     const verifier = preparePhoneRecaptcha();
     try {
-      return await signInWithPhoneNumber(auth, e164, verifier);
+      return await withTimeout(
+        signInWithPhoneNumber(auth, e164, verifier),
+        25000,
+        'envio do SMS'
+      );
     } catch (error) {
       clearPhoneRecaptcha();
       throw error;
@@ -99,7 +106,7 @@ export async function confirmPhoneOtp(
   if (!/^\d{6}$/.test(trimmed)) {
     throw new Error('Informe o código de 6 dígitos enviado por SMS.');
   }
-  return confirmation.confirm(trimmed);
+  return withTimeout(confirmation.confirm(trimmed), 20000, 'confirmação do código');
 }
 
 export async function signOutPhoneAuth(): Promise<void> {
@@ -125,6 +132,13 @@ export function mapPhoneAuthError(error: unknown): string {
 
   switch (code) {
     case 'auth/invalid-app-credential':
+      if (isCapacitorRuntime()) {
+        return [
+          'O Firebase recusou o reCAPTCHA no app (auth/invalid-app-credential).',
+          'No Console → Authentication → Settings → Authorized domains, inclua localhost.',
+          'Confirme Phone Auth ativo e use número de teste se necessário.',
+        ].join(' ');
+      }
       return [
         'O Firebase recusou o reCAPTCHA (auth/invalid-app-credential). Isso é configuração do projeto, não do formulário.',
         'No Console: 1) Authentication → Sign-in method → Phone ATIVO.',

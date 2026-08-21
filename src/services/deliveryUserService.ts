@@ -1,41 +1,84 @@
-import { collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+} from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { DeliveryUser, CreateDeliveryUserData } from '../types/deliveryUser';
 import { normalizePhone } from '../utils/authInputUtils';
+import {
+  getFirestoreDocument,
+  isCapacitorRuntime,
+  queryFirestoreByField,
+  createFirestoreDocument,
+  updateFirestoreDocument,
+  deleteFirestoreDocument,
+} from '../utils/firestoreRest';
 
-function mapDeliveryUserDoc(id: string, data: Record<string, any>): DeliveryUser {
+function toDate(value: unknown): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
+
+function mapDeliveryUserDoc(id: string, data: Record<string, unknown>): DeliveryUser {
   return {
     id,
-    email: data.email,
-    phone: data.phone,
-    name: data.name,
-    address: data.address,
-    defaultPaymentMethod: data.defaultPaymentMethod,
-    stripeCustomerId: data.stripeCustomerId,
-    authUid: data.authUid,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
+    email: String(data.email ?? ''),
+    phone: String(data.phone ?? ''),
+    name: String(data.name ?? ''),
+    address: String(data.address ?? ''),
+    defaultPaymentMethod: data.defaultPaymentMethod as DeliveryUser['defaultPaymentMethod'],
+    stripeCustomerId:
+      typeof data.stripeCustomerId === 'string' ? data.stripeCustomerId : undefined,
+    authUid: typeof data.authUid === 'string' ? data.authUid : undefined,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
   };
 }
 
-// Criar ou atualizar usuário de delivery
-export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promise<DeliveryUser> => {
+async function findDeliveryUserByField(
+  field: 'email' | 'phone' | 'authUid',
+  value: string
+): Promise<DeliveryUser | null> {
+  if (isCapacitorRuntime()) {
+    const docs = await queryFirestoreByField('deliveryUsers', field, value, 1);
+    if (docs.length === 0) return null;
+    return mapDeliveryUserDoc(docs[0].id, docs[0].data);
+  }
+
+  const q = query(collection(db, 'deliveryUsers'), where(field, '==', value));
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  const d = snapshot.docs[0];
+  return mapDeliveryUserDoc(d.id, d.data() as Record<string, unknown>);
+}
+
+export const saveDeliveryUser = async (
+  userData: CreateDeliveryUserData
+): Promise<DeliveryUser> => {
   try {
     const normalizedPhone = normalizePhone(userData.phone);
-    // Verificar se já existe usuário com este email ou telefone
-    const emailQuery = query(collection(db, 'deliveryUsers'), where('email', '==', userData.email));
-    const phoneQuery = query(collection(db, 'deliveryUsers'), where('phone', '==', normalizedPhone));
-    
-    const [emailSnapshot, phoneSnapshot] = await Promise.all([
-      getDocs(emailQuery),
-      getDocs(phoneQuery)
+    const [existingUserByEmail, existingUserByPhone] = await Promise.all([
+      getDeliveryUserByEmail(userData.email),
+      getDeliveryUserByPhone(normalizedPhone),
     ]);
-
-    const existingUserByEmail = emailSnapshot.docs[0];
-    const existingUserByPhone = phoneSnapshot.docs[0];
     const existingUser = existingUserByEmail || existingUserByPhone;
 
-    // Firestore não aceita campos undefined
     const cleanData: Record<string, unknown> = {
       ...userData,
       phone: normalizedPhone,
@@ -44,160 +87,179 @@ export const saveDeliveryUser = async (userData: CreateDeliveryUserData): Promis
     if (userData.authUid === undefined) delete cleanData.authUid;
 
     if (existingUser) {
-      // Atualizar usuário existente
-      const userRef = doc(db, 'deliveryUsers', existingUser.id);
-      await updateDoc(userRef, {
-        ...cleanData,
-        updatedAt: Timestamp.now()
-      });
+      const payload = { ...cleanData, updatedAt: new Date() };
+      if (isCapacitorRuntime()) {
+        await updateFirestoreDocument('deliveryUsers', existingUser.id, payload);
+      } else {
+        await updateDoc(doc(db, 'deliveryUsers', existingUser.id), {
+          ...cleanData,
+          updatedAt: Timestamp.now(),
+        });
+      }
 
-      const prevData = existingUser.data();
       return {
-        id: existingUser.id,
+        ...existingUser,
         ...userData,
         phone: normalizedPhone,
-        stripeCustomerId: userData.stripeCustomerId ?? prevData.stripeCustomerId,
-        authUid: userData.authUid ?? prevData.authUid,
-        createdAt: prevData.createdAt?.toDate() || new Date(),
-        updatedAt: new Date()
+        stripeCustomerId: userData.stripeCustomerId ?? existingUser.stripeCustomerId,
+        authUid: userData.authUid ?? existingUser.authUid,
+        updatedAt: new Date(),
       };
-    } else {
-      // Criar novo usuário (telefone em E.164)
-      const docRef = await addDoc(collection(db, 'deliveryUsers'), {
-        ...cleanData,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now()
-      });
+    }
 
+    if (isCapacitorRuntime()) {
+      const created = await createFirestoreDocument('deliveryUsers', {
+        ...cleanData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
       return {
-        id: docRef.id,
+        id: created.id,
         ...userData,
         phone: normalizedPhone,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
     }
+
+    const docRef = await addDoc(collection(db, 'deliveryUsers'), {
+      ...cleanData,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    return {
+      id: docRef.id,
+      ...userData,
+      phone: normalizedPhone,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
   } catch (error) {
     console.error('Erro ao salvar usuário de delivery:', error);
     throw new Error('Falha ao salvar informações do usuário');
   }
 };
 
-/** Vincula o documento deliveryUsers ao UID do Firebase Auth (Phone Auth). */
 export const linkDeliveryUserAuthUid = async (
   userId: string,
   authUid: string
 ): Promise<void> => {
-  const userRef = doc(db, 'deliveryUsers', userId);
-  await updateDoc(userRef, {
+  if (isCapacitorRuntime()) {
+    await updateFirestoreDocument('deliveryUsers', userId, {
+      authUid,
+      updatedAt: new Date(),
+    });
+    return;
+  }
+  await updateDoc(doc(db, 'deliveryUsers', userId), {
     authUid,
     updatedAt: Timestamp.now(),
   });
 };
 
-/** Busca usuário delivery pelo UID do Firebase Auth. */
 export const getDeliveryUserByAuthUid = async (
   authUid: string
 ): Promise<DeliveryUser | null> => {
   try {
     if (!authUid) return null;
-    const q = query(collection(db, 'deliveryUsers'), where('authUid', '==', authUid));
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
-    const d = snapshot.docs[0];
-    return mapDeliveryUserDoc(d.id, d.data());
+    return await findDeliveryUserByField('authUid', authUid);
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery por authUid:', error);
     return null;
   }
 };
 
-// Buscar usuário por email
-export const getDeliveryUserByEmail = async (email: string): Promise<DeliveryUser | null> => {
+export const getDeliveryUserByEmail = async (
+  email: string
+): Promise<DeliveryUser | null> => {
   try {
-    const q = query(collection(db, 'deliveryUsers'), where('email', '==', email));
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
-      return null;
-    }
-
-    const d = snapshot.docs[0];
-    return mapDeliveryUserDoc(d.id, d.data());
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return null;
+    return await findDeliveryUserByField('email', normalized);
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
   }
 };
 
-// Buscar usuário por telefone (normalizado para E.164)
-export const getDeliveryUserByPhone = async (phone: string): Promise<DeliveryUser | null> => {
+export const getDeliveryUserByPhone = async (
+  phone: string
+): Promise<DeliveryUser | null> => {
   try {
     const normalized = normalizePhone(phone);
     if (!normalized || normalized === '+') return null;
-    const q = query(collection(db, 'deliveryUsers'), where('phone', '==', normalized));
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
-      return null;
-    }
-
-    const d = snapshot.docs[0];
-    return mapDeliveryUserDoc(d.id, d.data());
+    return await findDeliveryUserByField('phone', normalized);
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
   }
 };
 
-// Buscar usuário por ID
-export const getDeliveryUserById = async (userId: string): Promise<DeliveryUser | null> => {
+export const getDeliveryUserById = async (
+  userId: string
+): Promise<DeliveryUser | null> => {
   try {
-    const userRef = doc(db, 'deliveryUsers', userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      return null;
+    if (isCapacitorRuntime()) {
+      const docSnap = await getFirestoreDocument('deliveryUsers', userId);
+      if (!docSnap) return null;
+      return mapDeliveryUserDoc(docSnap.id, docSnap.data);
     }
 
-    return mapDeliveryUserDoc(userSnap.id, userSnap.data());
+    const userSnap = await getDoc(doc(db, 'deliveryUsers', userId));
+    if (!userSnap.exists()) return null;
+    return mapDeliveryUserDoc(userSnap.id, userSnap.data() as Record<string, unknown>);
   } catch (error) {
     console.error('Erro ao buscar usuário de delivery:', error);
     return null;
   }
 };
 
-/** Remove o perfil de delivery do Firestore. */
 export const deleteDeliveryUserAccount = async (userId: string): Promise<void> => {
+  if (isCapacitorRuntime()) {
+    await deleteFirestoreDocument('deliveryUsers', userId);
+    return;
+  }
   await deleteDoc(doc(db, 'deliveryUsers', userId));
 };
 
-/** Atualiza perfil do usuário logado (por ID). */
 export const updateDeliveryUserProfile = async (
   userId: string,
   data: Partial<Pick<DeliveryUser, 'name' | 'email' | 'phone' | 'address'>>
 ): Promise<DeliveryUser> => {
-  const userRef = doc(db, 'deliveryUsers', userId);
-  await updateDoc(userRef, {
+  const payload: Record<string, unknown> = {
     ...(data.name !== undefined ? { name: data.name.trim() } : {}),
     ...(data.email !== undefined ? { email: data.email.trim().toLowerCase() } : {}),
     ...(data.phone !== undefined ? { phone: normalizePhone(data.phone) } : {}),
     ...(data.address !== undefined ? { address: data.address.trim() } : {}),
-    updatedAt: Timestamp.now(),
-  });
+    updatedAt: new Date(),
+  };
+  if (isCapacitorRuntime()) {
+    await updateFirestoreDocument('deliveryUsers', userId, payload);
+  } else {
+    await updateDoc(doc(db, 'deliveryUsers', userId), {
+      ...payload,
+      updatedAt: Timestamp.now(),
+    });
+  }
   const updated = await getDeliveryUserById(userId);
   if (!updated) throw new Error('Usuário não encontrado após atualização.');
   return updated;
 };
 
-/** Atualiza apenas o stripeCustomerId do usuário (sem alterar outros campos). */
 export const updateDeliveryUserStripeCustomer = async (
   userId: string,
   stripeCustomerId: string
 ): Promise<void> => {
   try {
-    const userRef = doc(db, 'deliveryUsers', userId);
-    await updateDoc(userRef, {
+    if (isCapacitorRuntime()) {
+      await updateFirestoreDocument('deliveryUsers', userId, {
+        stripeCustomerId,
+        updatedAt: new Date(),
+      });
+      return;
+    }
+    await updateDoc(doc(db, 'deliveryUsers', userId), {
       stripeCustomerId,
       updatedAt: Timestamp.now(),
     });
@@ -207,12 +269,13 @@ export const updateDeliveryUserStripeCustomer = async (
   }
 };
 
-// Listar todos os usuários de delivery ordenados por nome
 export const getAllDeliveryUsers = async (): Promise<DeliveryUser[]> => {
   try {
     const q = query(collection(db, 'deliveryUsers'), orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((d) => mapDeliveryUserDoc(d.id, d.data()));
+    return snapshot.docs.map((d) =>
+      mapDeliveryUserDoc(d.id, d.data() as Record<string, unknown>)
+    );
   } catch (error) {
     console.error('Erro ao listar usuários de delivery:', error);
     return [];

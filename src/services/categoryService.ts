@@ -9,6 +9,10 @@ import {
   where
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import {
+  isCapacitorRuntime,
+  queryFirestoreByField,
+} from '../utils/firestoreRest';
 
 interface Translation {
   'en-US': string;
@@ -57,6 +61,22 @@ export const addCategory = async (name: string, restaurantId?: string, translati
 // Buscar todas as categorias
 export const getCategories = async (restaurantId: string): Promise<Category[]> => {
   try {
+    if (isCapacitorRuntime()) {
+      const docs = await queryFirestoreByField('categories', 'restaurantId', restaurantId, 200);
+      return docs
+        .map((d) => ({
+          id: d.id,
+          name: String(d.data.name ?? ''),
+          restaurantId: String(d.data.restaurantId ?? restaurantId),
+          createdAt:
+            d.data.createdAt instanceof Date
+              ? d.data.createdAt
+              : new Date(String(d.data.createdAt ?? Date.now())),
+          translations: d.data.translations as Category['translations'],
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     // SEMPRE filtrar por restaurantId específico (sem orderBy para evitar índice composto)
     const q = query(
       collection(db, 'categories'), 

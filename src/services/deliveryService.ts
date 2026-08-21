@@ -14,9 +14,28 @@ import { db } from '../../firebase';
 import type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
 import { normalizePhone } from '../utils/authInputUtils';
 import { addOrder } from './orderService';
+import {
+  createFirestoreDocument,
+  getFirestoreDocument,
+  isCapacitorRuntime,
+  queryFirestoreByField,
+  updateFirestoreDocument,
+} from '../utils/firestoreRest';
 
 // Re-exportar os tipos para facilitar imports
 export type { DeliveryOrder, CreateDeliveryOrderData } from '../types/delivery';
+
+function toOrderDate(value: unknown): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
 
 /** Converte documento Firestore em DeliveryOrder */
 function docToOrder(docId: string, data: Record<string, unknown>): DeliveryOrder {
@@ -41,8 +60,8 @@ function docToOrder(docId: string, data: Record<string, unknown>): DeliveryOrder
     pixStatus: data.pixStatus as string | undefined,
     observations: data.observations as string | undefined,
     cancellationReason: data.cancellationReason as string | undefined,
-    createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.() || new Date(),
-    updatedAt: (data.updatedAt as { toDate?: () => Date })?.toDate?.() || new Date()
+    createdAt: toOrderDate(data.createdAt),
+    updatedAt: toOrderDate(data.updatedAt),
   };
 }
 
@@ -61,6 +80,11 @@ const translatePaymentMethod = (method: string): string => {
 /** Buscar um pedido de delivery por ID (para painel do motoboy, etc.) */
 export const getDeliveryOrderById = async (orderId: string): Promise<DeliveryOrder | null> => {
   try {
+    if (isCapacitorRuntime()) {
+      const snap = await getFirestoreDocument('deliveries', orderId);
+      if (!snap) return null;
+      return docToOrder(snap.id, snap.data);
+    }
     const orderRef = doc(db, 'deliveries', orderId);
     const snap = await getDoc(orderRef);
     if (!snap.exists()) return null;
@@ -74,6 +98,13 @@ export const getDeliveryOrderById = async (orderId: string): Promise<DeliveryOrd
 // Buscar pedidos de delivery por cliente (usando telefone como identificador)
 export const getDeliveryOrdersByPhone = async (phone: string): Promise<DeliveryOrder[]> => {
   try {
+    if (isCapacitorRuntime()) {
+      const docs = await queryFirestoreByField('deliveries', 'customerPhone', phone, 100);
+      return docs
+        .map((d) => docToOrder(d.id, d.data))
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
     // Primeiro buscar por telefone
     const q = query(
       collection(db, 'deliveries'),
@@ -83,14 +114,8 @@ export const getDeliveryOrdersByPhone = async (phone: string): Promise<DeliveryO
     const querySnapshot = await getDocs(q);
     const orders: DeliveryOrder[] = [];
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      orders.push({
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      } as DeliveryOrder);
+    querySnapshot.forEach((docSnap) => {
+      orders.push(docToOrder(docSnap.id, docSnap.data() as Record<string, unknown>));
     });
 
     // Ordenar no cliente por data de criação (mais recente primeiro)
@@ -103,13 +128,32 @@ export const getDeliveryOrdersByPhone = async (phone: string): Promise<DeliveryO
 
 /**
  * Inscreve para atualizações em tempo real dos pedidos do cliente (por telefone).
- * Qualquer mudança de status no Firestore atualiza a lista na hora.
- * Retorna função para cancelar a inscrição.
+ * No Capacitor usa polling REST — onSnapshot trava no WKWebView.
  */
 export function subscribeDeliveryOrdersByPhone(
   phone: string,
   onOrders: (orders: DeliveryOrder[]) => void
 ): () => void {
+  if (isCapacitorRuntime()) {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const orders = await getDeliveryOrdersByPhone(phone);
+        if (!cancelled) onOrders(orders);
+      } catch (err) {
+        console.error('Erro no polling de pedidos por telefone:', err);
+      }
+    };
+    void tick();
+    const intervalId = window.setInterval(() => {
+      void tick();
+    }, 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }
+
   const q = query(
     collection(db, 'deliveries'),
     where('customerPhone', '==', phone)
@@ -136,6 +180,14 @@ export const updateDeliveryPixPayment = async (
   }
 ): Promise<void> => {
   try {
+    const payload = {
+      ...stripUndefined(data),
+      updatedAt: new Date(),
+    };
+    if (isCapacitorRuntime()) {
+      await updateFirestoreDocument('deliveries', orderId, payload as Record<string, unknown>);
+      return;
+    }
     const orderRef = doc(db, 'deliveries', orderId);
     await updateDoc(orderRef, {
       ...stripUndefined(data),
@@ -181,6 +233,15 @@ export const assignMotoboyToDeliveryOrder = async (
 // Cancelar/recusar pedido de delivery (restaurante ou sistema)
 export const cancelDeliveryOrder = async (orderId: string, reason?: string): Promise<void> => {
   try {
+    const payload = {
+      status: 'cancelled' as const,
+      updatedAt: new Date(),
+      cancellationReason: reason || 'Pedido recusado pela cozinha',
+    };
+    if (isCapacitorRuntime()) {
+      await updateFirestoreDocument('deliveries', orderId, payload);
+      return;
+    }
     const orderRef = doc(db, 'deliveries', orderId);
     await updateDoc(orderRef, {
       status: 'cancelled',
@@ -240,46 +301,62 @@ function stripUndefined<T>(value: T): T {
 // Criar novo pedido de delivery
 export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): Promise<DeliveryOrder> => {
   try {
-    const cleanedOrderData = stripUndefined(orderData);
-    const docRef = await addDoc(collection(db, 'deliveries'), {
-      ...cleanedOrderData,
-      status: 'pending',
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    });
+    const cleanedOrderData = stripUndefined(orderData) as CreateDeliveryOrderData;
+    const now = new Date();
 
-    const deliveryOrder = {
-      id: docRef.id,
+    let orderId: string;
+
+    if (isCapacitorRuntime()) {
+      const created = await createFirestoreDocument('deliveries', {
+        ...cleanedOrderData,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      });
+      orderId = created.id;
+    } else {
+      const docRef = await addDoc(collection(db, 'deliveries'), {
+        ...cleanedOrderData,
+        status: 'pending',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+      orderId = docRef.id;
+    }
+
+    const deliveryOrder: DeliveryOrder = {
+      id: orderId,
       ...orderData,
-      status: 'pending' as const,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
     };
 
-    // Sincronizar com a coleção unificada de pedidos
-    try {
-      await addOrder({
-        restaurantId: orderData.restaurantId,
-        mesaId: docRef.id,
-        mesaNumero: `Delivery #${docRef.id.substring(0, 6)}`,
-        timestamp: new Date().toLocaleString('pt-BR'),
-        status: 'novo',
-        itens: orderData.items.map(item =>
-          `${item.quantity}x ${item.productName}${item.observations ? ` (${item.observations})` : ''}`
-        ),
-        tempoEspera: '0 min',
-        orderType: 'delivery',
-        deliveryInfo: {
-          customerName: orderData.customerName,
-          customerPhone: orderData.customerPhone,
-          customerAddress: orderData.customerAddress,
-          paymentMethod: translatePaymentMethod(orderData.paymentMethod),
-          deliveryFee: orderData.deliveryFee
-        }
-      });
-    } catch (syncError) {
-      console.error('Erro ao sincronizar delivery com orders:', syncError);
-      // Não falha o pedido de delivery se a sincronização falhar
+    // Sincronizar com a coleção unificada de pedidos (web admin). No Cap, SDK trava — pula.
+    if (!isCapacitorRuntime()) {
+      try {
+        await addOrder({
+          restaurantId: orderData.restaurantId,
+          mesaId: orderId,
+          mesaNumero: `Delivery #${orderId.substring(0, 6)}`,
+          timestamp: new Date().toLocaleString('pt-BR'),
+          status: 'novo',
+          itens: orderData.items.map(item =>
+            `${item.quantity}x ${item.productName}${item.observations ? ` (${item.observations})` : ''}`
+          ),
+          tempoEspera: '0 min',
+          orderType: 'delivery',
+          deliveryInfo: {
+            customerName: orderData.customerName,
+            customerPhone: orderData.customerPhone,
+            customerAddress: orderData.customerAddress,
+            paymentMethod: translatePaymentMethod(orderData.paymentMethod),
+            deliveryFee: orderData.deliveryFee
+          }
+        });
+      } catch (syncError) {
+        console.error('Erro ao sincronizar delivery com orders:', syncError);
+      }
     }
 
     return deliveryOrder;

@@ -12,6 +12,10 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import type { Product } from '../types/product';
+import {
+  isCapacitorRuntime,
+  queryFirestoreByField,
+} from '../utils/firestoreRest';
 
 function parseShiftIds(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -86,6 +90,13 @@ export const addProduct = async (product: Omit<Product, 'id'>, restaurantId?: st
 // Buscar todos os produtos
 export const getProducts = async (restaurantId: string): Promise<Product[]> => {
   try {
+    if (isCapacitorRuntime()) {
+      const docs = await queryFirestoreByField('products', 'restaurantId', restaurantId, 500);
+      return docs
+        .map((d) => mapProductDoc(d.id, d.data))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     // SEMPRE filtrar por restaurantId específico (sem orderBy para evitar índice composto)
     const q = query(
       collection(db, 'products'), 

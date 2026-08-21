@@ -20,7 +20,7 @@ import {
   normalizePartnershipSubscription,
   partnershipSubscriptionToFirestore,
 } from '../types/partnership';
-import { isCapacitorRuntime, listFirestoreCollection } from '../utils/firestoreRest';
+import { isCapacitorRuntime, listFirestoreCollection, getFirestoreDocument } from '../utils/firestoreRest';
 
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
@@ -195,26 +195,32 @@ async function getRestaurantsFromRest(): Promise<Restaurant[]> {
 // Buscar todos os restaurantes
 export const getRestaurants = async (): Promise<Restaurant[]> => {
   try {
+    // No Capacitor NÃO fazer fallback para SDK — WebChannel trava e parece “sem internet”.
     if (isCapacitorRuntime()) {
       return await getRestaurantsFromRest();
     }
     return await getRestaurantsFromSdk();
-  } catch (sdkOrRestError) {
-    console.error('Erro ao buscar restaurantes (primário):', sdkOrRestError);
-    try {
-      return isCapacitorRuntime()
-        ? await getRestaurantsFromSdk()
-        : await getRestaurantsFromRest();
-    } catch (fallbackError) {
-      console.error('Erro ao buscar restaurantes (fallback):', fallbackError);
-      throw new Error('Falha ao buscar restaurantes');
+  } catch (error) {
+    console.error('Erro ao buscar restaurantes:', error);
+    if (!isCapacitorRuntime()) {
+      try {
+        return await getRestaurantsFromRest();
+      } catch (fallbackError) {
+        console.error('Erro ao buscar restaurantes (fallback REST):', fallbackError);
+      }
     }
+    throw new Error('Falha ao buscar restaurantes');
   }
 };
 
 // Buscar restaurante por ID
 export const getRestaurantById = async (id: string): Promise<Restaurant | null> => {
   try {
+    if (isCapacitorRuntime()) {
+      const docSnap = await getFirestoreDocument('restaurants', id);
+      if (!docSnap) return null;
+      return mapRestaurantDoc(docSnap.id, docSnap.data);
+    }
     const docSnap = await getDoc(doc(db, 'restaurants', id));
     if (!docSnap.exists()) return null;
     return mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>);
