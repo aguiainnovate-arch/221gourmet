@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   RECAPTCHA_CONTAINER_ID,
   preparePhoneRecaptcha,
+  shouldSkipFirebasePhoneOtp,
 } from '../services/phoneAuthService';
 
 /**
@@ -11,6 +12,7 @@ export default function PhoneRecaptcha() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (shouldSkipFirebasePhoneOtp()) return;
     let cancelled = false;
     void preparePhoneRecaptcha().catch((err) => {
       console.error('Erro ao carregar reCAPTCHA:', err);
@@ -22,6 +24,8 @@ export default function PhoneRecaptcha() {
       cancelled = true;
     };
   }, []);
+
+  if (shouldSkipFirebasePhoneOtp()) return null;
 
   return (
     <div className="pt-1">

@@ -13,6 +13,7 @@ import {
   confirmPhoneOtp,
   mapPhoneAuthError,
   clearPhoneRecaptcha,
+  shouldSkipFirebasePhoneOtp,
 } from '../services/phoneAuthService';
 import {
   isEmail,
@@ -100,6 +101,11 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             setError('Esta conta não tem telefone cadastrado.');
             return;
           }
+          if (shouldSkipFirebasePhoneOtp()) {
+            await login(foundUser.id);
+            handleClose();
+            return;
+          }
           await startPhoneOtp(normalizePhone(foundUser.phone), 'login');
         } else {
           const phoneE164 = normalizePhone(phone);
@@ -114,6 +120,11 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
           );
           if (!foundUser) {
             setError('Usuário não encontrado. Crie uma conta primeiro.');
+            return;
+          }
+          if (shouldSkipFirebasePhoneOtp()) {
+            await login(foundUser.id);
+            handleClose();
             return;
           }
           await startPhoneOtp(phoneE164, 'login');
@@ -147,6 +158,14 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
           address: address.trim(),
           defaultPaymentMethod,
         };
+        if (shouldSkipFirebasePhoneOtp()) {
+          const userData = await saveDeliveryUser(pendingRegisterRef.current);
+          pendingRegisterRef.current = null;
+          await login(userData.id);
+          updateUser(userData);
+          handleClose();
+          return;
+        }
         await startPhoneOtp(phoneE164, 'register');
       } catch (err) {
         console.error('Erro ao criar conta:', err);
@@ -409,7 +428,9 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                 </>
               )}
 
-              {(loginMode === 'phone' || !isLogin) && <PhoneRecaptcha />}
+              {(loginMode === 'phone' || !isLogin) && !shouldSkipFirebasePhoneOtp() && (
+                <PhoneRecaptcha />
+              )}
 
               <div className="flex space-x-3 pt-4">
                 <button

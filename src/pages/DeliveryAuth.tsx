@@ -15,6 +15,7 @@ import {
   sendPhoneOtp,
   confirmPhoneOtp,
   mapPhoneAuthError,
+  shouldSkipFirebasePhoneOtp,
 } from '../services/phoneAuthService';
 import {
   isEmail,
@@ -138,6 +139,11 @@ export default function DeliveryAuth() {
           'getDeliveryUserByEmail'
         );
         if (deliveryUser) {
+          if (shouldSkipFirebasePhoneOtp()) {
+            await deliveryLogin(deliveryUser.id);
+            navigate(redirectTo, { replace: true });
+            return;
+          }
           if (!deliveryUser.phone) {
             setError('Esta conta não tem telefone cadastrado. Entre com o telefone ou atualize o cadastro.');
             return;
@@ -159,6 +165,11 @@ export default function DeliveryAuth() {
           'getDeliveryUserByPhone'
         );
         if (deliveryUser) {
+          if (shouldSkipFirebasePhoneOtp()) {
+            await deliveryLogin(deliveryUser.id);
+            navigate(redirectTo, { replace: true });
+            return;
+          }
           queuePhoneOtp(phoneE164, 'login');
           return;
         }
@@ -273,6 +284,14 @@ export default function DeliveryAuth() {
         address: address.trim(),
         defaultPaymentMethod,
       };
+      if (shouldSkipFirebasePhoneOtp()) {
+        const userData = await saveDeliveryUser(pendingRegisterRef.current);
+        pendingRegisterRef.current = null;
+        await deliveryLogin(userData.id);
+        updateUser(userData);
+        navigate(redirectTo, { replace: true });
+        return;
+      }
       queuePhoneOtp(phoneE164, 'register');
     } catch (err) {
       console.error('Erro ao iniciar verificação do cadastro:', err);

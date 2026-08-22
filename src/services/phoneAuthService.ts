@@ -10,6 +10,11 @@ import { normalizePhone } from '../utils/authInputUtils';
 import { isCapacitorRuntime } from '../utils/firestoreRest';
 import { withTimeout } from '../utils/withTimeout';
 
+/** No iOS/Android o RecaptchaVerifier do SDK web não carrega (auth/internal-error). */
+export function shouldSkipFirebasePhoneOtp(): boolean {
+  return isCapacitorRuntime();
+}
+
 /** Container do widget (docs do Firebase usam o id em string, não o HTMLElement). */
 export const RECAPTCHA_CONTAINER_ID = 'delivery-phone-recaptcha';
 
