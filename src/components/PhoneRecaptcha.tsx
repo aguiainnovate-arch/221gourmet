@@ -11,12 +11,16 @@ export default function PhoneRecaptcha() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    try {
-      preparePhoneRecaptcha();
-    } catch (err) {
+    let cancelled = false;
+    void preparePhoneRecaptcha().catch((err) => {
       console.error('Erro ao carregar reCAPTCHA:', err);
-      setError('Não foi possível carregar a verificação. Recarregue a página.');
-    }
+      if (!cancelled) {
+        setError('Não foi possível carregar a verificação. Feche e abra esta tela de novo.');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

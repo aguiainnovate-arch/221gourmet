@@ -6,7 +6,10 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    iosScheme: 'https'
+    iosScheme: 'https',
+    // Origem HTTPS de domínio autorizado do Firebase. localhost no WKWebView
+    // quebra o RecaptchaVerifier (auth/internal-error no Phone Auth).
+    hostname: 'gourmet-9ebe6.firebaseapp.com',
   },
   plugins: {
     // Não habilitar CapacitorHttp globalmente — quebra Firestore no Android/iOS.

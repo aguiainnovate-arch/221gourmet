@@ -14,9 +14,12 @@ import { withTimeout } from '../utils/withTimeout';
 export const RECAPTCHA_CONTAINER_ID = 'delivery-phone-recaptcha';
 
 let recaptchaVerifier: RecaptchaVerifier | null = null;
+let recaptchaReady: Promise<RecaptchaVerifier> | null = null;
 let sendInFlight: Promise<ConfirmationResult> | null = null;
 
 function enableTestModeIfConfigured(): void {
+  // Nunca no Capacitor/TestFlight: isso gera auth/internal-error em produção.
+  if (isCapacitorRuntime()) return;
   const flag = (import.meta as ImportMeta & { env?: Record<string, string> }).env
     ?.VITE_FIREBASE_PHONE_TEST_MODE;
   if (flag === 'true' || flag === '1') {
@@ -25,6 +28,7 @@ function enableTestModeIfConfigured(): void {
 }
 
 export function clearPhoneRecaptcha(): void {
+  recaptchaReady = null;
   if (recaptchaVerifier) {
     try {
       recaptchaVerifier.clear();
@@ -38,28 +42,41 @@ export function clearPhoneRecaptcha(): void {
 }
 
 /**
- * Cria o RecaptchaVerifier no id fixo do DOM.
- * Não passar HTMLElement: o SDK web espera o id string.
+ * Cria o RecaptchaVerifier no id fixo do DOM e espera o render.
+ * Invisible no WKWebView do iOS causa auth/internal-error — usar widget visível.
  */
-export function preparePhoneRecaptcha(): RecaptchaVerifier {
+export async function preparePhoneRecaptcha(): Promise<RecaptchaVerifier> {
   enableTestModeIfConfigured();
   auth.languageCode = 'pt-BR';
 
   if (recaptchaVerifier) return recaptchaVerifier;
+  if (recaptchaReady) return recaptchaReady;
 
-  const el = document.getElementById(RECAPTCHA_CONTAINER_ID);
-  if (!el) {
-    throw new Error('Container do reCAPTCHA não encontrado na página.');
+  recaptchaReady = (async () => {
+    const el = document.getElementById(RECAPTCHA_CONTAINER_ID);
+    if (!el) {
+      throw new Error('Container do reCAPTCHA não encontrado na página.');
+    }
+
+    const verifier = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
+      size: 'normal',
+      callback: () => {},
+      'expired-callback': () => {
+        clearPhoneRecaptcha();
+      },
+    });
+    recaptchaVerifier = verifier;
+    await withTimeout(verifier.render(), 20000, 'carregamento do reCAPTCHA');
+    return verifier;
+  })();
+
+  try {
+    return await recaptchaReady;
+  } catch (error) {
+    recaptchaReady = null;
+    recaptchaVerifier = null;
+    throw error;
   }
-
-  // No Capacitor, widget visível costuma falhar no WKWebView.
-  recaptchaVerifier = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
-    size: isCapacitorRuntime() ? 'invisible' : 'normal',
-    callback: () => {},
-    'expired-callback': () => {},
-  });
-
-  return recaptchaVerifier;
 }
 
 export async function sendPhoneOtp(phone: string): Promise<ConfirmationResult> {
@@ -77,7 +94,7 @@ export async function sendPhoneOtp(phone: string): Promise<ConfirmationResult> {
   }
 
   const run = (async (): Promise<ConfirmationResult> => {
-    const verifier = preparePhoneRecaptcha();
+    const verifier = await preparePhoneRecaptcha();
     try {
       return await withTimeout(
         signInWithPhoneNumber(auth, e164, verifier),
@@ -127,25 +144,31 @@ export function mapPhoneAuthError(error: unknown): string {
         : '';
 
   if (/already been rendered/i.test(message)) {
-    return 'Falha na verificação de segurança. Recarregue a página (Ctrl+F5) e tente de novo.';
+    return 'Falha na verificação de segurança. Feche e abra o app e tente de novo.';
+  }
+  if (/Timeout/i.test(message) || /Tempo esgotado/i.test(message)) {
+    return 'A verificação demorou demais. Marque “Não sou um robô” e tente enviar o código de novo.';
   }
 
   switch (code) {
+    case 'auth/internal-error':
+      return [
+        'O iOS bloqueou o reCAPTCHA do Firebase (auth/internal-error).',
+        'Marque a caixa “Não sou um robô” e tente de novo.',
+        'Se persistir: no Console Firebase → Authentication → Settings → Authorized domains,',
+        'precisa existir gourmet-9ebe6.firebaseapp.com (domínio padrão do projeto).',
+      ].join(' ');
     case 'auth/invalid-app-credential':
       if (isCapacitorRuntime()) {
         return [
           'O Firebase recusou o reCAPTCHA no app (auth/invalid-app-credential).',
-          'No Console → Authentication → Settings → Authorized domains, inclua localhost.',
-          'Confirme Phone Auth ativo e use número de teste se necessário.',
+          'No Console → Authentication → Settings → Authorized domains, inclua gourmet-9ebe6.firebaseapp.com.',
+          'Confirme Phone Auth ativo e a política de SMS com o Brasil (BR).',
         ].join(' ');
       }
       return [
-        'O Firebase recusou o reCAPTCHA (auth/invalid-app-credential). Isso é configuração do projeto, não do formulário.',
-        'No Console: 1) Authentication → Sign-in method → Phone ATIVO.',
-        '2) Settings → Authorized domains: localhost e 127.0.0.1.',
-        '3) Settings → SMS region policy: permitir Brasil (BR). Projetos novos bloqueiam todos os países.',
-        '4) Abra o app em http://127.0.0.1:5173 (não só localhost).',
-        '5) Para testar sem SMS real: Phone → Phone numbers for testing (ex. +5511999999999 / 123456).',
+        'O Firebase recusou o reCAPTCHA (auth/invalid-app-credential).',
+        'No Console: Phone ATIVO, Authorized domains com localhost, SMS region BR.',
       ].join(' ');
     case 'auth/invalid-phone-number':
       return 'Número de telefone inválido. Confira DDI + DDD + número.';
@@ -160,7 +183,7 @@ export function mapPhoneAuthError(error: unknown): string {
       return 'Código expirado. Solicite um novo código.';
     case 'auth/captcha-check-failed':
     case 'auth/missing-client-identifier':
-      return 'Falha no reCAPTCHA. Marque a caixa e tente de novo.';
+      return 'Falha no reCAPTCHA. Marque a caixa “Não sou um robô” e tente de novo.';
     case 'auth/operation-not-allowed':
       return 'Phone Authentication não está habilitado. Ative em Authentication → Sign-in method → Phone.';
     case 'auth/admin-restricted-operation':

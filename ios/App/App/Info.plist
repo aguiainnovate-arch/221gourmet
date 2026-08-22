@@ -51,5 +51,10 @@
 	<string>Usamos sua localização para mostrar restaurantes próximos e calcular a entrega.</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Usamos sua localização para mostrar restaurantes próximos e calcular a entrega.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

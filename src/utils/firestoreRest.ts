@@ -92,9 +92,12 @@ export async function listFirestoreCollection(collectionId: string): Promise<Res
 
 export function isCapacitorRuntime(): boolean {
   const env = (import.meta as { env?: Record<string, string> }).env ?? {};
+  // Só o build do app (`npm run build:capacitor`) liga essa flag.
+  // Não usar `window.Capacitor`: o @capacitor/core existe também no bundle web.
   if (env.VITE_CAPACITOR_BUILD === 'true' || env.CAPACITOR_BUILD === 'true') return true;
   try {
-    return typeof window !== 'undefined' && Boolean((window as { Capacitor?: unknown }).Capacitor);
+    const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    return typeof cap?.isNativePlatform === 'function' && cap.isNativePlatform();
   } catch {
     return false;
   }

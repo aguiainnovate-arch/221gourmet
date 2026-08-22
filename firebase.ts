@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, initializeAuth, indexedDBLocalPersistence } from "firebase/auth";
 import { initializeFirestore, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
@@ -25,11 +25,6 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth (Phone OTP / SMS para clientes delivery)
-export const auth = getAuth(app);
-
-auth.languageCode = 'pt-BR';
-
 function isNativeApp(): boolean {
   if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CAPACITOR_BUILD === 'true') {
     return true;
@@ -40,6 +35,21 @@ function isNativeApp(): boolean {
     return false;
   }
 }
+
+function createAuth() {
+  if (isNativeApp()) {
+    try {
+      return initializeAuth(app, { persistence: indexedDBLocalPersistence });
+    } catch {
+      return getAuth(app);
+    }
+  }
+  return getAuth(app);
+}
+
+// Initialize Auth (Phone OTP / SMS para clientes delivery)
+export const auth = createAuth();
+auth.languageCode = 'pt-BR';
 
 /**
  * WKWebView do Capacitor quebra o WebChannel do Firestore (listen/channel).

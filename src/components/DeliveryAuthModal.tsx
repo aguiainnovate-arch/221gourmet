@@ -21,6 +21,7 @@ import {
 import type { CreateDeliveryUserData } from '../types/deliveryUser';
 import PhoneOtpForm from './PhoneOtpForm';
 import PhoneWithCountryInput from './PhoneWithCountryInput';
+import PhoneRecaptcha from './PhoneRecaptcha';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOOKUP_TIMEOUT_MS = 15_000;
@@ -407,6 +408,8 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                   </div>
                 </>
               )}
+
+              {(loginMode === 'phone' || !isLogin) && <PhoneRecaptcha />}
 
               <div className="flex space-x-3 pt-4">
                 <button
