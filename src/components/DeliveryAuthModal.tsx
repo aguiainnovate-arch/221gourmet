@@ -341,33 +341,35 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                       <PhoneWithCountryInput value={phone} onChange={setPhone} required variant="modal" />
                     </div>
                   ) : (
-                    <div>
-                      <label className="block text-sm font-medium text-black mb-2">
-                        <Mail className="w-4 h-4 inline mr-2" />
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
-                        placeholder="seu@email.com"
-                        autoComplete="username"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-black mb-2">
-                        <Lock className="w-4 h-4 inline mr-2" />
-                        Senha
-                      </label>
-                      <PasswordInput
-                        value={accountPassword}
-                        onChange={(e) => setAccountPassword(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
-                        placeholder="Sua senha"
-                        required
-                        autoComplete="current-password"
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-black mb-2">
+                          <Mail className="w-4 h-4 inline mr-2" />
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
+                          placeholder="seu@email.com"
+                          autoComplete="username"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-black mb-2">
+                          <Lock className="w-4 h-4 inline mr-2" />
+                          Senha
+                        </label>
+                        <PasswordInput
+                          value={accountPassword}
+                          onChange={(e) => setAccountPassword(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
+                          placeholder="Sua senha"
+                          required
+                          autoComplete="current-password"
+                        />
+                      </div>
                     </div>
                   )}
                   <p className="text-xs text-gray-600">
