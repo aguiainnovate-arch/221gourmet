@@ -21,5 +21,7 @@ export interface CreateDeliveryUserData {
   defaultPaymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   stripeCustomerId?: string;
   authUid?: string;
+  /** Senha em texto; só é persistida como hash. */
+  password?: string;
 }
 

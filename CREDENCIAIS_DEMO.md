@@ -56,9 +56,11 @@ Contas são criadas no **Firebase (Firestore)** via scripts executáveis no term
 | **Email**   | `cliente@demo.com`   |
 | **Telefone**| `(11) 99999-9999` → E.164: `+5511999999999`   |
 
-**Senha:** não existe. Acesso por **email** ou **telefone**, com **código SMS** (Firebase Phone Auth).
+**Senha:** `123456` (clientes que ainda não tinham senha).
 
-**Fluxo:** informe email/telefone → Firebase envia SMS → digite o código de 6 dígitos → sessão permanece ativa.
+**Fluxo:**
+- **Email:** email + senha (sem SMS / sem reCAPTCHA).
+- **Telefone:** código SMS na web; no app iOS entra direto pelo número cadastrado.
 
 **Onde usar:** rota `/delivery/auth`.
 

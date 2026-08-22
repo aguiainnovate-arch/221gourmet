@@ -14,6 +14,7 @@ import {
 import { db } from '../../firebase';
 import type { DeliveryUser, CreateDeliveryUserData } from '../types/deliveryUser';
 import { normalizePhone } from '../utils/authInputUtils';
+import bcrypt from 'bcryptjs';
 import {
   getFirestoreDocument,
   isCapacitorRuntime,
@@ -51,22 +52,58 @@ function mapDeliveryUserDoc(id: string, data: Record<string, unknown>): Delivery
   };
 }
 
+async function findDeliveryUserRecord(
+  field: 'email' | 'phone' | 'authUid',
+  value: string
+): Promise<{ user: DeliveryUser; passwordHash: string } | null> {
+  let id = '';
+  let data: Record<string, unknown> = {};
+
+  if (isCapacitorRuntime()) {
+    const docs = await queryFirestoreByField('deliveryUsers', field, value, 1);
+    if (docs.length === 0) return null;
+    id = docs[0].id;
+    data = docs[0].data;
+  } else {
+    const q = query(collection(db, 'deliveryUsers'), where(field, '==', value));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    const d = snapshot.docs[0];
+    id = d.id;
+    data = d.data() as Record<string, unknown>;
+  }
+
+  return {
+    user: mapDeliveryUserDoc(id, data),
+    passwordHash: typeof data.passwordHash === 'string' ? data.passwordHash : '',
+  };
+}
+
 async function findDeliveryUserByField(
   field: 'email' | 'phone' | 'authUid',
   value: string
 ): Promise<DeliveryUser | null> {
-  if (isCapacitorRuntime()) {
-    const docs = await queryFirestoreByField('deliveryUsers', field, value, 1);
-    if (docs.length === 0) return null;
-    return mapDeliveryUserDoc(docs[0].id, docs[0].data);
-  }
-
-  const q = query(collection(db, 'deliveryUsers'), where(field, '==', value));
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  const d = snapshot.docs[0];
-  return mapDeliveryUserDoc(d.id, d.data() as Record<string, unknown>);
+  const record = await findDeliveryUserRecord(field, value);
+  return record?.user ?? null;
 }
+
+export const loginDeliveryUserWithEmail = async (
+  email: string,
+  password: string
+): Promise<DeliveryUser> => {
+  const record = await findDeliveryUserRecord('email', email.trim().toLowerCase());
+  if (!record) {
+    throw new Error('Usuário não encontrado. Crie uma conta para continuar.');
+  }
+  if (!record.passwordHash) {
+    throw new Error('Esta conta ainda não tem senha. Use o telefone ou peça para definir a senha 123456.');
+  }
+  const matches = await bcrypt.compare(password, record.passwordHash);
+  if (!matches) {
+    throw new Error('Senha incorreta.');
+  }
+  return record.user;
+};
 
 export const saveDeliveryUser = async (
   userData: CreateDeliveryUserData
@@ -79,12 +116,16 @@ export const saveDeliveryUser = async (
     ]);
     const existingUser = existingUserByEmail || existingUserByPhone;
 
+    const { password, ...userFields } = userData;
     const cleanData: Record<string, unknown> = {
-      ...userData,
+      ...userFields,
       phone: normalizedPhone,
     };
     if (userData.stripeCustomerId === undefined) delete cleanData.stripeCustomerId;
     if (userData.authUid === undefined) delete cleanData.authUid;
+    if (password && password.trim().length >= 6) {
+      cleanData.passwordHash = await bcrypt.hash(password.trim(), 10);
+    }
 
     if (existingUser) {
       const payload = { ...cleanData, updatedAt: new Date() };
@@ -280,4 +321,23 @@ export const getAllDeliveryUsers = async (): Promise<DeliveryUser[]> => {
     console.error('Erro ao listar usuários de delivery:', error);
     return [];
   }
+};
+
+const DEFAULT_DELIVERY_PASSWORD = '123456';
+
+/** Define senha 123456 só para clientes que ainda não têm passwordHash. */
+export const setDefaultPasswordForUsersWithoutOne = async (): Promise<number> => {
+  const snapshot = await getDocs(collection(db, 'deliveryUsers'));
+  const hash = await bcrypt.hash(DEFAULT_DELIVERY_PASSWORD, 10);
+  let updated = 0;
+  for (const userDoc of snapshot.docs) {
+    const hashValue = userDoc.data().passwordHash;
+    if (typeof hashValue === 'string' && hashValue.length > 0) continue;
+    await updateDoc(userDoc.ref, {
+      passwordHash: hash,
+      updatedAt: Timestamp.now(),
+    });
+    updated += 1;
+  }
+  return updated;
 };

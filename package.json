@@ -15,6 +15,7 @@
     "create:demo-accounts": "tsx src/scripts/createDemoAccounts.ts",
     "create:demo-users-by-phone": "tsx src/scripts/createDemoUsersByPhone.ts",
     "seed:demo-restaurants": "tsx src/scripts/seedDemoRestaurants.ts",
+    "seed:delivery-passwords": "tsx src/scripts/setDeliveryDefaultPasswords.ts",
     "stripe:provision-connect-restaurants": "tsx src/scripts/provisionStripeConnectForRestaurants.ts",
     "seed:all": "npm run create:demo-accounts && npm run seed:demo-restaurants",
     "cap:assets:android": "node scripts/generateBoraComerSplash.mjs",

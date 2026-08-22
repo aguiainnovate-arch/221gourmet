@@ -63,6 +63,7 @@ async function run(): Promise<void> {
         phone: u.phone,
         address: u.address,
         defaultPaymentMethod: 'pix',
+        password: '123456',
       });
       console.log(
         `${LOG_PREFIX} ${u.country} (${u.lang}): ${created.id} — telefone ${u.phone} ou email ${u.email}`

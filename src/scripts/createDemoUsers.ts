@@ -80,6 +80,7 @@ async function ensureDemoDeliveryUser(): Promise<string> {
     name: DEMO.cliente.name,
     address: DEMO.cliente.address,
     defaultPaymentMethod: 'pix',
+    password: '123456',
   });
   console.log('✅ Cliente delivery demo criado/atualizado:', user.id);
   return user.id;

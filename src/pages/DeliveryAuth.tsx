@@ -10,6 +10,7 @@ import {
   getDeliveryUserByEmail,
   getDeliveryUserByPhone,
   linkDeliveryUserAuthUid,
+  loginDeliveryUserWithEmail,
 } from '../services/deliveryUserService';
 import {
   sendPhoneOtp,
@@ -122,33 +123,43 @@ export default function DeliveryAuth() {
           setError('Informe um email válido.');
           return;
         }
+        if (!password.trim()) {
+          setError('Informe a senha.');
+          return;
+        }
         const restaurants = await getRestaurants();
         const restaurant = restaurants.find(
           (r) => r.email?.toLowerCase() === normalizedEmail
         );
         if (restaurant) {
-          setRestaurantId(restaurant.id);
-          setRestaurantEmail(normalizedEmail);
-          setPassword('');
-          setStep('restaurant_password');
+          if (!password.trim()) {
+            setError('Informe a senha da conta do restaurante.');
+            return;
+          }
+          const success = await restaurantLogin(normalizedEmail, password);
+          if (success) {
+            navigate(`/${restaurant.id}/settings`, { replace: true });
+            return;
+          }
+          setError('Senha incorreta. Tente novamente.');
           return;
         }
-        const deliveryUser = await withTimeout(
-          getDeliveryUserByEmail(normalizedEmail),
-          LOOKUP_TIMEOUT_MS,
-          'getDeliveryUserByEmail'
-        );
-        if (deliveryUser) {
-          if (shouldSkipFirebasePhoneOtp()) {
-            await deliveryLogin(deliveryUser.id);
-            navigate(redirectTo, { replace: true });
+        try {
+          const deliveryUser = await withTimeout(
+            loginDeliveryUserWithEmail(normalizedEmail, password),
+            LOOKUP_TIMEOUT_MS,
+            'loginDeliveryUserWithEmail'
+          );
+          await deliveryLogin(deliveryUser.id);
+          navigate(redirectTo, { replace: true });
+          return;
+        } catch (loginErr) {
+          const message = loginErr instanceof Error ? loginErr.message : 'Não foi possível entrar.';
+          if (message.includes('não encontrado')) {
+            setError('Usuário não encontrado. Crie uma conta para continuar.');
             return;
           }
-          if (!deliveryUser.phone) {
-            setError('Esta conta não tem telefone cadastrado. Entre com o telefone ou atualize o cadastro.');
-            return;
-          }
-          queuePhoneOtp(normalizePhone(deliveryUser.phone), 'login');
+          setError(message);
           return;
         }
       } else {
@@ -266,6 +277,10 @@ export default function DeliveryAuth() {
       setError('Preencha todos os campos obrigatórios.');
       return;
     }
+    if (password.trim().length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
 
     const phoneE164 = normalizePhone(phone);
     try {
@@ -283,6 +298,7 @@ export default function DeliveryAuth() {
         phone: phoneE164,
         address: address.trim(),
         defaultPaymentMethod,
+        password: password.trim(),
       };
       if (shouldSkipFirebasePhoneOtp()) {
         const userData = await saveDeliveryUser(pendingRegisterRef.current);
@@ -381,12 +397,12 @@ export default function DeliveryAuth() {
             <p className="mt-1 text-sm" style={{ color: '#6B5A54' }}>
               {step === 'email' &&
                 (isFromOrders
-                  ? 'Escolha telefone (com país) ou email. Enviaremos um código SMS.'
-                  : 'Clientes entram com telefone (país + DDD) ou email. Restaurantes usam o email e a senha.')}
+                  ? 'Telefone: código SMS. Email: use a senha da conta.'
+                  : 'Clientes: telefone (SMS) ou email + senha. Restaurantes: email + senha.')}
               {step === 'captcha' && 'Marque “Não sou um robô” e envie o código SMS.'}
               {step === 'otp' && 'Confirme o código recebido no seu celular.'}
               {step === 'restaurant_password' && 'Digite sua senha para acessar as configurações do restaurante.'}
-              {step === 'delivery_register' && 'Após preencher, confirmamos o telefone com SMS.'}
+              {step === 'delivery_register' && 'Crie a conta com email, senha e telefone.'}
             </p>
           </div>
 
@@ -475,6 +491,24 @@ export default function DeliveryAuth() {
                       }}
                       placeholder="seu@email.com"
                       autoComplete="username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>
+                      Senha
+                    </label>
+                    <PasswordInput
+                      leftIcon={<Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError('');
+                      }}
+                      className="w-full py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                      style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
+                      placeholder="Sua senha"
+                      required
+                      autoComplete="current-password"
                     />
                   </div>
                 </div>
@@ -637,6 +671,22 @@ export default function DeliveryAuth() {
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>
+                  Senha *
+                </label>
+                <PasswordInput
+                  leftIcon={<Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B5A54' }} />}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E91120]/30 focus:border-[#E91120]"
+                  style={{ borderColor: '#E9D7C4', backgroundColor: '#FAF0DB', color: '#2A1E1A' }}
+                  placeholder="Mínimo 6 caracteres"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#2A1E1A' }}>
                   Telefone *
                 </label>
                 <PhoneWithCountryInput
@@ -646,7 +696,7 @@ export default function DeliveryAuth() {
                   variant="delivery"
                 />
                 <p className="mt-1 text-[11px]" style={{ color: '#6B5A54' }}>
-                  Escolha o país e digite DDD + número. Enviaremos um código SMS.
+                  Escolha o país e digite DDD + número.
                 </p>
               </div>
               <div>

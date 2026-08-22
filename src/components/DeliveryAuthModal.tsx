@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, User, Mail, Phone, MapPin, CreditCard } from 'lucide-react';
+import { X, User, Mail, Phone, MapPin, CreditCard, Lock } from 'lucide-react';
 import type { ConfirmationResult } from 'firebase/auth';
 import { useDeliveryAuth } from '../contexts/DeliveryAuthContext';
 import {
@@ -7,6 +7,7 @@ import {
   getDeliveryUserByEmail,
   getDeliveryUserByPhone,
   linkDeliveryUserAuthUid,
+  loginDeliveryUserWithEmail,
 } from '../services/deliveryUserService';
 import {
   sendPhoneOtp,
@@ -23,6 +24,7 @@ import type { CreateDeliveryUserData } from '../types/deliveryUser';
 import PhoneOtpForm from './PhoneOtpForm';
 import PhoneWithCountryInput from './PhoneWithCountryInput';
 import PhoneRecaptcha from './PhoneRecaptcha';
+import PasswordInput from './PasswordInput';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOOKUP_TIMEOUT_MS = 15_000;
@@ -51,6 +53,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<
     'money' | 'credit' | 'debit' | 'pix' | 'stripe'
   >(user?.defaultPaymentMethod || 'money');
+  const [accountPassword, setAccountPassword] = useState('');
 
   const [otpPhone, setOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -88,25 +91,18 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             setError('Informe um email válido.');
             return;
           }
-          const foundUser = await withTimeout(
-            getDeliveryUserByEmail(normalizedEmail),
+          if (!accountPassword.trim()) {
+            setError('Informe a senha.');
+            return;
+          }
+          const logged = await withTimeout(
+            loginDeliveryUserWithEmail(normalizedEmail, accountPassword),
             LOOKUP_TIMEOUT_MS,
-            'getDeliveryUserByEmail'
+            'loginDeliveryUserWithEmail'
           );
-          if (!foundUser) {
-            setError('Usuário não encontrado. Crie uma conta primeiro.');
-            return;
-          }
-          if (!foundUser.phone) {
-            setError('Esta conta não tem telefone cadastrado.');
-            return;
-          }
-          if (shouldSkipFirebasePhoneOtp()) {
-            await login(foundUser.id);
-            handleClose();
-            return;
-          }
-          await startPhoneOtp(normalizePhone(foundUser.phone), 'login');
+          await login(logged.id);
+          handleClose();
+          return;
         } else {
           const phoneE164 = normalizePhone(phone);
           if (phoneE164.replace(/\D/g, '').length < 10) {
@@ -140,6 +136,10 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
         setError('Preencha todos os campos obrigatórios');
         return;
       }
+      if (accountPassword.trim().length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
 
       try {
         setIsSubmitting(true);
@@ -157,6 +157,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
           phone: phoneE164,
           address: address.trim(),
           defaultPaymentMethod,
+          password: accountPassword.trim(),
         };
         if (shouldSkipFirebasePhoneOtp()) {
           const userData = await saveDeliveryUser(pendingRegisterRef.current);
@@ -244,6 +245,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
     setPhone(user?.phone || '');
     setAddress(user?.address || '');
     setDefaultPaymentMethod(user?.defaultPaymentMethod || 'money');
+    setAccountPassword('');
     onClose();
   };
 
@@ -353,8 +355,26 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                         autoComplete="username"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-black mb-2">
+                        <Lock className="w-4 h-4 inline mr-2" />
+                        Senha
+                      </label>
+                      <PasswordInput
+                        value={accountPassword}
+                        onChange={(e) => setAccountPassword(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
+                        placeholder="Sua senha"
+                        required
+                        autoComplete="current-password"
+                      />
+                    </div>
                   )}
-                  <p className="text-xs text-gray-600">Enviaremos um código SMS para confirmar.</p>
+                  <p className="text-xs text-gray-600">
+                    {loginMode === 'phone'
+                      ? 'No telefone enviamos um código SMS (na web).'
+                      : 'Entre com email e senha.'}
+                  </p>
                 </div>
               ) : (
                 <>
@@ -375,6 +395,22 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
 
                   <div>
                     <label className="block text-sm font-medium text-black mb-2">
+                      <Lock className="w-4 h-4 inline mr-2" />
+                      Senha *
+                    </label>
+                    <PasswordInput
+                      value={accountPassword}
+                      onChange={(e) => setAccountPassword(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-black"
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">
                       <Phone className="w-4 h-4 inline mr-2" />
                       Telefone *
                     </label>
@@ -385,7 +421,7 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
                       variant="modal"
                     />
                     <p className="mt-1 text-xs text-gray-600">
-                      Escolha o país e digite DDD + número. Enviaremos um código SMS.
+                      Escolha o país e digite DDD + número.
                     </p>
                   </div>
                 </>
@@ -459,8 +495,8 @@ export default function DeliveryAuthModal({ isOpen, onClose }: DeliveryAuthModal
             <div className="mt-4 text-sm text-black text-center">
               <p>
                 {isLogin
-                  ? 'O acesso é confirmado com um código SMS enviado ao telefone da conta.'
-                  : 'Ao criar uma conta, confirmamos seu telefone por SMS.'}
+                  ? 'O acesso por email usa senha. Por telefone, SMS na web.'
+                  : 'Ao criar uma conta, defina uma senha (email) e um telefone.'}
               </p>
             </div>
           )}

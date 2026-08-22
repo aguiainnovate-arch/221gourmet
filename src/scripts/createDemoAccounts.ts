@@ -107,6 +107,7 @@ async function ensureDeliveryUser(
   const user = await saveDeliveryUser({
     ...data,
     defaultPaymentMethod: 'pix',
+    password: '123456',
   });
   console.log(`${LOG_PREFIX} ${label} criado/atualizado: ${user.id}`);
   return user.id;
