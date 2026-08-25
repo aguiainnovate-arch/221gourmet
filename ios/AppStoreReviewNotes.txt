@@ -1,0 +1,63 @@
+App Store Connect — use this on the NEXT binary (1.0 build 19+). Do not resubmit 1.0 (18).
+
+==============================================================================
+APP PRIVACY (Account Holder / Admin)
+==============================================================================
+Bora Comer does not track users (no ATT, no IDFA, no advertising SDK).
+
+Uncheck “Used for Tracking” for: Physical Address, Name, Other Contact Info,
+Coarse Location, Phone Number, Email Address.
+
+Keep those types as App Functionality only (account + delivery).
+
+==============================================================================
+REVIEW NOTES (paste into App Review Information → Notes)
+==============================================================================
+Demo accounts (do not delete the restaurant demo if you still need the panel):
+
+Customer: cliente@demo.com  (password in internal handoff / previous notes)
+Restaurant: restaurante@demo.com / Demo@123
+The restaurant demo must have an active partnership plan so review is not sent to web-only subscription.
+
+Account deletion (Guideline 5.1.1):
+1) Customer: open delivery → tap “Cliente” → “Excluir conta” → confirm.
+2) Restaurant: sign in → sidebar → “Excluir conta” → confirm.
+   (Waiters cannot self-delete; they are created by the restaurant.)
+
+Camera (Guideline 2.1):
+Restaurant panel → Cardápio → product image → Take Photo or Photo Library.
+Info.plist includes NSCameraUsageDescription and photo library usage strings.
+
+Tracking (Guideline 5.1.2):
+We do not track. Privacy labels were corrected. Location/contact are for delivery only.
+Partnership SaaS billing is completed on the website, not via IAP in this iOS binary.
+Food orders remain in-app (physical goods).
+
+Attach a physical-device screen recording covering: sign in → find delete → confirm.
+
+==============================================================================
+RESOLUTION CENTER REPLY
+==============================================================================
+Hello App Review,
+
+Thank you for the feedback on submission 30da87ab-7457-4451-8a14-961e8b1dbcec (1.0 build 18), tested on iPad Air 11-inch (M3).
+
+We addressed all three issues in a new binary (build 19+). We did not resubmit until all items were fixed.
+
+1) Guideline 2.1 — crash on “Take Photo”
+The crash was caused by missing camera/photo library usage descriptions when choosing Take Photo from an image picker on iPad. We added NSCameraUsageDescription, NSPhotoLibraryUsageDescription and NSPhotoLibraryAddUsageDescription, rebuilt, and verified Take Photo and Photo Library on iPad.
+
+2) Guideline 5.1.1(v) — account deletion
+Deletion is in-app (not email/WhatsApp).
+• Customer: tap “Cliente” → “Excluir conta” → confirm.
+• Restaurant: sidebar → “Excluir conta” → confirm.
+A screen recording on a physical device is in App Review Information → Notes.
+
+Demo:
+Customer: cliente@demo.com
+Restaurant: restaurante@demo.com / Demo@123
+
+3) Guideline 5.1.2(i) — tracking / ATT
+Bora Comer does not track users. Contact and location data are used only for account and delivery. We updated App Privacy in App Store Connect and unchecked “Used for Tracking”.
+
+Please review the new build.

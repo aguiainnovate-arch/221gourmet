@@ -51,6 +51,12 @@
 	<string>Usamos sua localização para mostrar restaurantes próximos e calcular a entrega.</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Usamos sua localização para mostrar restaurantes próximos e calcular a entrega.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Usamos a câmera para fotografar pratos, banners e o cardápio do restaurante.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usamos sua galeria para escolher fotos de pratos, banners e do cardápio.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Podemos salvar imagens do cardápio na sua galeria quando você escolher essa opção.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoadsInWebContent</key>

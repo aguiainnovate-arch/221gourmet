@@ -8,6 +8,7 @@ import {
   Smartphone,
   Store,
 } from 'lucide-react';
+import { isIosNative } from '../utils/capacitorUtils';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurantById } from '../services/restaurantService';
 import {
@@ -162,8 +163,15 @@ export default function PartnershipPlans() {
     return null;
   }, [restaurant, access]);
 
+  const partnershipWebUrl = `${(import.meta.env.VITE_APP_URL || 'https://boracomer.com.br').replace(/\/$/, '')}/planos`;
+
   const handleSubscribe = async () => {
     setMessage(null);
+
+    if (isIosNative()) {
+      window.open(partnershipWebUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
 
     if (!isAuthenticated || !currentRestaurantId) {
       navigate(`/restaurant/auth?returnUrl=${encodeURIComponent('/planos')}`);
@@ -211,6 +219,55 @@ export default function PartnershipPlans() {
       navigate(`/${currentRestaurantId}/settings`);
     }
   };
+
+  if (isIosNative()) {
+    return (
+      <div
+        className="min-h-[100dvh] flex flex-col px-4 py-8"
+        style={{
+          background: `linear-gradient(165deg, ${tokens.cream} 0%, ${tokens.base} 45%, #F3E4D6 100%)`,
+          color: tokens.ink,
+        }}
+      >
+        <Link
+          to="/delivery"
+          className="inline-flex items-center gap-2 text-sm font-medium opacity-80 hover:opacity-100 mb-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar
+        </Link>
+        <div
+          className="max-w-md mx-auto w-full rounded-3xl p-6 border"
+          style={{ background: tokens.card, borderColor: tokens.border }}
+        >
+          <h1 className="text-xl font-extrabold">Assinatura da parceria</h1>
+          <p className="mt-3 text-sm leading-relaxed" style={{ color: tokens.muted }}>
+            A mensalidade da plataforma é contratada no site, não neste aplicativo. Pedidos de
+            comida continuam disponíveis no app.
+          </p>
+          <a
+            href={partnershipWebUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold text-white"
+            style={{ background: tokens.accent }}
+          >
+            Abrir planos no site
+          </a>
+          {access?.access && currentRestaurantId && (
+            <button
+              type="button"
+              onClick={goToPanel}
+              className="mt-3 w-full rounded-2xl py-3 text-sm font-semibold border"
+              style={{ borderColor: tokens.border, color: tokens.ink }}
+            >
+              Ir para o painel
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

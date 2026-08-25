@@ -293,9 +293,14 @@ export default function DeliveryProfileMenu({ user, onUpdateUser, onLogout, open
               type="button"
               onClick={() => void handleDeleteAccount()}
               disabled={saving || deleting}
-              className="w-full pt-1 text-center text-[11px] font-medium tracking-wide opacity-35 hover:opacity-80 transition-opacity disabled:opacity-20"
-              style={{ color: '#E91120' }}
+              className="w-full py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{ color: '#E91120', borderColor: '#E91120', backgroundColor: '#FFF5F5' }}
             >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
               {deleting ? `${t('delivery.profileDeleteAccount')}…` : t('delivery.profileDeleteAccount')}
             </button>
           </div>

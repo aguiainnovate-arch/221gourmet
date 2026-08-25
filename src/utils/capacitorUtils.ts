@@ -20,6 +20,9 @@ export const getPlatform = (): string => Capacitor.getPlatform();
 /** True apenas no Android nativo. */
 export const isAndroid = (): boolean => getPlatform() === 'android';
 
+/** True apenas no iOS nativo (WKWebView do app). Safari no iPhone continua 'web'. */
+export const isIosNative = (): boolean => getPlatform() === 'ios';
+
 /**
  * Valor de padding-top recomendado para o topo da tela no app nativo (status bar / safe area).
  * Use em elementos fixos ou absolutos no topo (ex.: header com botão voltar).

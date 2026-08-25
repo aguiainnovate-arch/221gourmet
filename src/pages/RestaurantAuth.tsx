@@ -6,6 +6,7 @@ import { getRestaurants } from '../services/restaurantService';
 import PasswordInput from '../components/PasswordInput';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { formatCpf, looksLikeCpf } from '../utils/cpf';
+import { isIosNative } from '../utils/capacitorUtils';
 
 type AuthMode = 'restaurant' | 'waiter';
 
@@ -232,7 +233,7 @@ export default function RestaurantAuth() {
             </button>
           </form>
 
-          {mode === 'restaurant' && (
+          {mode === 'restaurant' && !isIosNative() && (
             <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-xs text-amber-800 font-medium mb-2">
                 🔐 Credenciais de demonstração:

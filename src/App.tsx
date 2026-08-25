@@ -25,9 +25,10 @@ import { RestaurantAuthProvider } from './contexts/RestaurantAuthContext';
 /** Cardápio + Stripe só carregam nesta rota — não na tela de login. */
 const DeliveryMenu = lazy(() => import('./pages/DeliveryMenu'));
 
-// Variável de ambiente para habilitar/desabilitar rota de testing
-// Para desabilitar em produção, defina VITE_ENABLE_TESTING_ROUTE=false no .env
-const ENABLE_TESTING_ROUTE = import.meta.env.VITE_ENABLE_TESTING_ROUTE !== 'false';
+// Build Capacitor: rotas de teste desligadas (App Store). Web local: omita a env ou use true.
+const ENABLE_TESTING_ROUTE =
+  import.meta.env.VITE_CAPACITOR_BUILD !== 'true' &&
+  import.meta.env.VITE_ENABLE_TESTING_ROUTE !== 'false';
 
 function App() {
   return (
@@ -125,20 +126,21 @@ function App() {
                   </Route>
                 )}
                 
-                {/* Rotas de teste para restaurantes (mantido para compatibilidade) */}
-                <Route path="/test/:restaurantSlug" element={<Layout />}>
-                  <Route index element={<Home />} />
-                  <Route path="mesa/:mesaId" element={
-                    <PrivateRoute>
-                      <Menu />
-                    </PrivateRoute>
-                  } />
-                  <Route path="settings" element={
-                    <RestaurantAuthProvider>
-                      <Settings />
-                    </RestaurantAuthProvider>
-                  } />
-                </Route>
+                {ENABLE_TESTING_ROUTE && (
+                  <Route path="/test/:restaurantSlug" element={<Layout />}>
+                    <Route index element={<Home />} />
+                    <Route path="mesa/:mesaId" element={
+                      <PrivateRoute>
+                        <Menu />
+                      </PrivateRoute>
+                    } />
+                    <Route path="settings" element={
+                      <RestaurantAuthProvider>
+                        <Settings />
+                      </RestaurantAuthProvider>
+                    } />
+                  </Route>
+                )}
                 
                 {/* Rotas de restaurante por ID */}
                 <Route

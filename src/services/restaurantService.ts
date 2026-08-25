@@ -8,7 +8,8 @@ import {
   query, 
   orderBy,
   where,
-  Timestamp 
+  Timestamp,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
@@ -20,7 +21,7 @@ import {
   normalizePartnershipSubscription,
   partnershipSubscriptionToFirestore,
 } from '../types/partnership';
-import { isCapacitorRuntime, listFirestoreCollection, getFirestoreDocument } from '../utils/firestoreRest';
+import { isCapacitorRuntime, listFirestoreCollection, getFirestoreDocument, deleteFirestoreDocument } from '../utils/firestoreRest';
 
 // Re-exportar os tipos para facilitar imports
 export type { Restaurant, CreateRestaurantData, UpdateRestaurantData } from '../types/restaurant';
@@ -293,7 +294,7 @@ export const updateRestaurant = async (id: string, updates: UpdateRestaurantData
   }
 };
 
-// Remover restaurante (soft delete)
+// Remover restaurante (soft delete — painel admin)
 export const deleteRestaurant = async (id: string): Promise<void> => {
   try {
     const restaurantRef = doc(db, 'restaurants', id);
@@ -305,6 +306,15 @@ export const deleteRestaurant = async (id: string): Promise<void> => {
     console.error('Erro ao desativar restaurante:', error);
     throw new Error('Falha ao desativar restaurante');
   }
+};
+
+/** Exclusão definitiva da conta do restaurante (Guideline 5.1.1). Não usar o soft delete. */
+export const deleteRestaurantAccount = async (id: string): Promise<void> => {
+  if (isCapacitorRuntime()) {
+    await deleteFirestoreDocument('restaurants', id);
+    return;
+  }
+  await deleteDoc(doc(db, 'restaurants', id));
 };
 
 // Verificar se domínio já existe

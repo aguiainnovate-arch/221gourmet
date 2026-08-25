@@ -5,6 +5,7 @@ import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight, Printer, Bell } from 'lucide-react';
+import { isIosNative } from '../utils/capacitorUtils';
 import {
   getTables,
   updateTable,
@@ -61,7 +62,7 @@ import {
 } from '../services/restaurantStripeConnectService';
 import { playNotificationSound, getNotificationSoundEnabled, setNotificationSoundEnabled } from '../utils/notificationSound';
 import { printKitchenOrders } from '../utils/printKitchenOrders';
-import { getRestaurants } from '../services/restaurantService';
+import { getRestaurants, deleteRestaurantAccount } from '../services/restaurantService';
 import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
@@ -121,6 +122,7 @@ export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [deletingRestaurantAccount, setDeletingRestaurantAccount] = useState(false);
   const [mesas, setMesas] = useState<Table[]>([]);
   const [mesaToast, setMesaToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [mesasSubTab, setMesasSubTab] = useState<'salao' | 'historico'>('salao');
@@ -317,10 +319,11 @@ export default function Settings() {
     console.log('Firebase db inicializado:', !!db);
     if (!db) {
       console.error('Firebase não está inicializado!');
-      alert('Erro: Firebase não está inicializado. Verifique a configuração.');
+      if (!isIosNative() && import.meta.env.DEV) {
+        alert('Erro: Firebase não está inicializado. Verifique a configuração.');
+      }
     } else {
-      // Testar conectividade com o Firestore
-      testFirestoreConnection();
+      void testFirestoreConnection();
     }
   }, []);
 
@@ -330,6 +333,28 @@ export default function Settings() {
     restaurantId &&
     currentRestaurantId === restaurantId
   );
+
+  const handleDeleteRestaurantAccount = async () => {
+    if (isWaiter || !restaurantId) return;
+    if (
+      !window.confirm(
+        'Isso apaga a conta do restaurante neste aplicativo. Esta ação não pode ser desfeita. Continuar?'
+      )
+    ) {
+      return;
+    }
+    setDeletingRestaurantAccount(true);
+    try {
+      await deleteRestaurantAccount(restaurantId);
+      logout();
+      navigate('/restaurant/auth', { replace: true });
+    } catch (err) {
+      console.error('[Settings] delete restaurant account', err);
+      window.alert('Não foi possível excluir a conta. Tente novamente.');
+    } finally {
+      setDeletingRestaurantAccount(false);
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -390,11 +415,15 @@ export default function Settings() {
         console.log('✅ Todos os testes de conectividade passaram');
       } else {
         console.error('❌ Alguns testes de conectividade falharam');
-        alert('Problemas detectados na conectividade com o banco de dados. Verifique o console para mais detalhes.');
+        if (import.meta.env.DEV && !isIosNative()) {
+          alert('Problemas detectados na conectividade com o banco de dados. Verifique o console para mais detalhes.');
+        }
       }
     } catch (error) {
       console.error('Erro na conectividade com Firestore:', error);
-      alert('Erro na conectividade com o banco de dados. Verifique as regras de segurança do Firestore.');
+      if (import.meta.env.DEV && !isIosNative()) {
+        alert('Erro na conectividade com o banco de dados. Verifique as regras de segurança do Firestore.');
+      }
     }
   };
 
@@ -2506,6 +2535,26 @@ export default function Settings() {
               sidebarCollapsed ? 'md:px-2' : ''
             }`}
           >
+            {!isWaiter && (
+              <button
+                type="button"
+                onClick={() => void handleDeleteRestaurantAccount()}
+                disabled={deletingRestaurantAccount}
+                className={`w-full mb-2 flex items-center rounded-lg border border-red-600 text-red-700 font-medium hover:bg-red-50 disabled:opacity-50 ${
+                  sidebarCollapsed ? 'justify-center p-3' : 'justify-center gap-2 px-4 py-3'
+                }`}
+                title="Excluir conta"
+              >
+                <Trash2 className="w-5 h-5 shrink-0" />
+                <span
+                  className={`overflow-hidden whitespace-nowrap transition-all duration-200 ${
+                    sidebarCollapsed ? 'max-w-0 opacity-0' : 'max-w-[10rem] opacity-100'
+                  }`}
+                >
+                  {deletingRestaurantAccount ? 'Excluindo…' : 'Excluir conta'}
+                </span>
+              </button>
+            )}
             <SidebarLogoutButton
               collapsed={sidebarCollapsed}
               onConfirm={() => {
