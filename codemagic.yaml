@@ -95,8 +95,22 @@ workflows:
           xcode-project use-profiles
       - name: Increment build number
         script: |
+          # BUILD_NUMBER do Codemagic é o nº do job (ex.: 5), NÃO o CFBundleVersion da Apple.
+          # TestFlight só oferece o maior número; 5 nunca substitui o 18 já publicado.
+          set -euo pipefail
           cd $CM_BUILD_DIR/ios/App
-          agvtool new-version -all $(($BUILD_NUMBER))
+          LATEST_TF=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" --platform IOS || echo 0)
+          LATEST_AS=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APP_ID" --platform IOS || echo 0)
+          LATEST_TF=${LATEST_TF:-0}
+          LATEST_AS=${LATEST_AS:-0}
+          if [ "$LATEST_TF" -ge "$LATEST_AS" ]; then
+            LATEST="$LATEST_TF"
+          else
+            LATEST="$LATEST_AS"
+          fi
+          NEXT=$((LATEST + 1))
+          echo "Último TestFlight=$LATEST_TF App Store=$LATEST_AS → CFBundleVersion=$NEXT"
+          agvtool new-version -all "$NEXT"
       - name: Build IPA
         script: |
           cd $CM_BUILD_DIR/ios/App
@@ -118,3 +132,6 @@ workflows:
         auth: integration
         submit_to_testflight: true
         submit_to_app_store: false
+        # Nome exato do grupo em App Store Connect → TestFlight → Testes internos
+        beta_groups:
+          - Bora comer!

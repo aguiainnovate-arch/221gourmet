@@ -13,6 +13,7 @@
     "migrate:delivery-settings": "tsx src/scripts/migrateDeliverySettings.ts",
     "create:demo-users": "tsx src/scripts/createDemoUsers.ts",
     "create:demo-accounts": "tsx src/scripts/createDemoAccounts.ts",
+    "create:review-test-accounts": "tsx src/scripts/createReviewTestAccounts.ts",
     "create:demo-users-by-phone": "tsx src/scripts/createDemoUsersByPhone.ts",
     "seed:demo-restaurants": "tsx src/scripts/seedDemoRestaurants.ts",
     "seed:delivery-passwords": "tsx src/scripts/setDeliveryDefaultPasswords.ts",

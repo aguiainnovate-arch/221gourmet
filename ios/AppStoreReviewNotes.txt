@@ -13,11 +13,12 @@ Keep those types as App Functionality only (account + delivery).
 ==============================================================================
 REVIEW NOTES (paste into App Review Information → Notes)
 ==============================================================================
-Demo accounts (do not delete the restaurant demo if you still need the panel):
+Deletion test accounts (use these for the screen recording — they can be deleted):
 
-Customer: cliente@demo.com  (password in internal handoff / previous notes)
-Restaurant: restaurante@demo.com / Demo@123
-The restaurant demo must have an active partnership plan so review is not sent to web-only subscription.
+Customer: cliente@teste.com / 123456
+Restaurant: restaurante@teste.com / 123456
+
+Keep restaurante@demo.com / Demo@123 for review of the panel (do not delete it).
 
 Account deletion (Guideline 5.1.1):
 1) Customer: open delivery → tap “Cliente” → “Excluir conta” → confirm.
