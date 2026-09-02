@@ -172,7 +172,7 @@ const OrderCard = memo(({
                             {statusInfo.label}
                         </div>
                         <p className="text-lg font-bold text-gray-900 mt-1">
-                            {formatCurrency(order.total + order.deliveryFee)}
+                            {formatCurrency(order.total)}
                         </p>
                     </div>
                 </div>
@@ -246,8 +246,18 @@ const OrderCard = memo(({
                         <CreditCard className="w-3 h-3" />
                         <span>{order.paymentMethod === 'money' ? 'Dinheiro' :
                             order.paymentMethod === 'credit' ? 'Cartão de Crédito' :
-                                order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}</span>
+                                order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}
+                            {order.fulfillmentType === 'pickup' ? ' · Retirada' : ' · Entrega'}
+                        </span>
                     </div>
+                    {order.paymentMethod === 'money' && order.cashChangeFor != null && (
+                        <div className="text-xs font-medium text-amber-800">
+                            Troco para {formatCurrency(order.cashChangeFor)}
+                            {order.cashChangeAmount != null
+                                ? ` (troco ${formatCurrency(order.cashChangeAmount)})`
+                                : ''}
+                        </div>
+                    )}
                 </div>
 
                 {/* Botão para expandir/recolher */}
@@ -302,15 +312,23 @@ const OrderCard = memo(({
                             <div className="space-y-1 text-xs text-gray-800">
                                 <div className="flex justify-between">
                                     <span className="text-gray-700">Subtotal:</span>
-                                    <span className="font-semibold text-gray-900">{formatCurrency(order.total)}</span>
+                                    <span className="font-semibold text-gray-900">{formatCurrency(order.total - order.deliveryFee)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-700">Taxa de entrega:</span>
-                                    <span className="font-semibold text-gray-900">{formatCurrency(order.deliveryFee)}</span>
+                                    <span className="font-semibold text-gray-900">
+                                        {order.deliveryFee > 0 ? formatCurrency(order.deliveryFee) : 'Grátis'}
+                                    </span>
                                 </div>
+                                {order.paymentMethod === 'money' && order.cashChangeFor != null && (
+                                    <div className="flex justify-between text-amber-800">
+                                        <span>Troco para:</span>
+                                        <span className="font-semibold">{formatCurrency(order.cashChangeFor)}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-200">
                                     <span>Total:</span>
-                                    <span>{formatCurrency(order.total + order.deliveryFee)}</span>
+                                    <span>{formatCurrency(order.total)}</span>
                                 </div>
                             </div>
                         </div>

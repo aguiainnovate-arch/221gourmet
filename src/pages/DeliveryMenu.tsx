@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, X, ShoppingCart, MapPin, User, Phone, CreditCard, Bike, Search, Store, Banknote } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { getRestaurants } from '../services/restaurantService';
@@ -12,9 +12,19 @@ import { saveDeliveryUser } from '../services/deliveryUserService';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import type { Restaurant } from '../types/restaurant';
-import type { DeliveryOrderItem } from '../types/delivery';
+import type { DeliveryOrderItem, FulfillmentType } from '../types/delivery';
 import LanguageSelector from '../components/LanguageSelector';
 import ProductImage from '../components/ProductImage';
+
+const FIXED_DELIVERY_FEE = 5.0;
+
+function parseMoneyInput(raw: string): number | null {
+  const cleaned = raw.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.round(value * 100) / 100;
+}
 
 interface SelectedItem {
   product: Product;
@@ -43,10 +53,20 @@ export default function DeliveryMenu() {
   const [paymentMethod, setPaymentMethod] = useState<'money' | 'credit' | 'debit' | 'pix'>(
     user?.defaultPaymentMethod || 'money'
   );
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('delivery');
+  const [needsChange, setNeedsChange] = useState(false);
+  const [cashChangeForInput, setCashChangeForInput] = useState('');
   const [observations, setObservations] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const deliveryFee = 5.00; // Taxa de entrega fixa
+  const deliveryFee = fulfillmentType === 'pickup' ? 0 : FIXED_DELIVERY_FEE;
+  const subtotal = selectedItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const orderTotal = subtotal + deliveryFee;
+  const cashChangeFor = needsChange ? parseMoneyInput(cashChangeForInput) : null;
+  const cashChangeAmount =
+    cashChangeFor != null && cashChangeFor >= orderTotal
+      ? Math.round((cashChangeFor - orderTotal) * 100) / 100
+      : undefined;
 
   // Carregar informações do usuário quando ele estiver logado
   useEffect(() => {
@@ -129,14 +149,14 @@ export default function DeliveryMenu() {
     ));
   };
 
-  const calculateTotal = () => {
-    const subtotal = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-    return subtotal + deliveryFee;
-  };
-
   const handleSubmitOrder = async () => {
-    if (!restaurant || !customerName || !customerPhone || !customerAddress) {
-      alert('Por favor, preencha todos os dados para entrega');
+    if (!restaurant || !customerName.trim() || !customerPhone.trim()) {
+      alert('Por favor, preencha nome e telefone');
+      return;
+    }
+
+    if (fulfillmentType === 'delivery' && !customerAddress.trim()) {
+      alert('Por favor, preencha o endereço de entrega');
       return;
     }
 
@@ -145,23 +165,37 @@ export default function DeliveryMenu() {
       return;
     }
 
+    if (paymentMethod === 'money' && needsChange) {
+      if (cashChangeFor == null) {
+        alert('Informe com quanto vai pagar para calcular o troco');
+        return;
+      }
+      if (cashChangeFor < orderTotal) {
+        alert(`O valor para troco deve ser pelo menos R$ ${orderTotal.toFixed(2)}`);
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
-      // Se o usuário estiver logado, atualizar suas informações salvas
+      const resolvedAddress =
+        fulfillmentType === 'pickup'
+          ? `Retirada no estabelecimento${restaurant.address ? ` — ${restaurant.address}` : ''}`
+          : customerAddress.trim();
+
       if (user) {
         try {
           const updatedUser = await saveDeliveryUser({
             name: customerName,
             email: user.email,
             phone: customerPhone,
-            address: customerAddress,
+            address: fulfillmentType === 'delivery' ? customerAddress : user.address,
             defaultPaymentMethod: paymentMethod
           });
           updateUser(updatedUser);
         } catch (error) {
           console.error('Erro ao atualizar informações do usuário:', error);
-          // Não falha o pedido se a atualização do usuário falhar
         }
       }
 
@@ -176,14 +210,21 @@ export default function DeliveryMenu() {
       await createDeliveryOrder({
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
-        customerName,
-        customerPhone,
-        customerAddress,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        customerAddress: resolvedAddress,
         items: orderItems,
-        total: calculateTotal(),
+        total: orderTotal,
         paymentMethod,
         deliveryFee,
-        observations
+        fulfillmentType,
+        cashChangeFor:
+          paymentMethod === 'money' && needsChange && cashChangeFor != null
+            ? cashChangeFor
+            : undefined,
+        cashChangeAmount:
+          paymentMethod === 'money' && needsChange ? cashChangeAmount : undefined,
+        observations: observations || undefined,
       });
 
       alert('Pedido realizado com sucesso! O restaurante receberá em breve.');
@@ -195,6 +236,15 @@ export default function DeliveryMenu() {
       setIsSubmitting(false);
     }
   };
+
+  const canConfirmOrder =
+    Boolean(customerName.trim() && customerPhone.trim()) &&
+    (fulfillmentType === 'pickup' || Boolean(customerAddress.trim())) &&
+    !(
+      paymentMethod === 'money' &&
+      needsChange &&
+      (cashChangeFor == null || cashChangeFor < orderTotal)
+    );
 
   if (loading) {
     return (
@@ -486,7 +536,7 @@ export default function DeliveryMenu() {
                   <div className="border-t border-stone-200 pt-4 space-y-2">
                     <div className="flex justify-between text-sm text-stone-600">
                       <span>Subtotal</span>
-                      <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
+                      <span>R$ {subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-stone-600">
                       <span className="flex items-center">
@@ -497,7 +547,7 @@ export default function DeliveryMenu() {
                     </div>
                     <div className="flex justify-between items-center font-bold text-lg pt-3 mt-3 border-t-2 border-amber-100 bg-amber-50/80 rounded-lg px-3 py-2.5">
                       <span className="text-stone-700">Total</span>
-                      <span className="text-amber-700">R$ {calculateTotal().toFixed(2)}</span>
+                      <span className="text-amber-700">R$ {orderTotal.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -538,6 +588,44 @@ export default function DeliveryMenu() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Como deseja receber?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFulfillmentType('delivery')}
+                      className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                        fulfillmentType === 'delivery'
+                          ? 'border-amber-600 bg-amber-50 text-amber-900'
+                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Bike className="w-4 h-4" />
+                      Entrega
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFulfillmentType('pickup')}
+                      className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                        fulfillmentType === 'pickup'
+                          ? 'border-amber-600 bg-amber-50 text-amber-900'
+                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Store className="w-4 h-4" />
+                      Retirar na loja
+                    </button>
+                  </div>
+                  {fulfillmentType === 'pickup' && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Sem taxa de entrega e sem motoboy. Você busca o pedido no restaurante.
+                      {restaurant.address ? ` Endereço: ${restaurant.address}` : ''}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     <User className="w-4 h-4 inline mr-2" />
                     Nome completo
                   </label>
@@ -564,19 +652,21 @@ export default function DeliveryMenu() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <MapPin className="w-4 h-4 inline mr-2" />
-                    Endereço de entrega
-                  </label>
-                  <textarea
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
-                    rows={3}
-                    placeholder="Rua, número, complemento, bairro, cidade"
-                  />
-                </div>
+                {fulfillmentType === 'delivery' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <MapPin className="w-4 h-4 inline mr-2" />
+                      Endereço de entrega
+                    </label>
+                    <textarea
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
+                      rows={3}
+                      placeholder="Rua, número, complemento, bairro, cidade"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -585,7 +675,14 @@ export default function DeliveryMenu() {
                   </label>
                   <select
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    onChange={(e) => {
+                      const method = e.target.value as 'money' | 'credit' | 'debit' | 'pix';
+                      setPaymentMethod(method);
+                      if (method !== 'money') {
+                        setNeedsChange(false);
+                        setCashChangeForInput('');
+                      }
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 bg-white"
                   >
                     <option value="money">Dinheiro</option>
@@ -594,6 +691,52 @@ export default function DeliveryMenu() {
                     <option value="pix">PIX</option>
                   </select>
                 </div>
+
+                {paymentMethod === 'money' && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                      <Banknote className="w-4 h-4" />
+                      Troco
+                    </div>
+                    <label className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={needsChange}
+                        onChange={(e) => {
+                          setNeedsChange(e.target.checked);
+                          if (!e.target.checked) setCashChangeForInput('');
+                        }}
+                        className="mt-0.5 rounded border-gray-300"
+                      />
+                      <span>Preciso de troco (informar com quanto vou pagar)</span>
+                    </label>
+                    {needsChange && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vai pagar com quanto?
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={cashChangeForInput}
+                          onChange={(e) => setCashChangeForInput(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 placeholder:text-gray-500 bg-white"
+                          placeholder={`Ex: ${Math.ceil(orderTotal / 10) * 10 || 50}`}
+                        />
+                        {cashChangeFor != null && cashChangeFor >= orderTotal && (
+                          <p className="mt-2 text-sm text-emerald-700 font-medium">
+                            Troco: R$ {(cashChangeAmount ?? 0).toFixed(2)}
+                          </p>
+                        )}
+                        {cashChangeFor != null && cashChangeFor < orderTotal && (
+                          <p className="mt-2 text-sm text-red-600">
+                            Valor menor que o total (R$ {orderTotal.toFixed(2)})
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -612,16 +755,28 @@ export default function DeliveryMenu() {
                   <h3 className="font-semibold text-gray-900 mb-2">Resumo do pedido</h3>
                   <div className="space-y-1 text-sm text-gray-700">
                     <div className="flex justify-between">
-                      <span>Subtotal</span>
-                      <span>R$ {(calculateTotal() - deliveryFee).toFixed(2)}</span>
+                      <span>Tipo</span>
+                      <span>{fulfillmentType === 'pickup' ? 'Retirada na loja' : 'Entrega'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Taxa de entrega</span>
-                      <span>R$ {deliveryFee.toFixed(2)}</span>
+                      <span>Subtotal</span>
+                      <span>R$ {subtotal.toFixed(2)}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span>{fulfillmentType === 'pickup' ? 'Taxa de entrega' : 'Taxa de entrega'}</span>
+                      <span>
+                        {fulfillmentType === 'pickup' ? 'Grátis' : `R$ ${deliveryFee.toFixed(2)}`}
+                      </span>
+                    </div>
+                    {paymentMethod === 'money' && needsChange && cashChangeAmount != null && (
+                      <div className="flex justify-between text-amber-800">
+                        <span>Troco para R$ {cashChangeFor?.toFixed(2)}</span>
+                        <span>R$ {cashChangeAmount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300 text-gray-900">
                       <span>Total</span>
-                      <span className="text-amber-600">R$ {calculateTotal().toFixed(2)}</span>
+                      <span className="text-amber-600">R$ {orderTotal.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -636,8 +791,8 @@ export default function DeliveryMenu() {
                 </button>
                 <button
                   onClick={handleSubmitOrder}
-                  disabled={isSubmitting || !customerName || !customerPhone || !customerAddress}
-                  className={`flex-1 px-6 py-3 rounded-lg font-bold ${isSubmitting || !customerName || !customerPhone || !customerAddress
+                  disabled={isSubmitting || !canConfirmOrder}
+                  className={`flex-1 px-6 py-3 rounded-lg font-bold ${isSubmitting || !canConfirmOrder
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-amber-600 text-white hover:bg-amber-700'
                     }`}

@@ -1636,20 +1636,36 @@ export default function Settings() {
     }
   };
 
-  const getDeliveryStatusInfo = (status: DeliveryOrder['status']) => {
+  const getDeliveryStatusInfo = (status: DeliveryOrder['status'], fulfillmentType?: DeliveryOrder['fulfillmentType']) => {
+    const isPickup = fulfillmentType === 'pickup';
     switch (status) {
       case 'pending':
         return { label: 'Aguardando', color: 'text-yellow-600', bgColor: 'bg-yellow-100', nextStatus: 'confirmed' as const };
       case 'confirmed':
         return { label: 'Confirmado', color: 'text-blue-600', bgColor: 'bg-blue-100', nextStatus: 'preparing' as const };
       case 'preparing':
-        return { label: 'Preparando', color: 'text-orange-600', bgColor: 'bg-orange-100', nextStatus: 'ready_for_delivery' as const };
+        return {
+          label: 'Preparando',
+          color: 'text-orange-600',
+          bgColor: 'bg-orange-100',
+          nextStatus: isPickup ? ('ready_for_delivery' as const) : ('ready_for_delivery' as const),
+        };
       case 'ready_for_delivery':
-        return { label: 'Pronto p/ entrega', color: 'text-teal-600', bgColor: 'bg-teal-100', nextStatus: null };
+        return {
+          label: isPickup ? 'Pronto p/ retirada' : 'Pronto p/ entrega',
+          color: 'text-teal-600',
+          bgColor: 'bg-teal-100',
+          nextStatus: isPickup ? ('delivered' as const) : null,
+        };
       case 'delivering':
         return { label: 'Saindo', color: 'text-purple-600', bgColor: 'bg-purple-100', nextStatus: 'delivered' as const };
       case 'delivered':
-        return { label: 'Entregue', color: 'text-green-600', bgColor: 'bg-green-100', nextStatus: null };
+        return {
+          label: isPickup ? 'Retirado' : 'Entregue',
+          color: 'text-green-600',
+          bgColor: 'bg-green-100',
+          nextStatus: null,
+        };
       case 'cancelled':
         return { label: 'Cancelado', color: 'text-red-600', bgColor: 'bg-red-100', nextStatus: null };
       default:
@@ -1657,16 +1673,20 @@ export default function Settings() {
     }
   };
 
-  const getDeliveryStatusButtonText = (status: DeliveryOrder['status']) => {
+  const getDeliveryStatusButtonText = (
+    status: DeliveryOrder['status'],
+    fulfillmentType?: DeliveryOrder['fulfillmentType']
+  ) => {
+    const isPickup = fulfillmentType === 'pickup';
     switch (status) {
       case 'pending':
         return 'Confirmar Pedido';
       case 'confirmed':
         return 'Iniciar Preparo';
       case 'preparing':
-        return 'Pronto para entrega';
+        return isPickup ? 'Pronto para retirada' : 'Pronto para entrega';
       case 'ready_for_delivery':
-        return 'Chamar motoboy';
+        return isPickup ? 'Marcar como retirado' : 'Chamar motoboy';
       case 'delivering':
         return 'Marcar como Entregue';
       default:
@@ -3101,7 +3121,14 @@ export default function Settings() {
                             </div>
 
                             <div className="space-y-4">
-                              {ordersInStatus.map((order) => (
+                              {ordersInStatus.map((order) => {
+                                const isPickup = order.fulfillmentType === 'pickup';
+                                const orderStatusInfo = getDeliveryStatusInfo(order.status, order.fulfillmentType);
+                                const itemsSubtotal = (order.items || []).reduce(
+                                  (sum, item) => sum + item.price * item.quantity,
+                                  0
+                                );
+                                return (
                                 <div
                                   key={order.id}
                                   className="p-4 sm:p-5 rounded-lg border border-gray-200 bg-white shadow-sm min-w-0 w-full"
@@ -3114,14 +3141,15 @@ export default function Settings() {
                                       <div className="min-w-0">
                                         <h4 className="font-semibold text-gray-900 truncate">
                                           #{order.id.substring(0, 8)}
+                                          {isPickup ? ' · Retirada' : ''}
                                         </h4>
                                         <p className="text-xs text-gray-500 whitespace-nowrap">
                                           {new Date(order.createdAt).toLocaleString('pt-BR')}
                                         </p>
                                       </div>
                                     </div>
-                                    <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.bgColor} ${statusInfo.color}`}>
-                                      {statusInfo.label}
+                                    <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${orderStatusInfo.bgColor} ${orderStatusInfo.color}`}>
+                                      {orderStatusInfo.label}
                                     </span>
                                   </div>
 
@@ -3150,6 +3178,17 @@ export default function Settings() {
                                           order.paymentMethod === 'credit' ? 'Cartão de Crédito' :
                                             order.paymentMethod === 'debit' ? 'Cartão de Débito' : 'PIX'}</span>
                                       </div>
+                                      {order.paymentMethod === 'money' && order.cashChangeFor != null && (
+                                        <div className="text-amber-800 font-medium">
+                                          Troco para R$ {order.cashChangeFor.toFixed(2)}
+                                          {order.cashChangeAmount != null
+                                            ? ` → dar R$ ${order.cashChangeAmount.toFixed(2)}`
+                                            : ''}
+                                        </div>
+                                      )}
+                                      <div className="text-xs text-gray-600">
+                                        {isPickup ? 'Retirada na loja (sem motoboy)' : 'Entrega'}
+                                      </div>
                                     </div>
                                   </div>
 
@@ -3176,30 +3215,32 @@ export default function Settings() {
                                     <div className="mt-3 pt-3 border-t border-gray-200 space-y-1 text-gray-800">
                                       <div className="flex justify-between items-center text-sm gap-2">
                                         <span className="text-gray-700">Subtotal:</span>
-                                        <span className="font-semibold text-gray-900 whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
+                                        <span className="font-semibold text-gray-900 whitespace-nowrap">R$ {itemsSubtotal.toFixed(2)}</span>
                                       </div>
                                       <div className="flex justify-between items-center text-sm gap-2">
                                         <span className="text-gray-700">Taxa de entrega:</span>
-                                        <span className="font-semibold text-gray-900 whitespace-nowrap">R$ {order.deliveryFee.toFixed(2)}</span>
+                                        <span className="font-semibold text-gray-900 whitespace-nowrap">
+                                          {order.deliveryFee > 0 ? `R$ ${order.deliveryFee.toFixed(2)}` : 'Grátis'}
+                                        </span>
                                       </div>
                                       <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-2 border-t border-gray-200 gap-2">
                                         <span>Total:</span>
-                                        <span className="whitespace-nowrap">R$ {(order.total + order.deliveryFee).toFixed(2)}</span>
+                                        <span className="whitespace-nowrap">R$ {order.total.toFixed(2)}</span>
                                       </div>
                                     </div>
                                   </div>
 
                                   <div className="space-y-2">
-                                    {statusInfo.nextStatus && (
+                                    {orderStatusInfo.nextStatus && (
                                       <button
-                                        onClick={() => handleDeliveryStatusChange(order.id, statusInfo.nextStatus!)}
+                                        onClick={() => handleDeliveryStatusChange(order.id, orderStatusInfo.nextStatus!)}
                                         className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                                       >
-                                        {getDeliveryStatusButtonText(order.status)}
+                                        {getDeliveryStatusButtonText(order.status, order.fulfillmentType)}
                                       </button>
                                     )}
 
-                                    {order.status === 'ready_for_delivery' && (
+                                    {order.status === 'ready_for_delivery' && !isPickup && (
                                       <button
                                         onClick={() => openCallMotoboyModal(order)}
                                         className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
@@ -3211,7 +3252,7 @@ export default function Settings() {
                                     {order.status === 'delivered' && (
                                       <div className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600">
                                         <CheckCircle className="w-4 h-4 mr-2" />
-                                        Pedido Entregue
+                                        {isPickup ? 'Pedido Retirado' : 'Pedido Entregue'}
                                       </div>
                                     )}
 
@@ -3242,7 +3283,8 @@ export default function Settings() {
                                     </button>
                                   </div>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -3263,13 +3305,24 @@ export default function Settings() {
                       <button type="button" onClick={() => setSelectedDeliveryOrder(null)} className="p-2 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" /></button>
                     </div>
                     <div className="p-6 space-y-4">
-                      <p className="text-sm text-gray-500">{new Date(selectedDeliveryOrder.createdAt).toLocaleString('pt-BR')} · {getDeliveryStatusInfo(selectedDeliveryOrder.status).label}</p>
+                      <p className="text-sm text-gray-500">{new Date(selectedDeliveryOrder.createdAt).toLocaleString('pt-BR')} · {getDeliveryStatusInfo(selectedDeliveryOrder.status, selectedDeliveryOrder.fulfillmentType).label}</p>
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">Cliente</h4>
                         <p className="text-sm text-gray-700">{selectedDeliveryOrder.customerName}</p>
                         <p className="text-sm text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedDeliveryOrder.customerPhone}</p>
                         <p className="text-sm text-gray-700 flex items-start gap-1"><MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {selectedDeliveryOrder.customerAddress}</p>
+                        <p className="text-sm text-gray-600">
+                          Tipo: {selectedDeliveryOrder.fulfillmentType === 'pickup' ? 'Retirada na loja' : 'Entrega'}
+                        </p>
                         <p className="text-sm text-gray-600">Pagamento: {selectedDeliveryOrder.paymentMethod === 'money' ? 'Dinheiro' : selectedDeliveryOrder.paymentMethod === 'credit' ? 'Crédito' : selectedDeliveryOrder.paymentMethod === 'debit' ? 'Débito' : 'PIX'}</p>
+                        {selectedDeliveryOrder.paymentMethod === 'money' && selectedDeliveryOrder.cashChangeFor != null && (
+                          <p className="text-sm font-medium text-amber-800">
+                            Troco para R$ {selectedDeliveryOrder.cashChangeFor.toFixed(2)}
+                            {selectedDeliveryOrder.cashChangeAmount != null
+                              ? ` → dar R$ ${selectedDeliveryOrder.cashChangeAmount.toFixed(2)}`
+                              : ''}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">Itens</h4>
@@ -3278,25 +3331,28 @@ export default function Settings() {
                             <li key={i} className="flex justify-between">{item.quantity}x {item.productName} <span>R$ {(item.price * item.quantity).toFixed(2)}</span></li>
                           ))}
                         </ul>
-                        <div className="mt-2 pt-2 border-t text-sm flex justify-between"><span>Subtotal</span><span>R$ {selectedDeliveryOrder.total.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm"><span>Taxa de entrega</span><span>R$ {selectedDeliveryOrder.deliveryFee.toFixed(2)}</span></div>
-                        <div className="flex justify-between font-semibold"><span>Total</span><span>R$ {(selectedDeliveryOrder.total + selectedDeliveryOrder.deliveryFee).toFixed(2)}</span></div>
+                        <div className="mt-2 pt-2 border-t text-sm flex justify-between"><span>Subtotal</span><span>R$ {(selectedDeliveryOrder.total - selectedDeliveryOrder.deliveryFee).toFixed(2)}</span></div>
+                        <div className="flex justify-between text-sm"><span>Taxa de entrega</span><span>{selectedDeliveryOrder.deliveryFee > 0 ? `R$ ${selectedDeliveryOrder.deliveryFee.toFixed(2)}` : 'Grátis'}</span></div>
+                        <div className="flex justify-between font-semibold"><span>Total</span><span>R$ {selectedDeliveryOrder.total.toFixed(2)}</span></div>
                       </div>
                       {selectedDeliveryOrder.observations && <p className="text-sm text-gray-600"><strong>Obs.:</strong> {selectedDeliveryOrder.observations}</p>}
                       {selectedDeliveryOrder.status === 'cancelled' && selectedDeliveryOrder.cancellationReason && <p className="text-sm text-red-600"><strong>Motivo do cancelamento:</strong> {selectedDeliveryOrder.cancellationReason}</p>}
                       <div className="flex flex-wrap gap-2 pt-2">
-                        {getDeliveryStatusInfo(selectedDeliveryOrder.status).nextStatus && (
+                        {getDeliveryStatusInfo(selectedDeliveryOrder.status, selectedDeliveryOrder.fulfillmentType).nextStatus && (
                           <button
                             onClick={async () => {
-                              await handleDeliveryStatusChange(selectedDeliveryOrder.id, getDeliveryStatusInfo(selectedDeliveryOrder.status).nextStatus!);
+                              await handleDeliveryStatusChange(
+                                selectedDeliveryOrder.id,
+                                getDeliveryStatusInfo(selectedDeliveryOrder.status, selectedDeliveryOrder.fulfillmentType).nextStatus!
+                              );
                               setSelectedDeliveryOrder(null);
                             }}
                             className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
                           >
-                            {getDeliveryStatusButtonText(selectedDeliveryOrder.status)}
+                            {getDeliveryStatusButtonText(selectedDeliveryOrder.status, selectedDeliveryOrder.fulfillmentType)}
                           </button>
                         )}
-                        {selectedDeliveryOrder.status === 'ready_for_delivery' && (
+                        {selectedDeliveryOrder.status === 'ready_for_delivery' && selectedDeliveryOrder.fulfillmentType !== 'pickup' && (
                           <button
                             onClick={() => { openCallMotoboyModal(selectedDeliveryOrder); setSelectedDeliveryOrder(null); }}
                             className="px-4 py-2 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700"
