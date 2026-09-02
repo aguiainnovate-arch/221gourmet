@@ -52,6 +52,9 @@ function docToOrder(docId: string, data: Record<string, unknown>): DeliveryOrder
     motoboyUserId: data.motoboyUserId as string | null | undefined,
     paymentMethod: (data.paymentMethod as DeliveryOrder['paymentMethod']) || 'money',
     deliveryFee: (data.deliveryFee as number) ?? 0,
+    fulfillmentType: (data.fulfillmentType as DeliveryOrder['fulfillmentType']) || 'delivery',
+    cashChangeFor: typeof data.cashChangeFor === 'number' ? data.cashChangeFor : undefined,
+    cashChangeAmount: typeof data.cashChangeAmount === 'number' ? data.cashChangeAmount : undefined,
     stripePaymentIntentId: data.stripePaymentIntentId as string | undefined,
     asaasPaymentId: data.asaasPaymentId as string | undefined,
     pixCopyPaste: data.pixCopyPaste as string | undefined,
@@ -301,7 +304,10 @@ function stripUndefined<T>(value: T): T {
 // Criar novo pedido de delivery
 export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): Promise<DeliveryOrder> => {
   try {
-    const cleanedOrderData = stripUndefined(orderData) as CreateDeliveryOrderData;
+    const cleanedOrderData = stripUndefined({
+      ...orderData,
+      fulfillmentType: orderData.fulfillmentType ?? 'delivery',
+    }) as CreateDeliveryOrderData;
     const now = new Date();
 
     let orderId: string;
@@ -327,6 +333,7 @@ export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): P
     const deliveryOrder: DeliveryOrder = {
       id: orderId,
       ...orderData,
+      fulfillmentType: orderData.fulfillmentType ?? 'delivery',
       status: 'pending',
       createdAt: now,
       updatedAt: now,
@@ -346,13 +353,16 @@ export const createDeliveryOrder = async (orderData: CreateDeliveryOrderData): P
           ),
           tempoEspera: '0 min',
           orderType: 'delivery',
-          deliveryInfo: {
+          deliveryInfo: stripUndefined({
             customerName: orderData.customerName,
             customerPhone: orderData.customerPhone,
             customerAddress: orderData.customerAddress,
             paymentMethod: translatePaymentMethod(orderData.paymentMethod),
-            deliveryFee: orderData.deliveryFee
-          }
+            deliveryFee: orderData.deliveryFee,
+            fulfillmentType: orderData.fulfillmentType ?? 'delivery',
+            cashChangeFor: orderData.cashChangeFor,
+            cashChangeAmount: orderData.cashChangeAmount,
+          })
         });
       } catch (syncError) {
         console.error('Erro ao sincronizar delivery com orders:', syncError);
@@ -387,6 +397,9 @@ export const getDeliveryOrders = async (): Promise<DeliveryOrder[]> => {
         status: data.status,
         paymentMethod: data.paymentMethod,
         deliveryFee: data.deliveryFee,
+        fulfillmentType: data.fulfillmentType || 'delivery',
+        cashChangeFor: data.cashChangeFor,
+        cashChangeAmount: data.cashChangeAmount,
         observations: data.observations,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()

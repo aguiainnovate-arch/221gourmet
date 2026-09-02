@@ -18,6 +18,9 @@ export interface FirestoreOrder {
     customerAddress: string;
     paymentMethod: string;
     deliveryFee: number;
+    fulfillmentType?: 'delivery' | 'pickup';
+    cashChangeFor?: number;
+    cashChangeAmount?: number;
   };
 }
 

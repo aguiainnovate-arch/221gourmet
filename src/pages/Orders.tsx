@@ -216,6 +216,18 @@ const OrderCard = memo(({
                         <span className="truncate">{truncate(order.customerAddress, 50)}</span>
                     </div>
                 )}
+                <p className="text-[11px] mt-1.5 font-medium" style={{ color: '#6B5A54' }}>
+                    {paymentLabel[order.paymentMethod] || order.paymentMethod}
+                    {order.fulfillmentType === 'pickup' ? ' · Retirada' : ' · Entrega'}
+                </p>
+                {order.paymentMethod === 'money' && order.cashChangeFor != null && (
+                    <p className="text-[11px] mt-1 font-medium text-amber-800">
+                        Troco para {formatCurrency(order.cashChangeFor)}
+                        {order.cashChangeAmount != null
+                            ? ` (troco ${formatCurrency(order.cashChangeAmount)})`
+                            : ''}
+                    </p>
+                )}
             </div>
 
             <div
@@ -323,12 +335,22 @@ const OrderCard = memo(({
                             <div>
                                 <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
                                     <MapPin className="w-3.5 h-3.5" />
-                                    Endereço de entrega
+                                    {order.fulfillmentType === 'pickup' ? 'Retirada' : 'Endereço de entrega'}
                                 </h5>
                                 <p className="text-sm text-gray-700">{order.customerAddress}</p>
                             </div>
                         )}
                         <div className="pt-2 border-t border-gray-200 space-y-1 text-sm">
+                            <div className="flex justify-between text-gray-700">
+                                <span>Taxa de entrega</span>
+                                <span>{order.deliveryFee > 0 ? formatCurrency(order.deliveryFee) : 'Grátis'}</span>
+                            </div>
+                            {order.paymentMethod === 'money' && order.cashChangeFor != null && (
+                                <div className="flex justify-between text-amber-800">
+                                    <span>Troco para</span>
+                                    <span className="font-semibold">{formatCurrency(order.cashChangeFor)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between font-bold text-gray-900">
                                 <span>Total</span>
                                 <span>{formatCurrency(order.total)}</span>
@@ -336,6 +358,7 @@ const OrderCard = memo(({
                         </div>
                         <p className="text-xs text-gray-500">
                             Pagamento: {paymentLabel[order.paymentMethod] || order.paymentMethod}
+                            {order.fulfillmentType === 'pickup' ? ' · Retirada na loja' : ' · Entrega'}
                         </p>
                         {order.status === 'cancelled' && order.cancellationReason?.trim() && (
                             <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2">

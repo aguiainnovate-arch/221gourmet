@@ -24,12 +24,13 @@ import {
   Hash,
   Building2,
   Package,
+  Store,
 } from 'lucide-react';
 import type { Stripe as StripeType, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 import type { Product } from '../../types/product';
-import type { DeliveryOrderItem, CreateDeliveryOrderData } from '../../types/delivery';
+import type { DeliveryOrderItem, CreateDeliveryOrderData, FulfillmentType } from '../../types/delivery';
 import type { DeliveryUser } from '../../types/deliveryUser';
 import type { DeliveryFeeMode, DeliveryFeeSettings, DeliveryLocation } from '../../types/restaurant';
 import { DEFAULT_DELIVERY_FEE } from '../../types/restaurant';
@@ -48,6 +49,13 @@ import {
 import PixWaitStep from './PixWaitStep';
 import { extractPixDetailsFromPaymentIntent } from '../../utils/stripePix';
 
+function parseMoneyInput(raw: string): number | null {
+  const cleaned = raw.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.round(value * 100) / 100;
+}
 export interface CartLine {
   product: Product;
   quantity: number;
@@ -229,8 +237,11 @@ export default function CheckoutFlow({
   );
   const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
   const [observations, setObservations] = useState('');
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('delivery');
   const [deliveryOption, setDeliveryOption] = useState<DeliveryOption>('standard');
   const [payment, setPayment] = useState<PaymentSelection | null>(null);
+  const [needsChange, setNeedsChange] = useState(false);
+  const [cashChangeForInput, setCashChangeForInput] = useState('');
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [loadingCards, setLoadingCards] = useState(false);
   const [customerId, setCustomerId] = useState<string | undefined>(user?.stripeCustomerId);
@@ -370,10 +381,16 @@ export default function CheckoutFlow({
     [items]
   );
   const deliveryFee = useMemo(() => {
+    if (fulfillmentType === 'pickup') return 0;
     const base = distanceFee ?? resolvedFee.flatFee;
     return base + (deliveryOption === 'turbo' ? turboFeeExtra : 0);
-  }, [distanceFee, resolvedFee.flatFee, deliveryOption, turboFeeExtra]);
+  }, [fulfillmentType, distanceFee, resolvedFee.flatFee, deliveryOption, turboFeeExtra]);
   const total = subtotal + deliveryFee;
+  const cashChangeFor = needsChange ? parseMoneyInput(cashChangeForInput) : null;
+  const cashChangeAmount =
+    cashChangeFor != null && cashChangeFor >= total
+      ? Math.round((cashChangeFor - total) * 100) / 100
+      : undefined;
 
   const ensureCustomerFor = useCallback(async (): Promise<string | undefined> => {
     if (!user) return undefined;
@@ -529,12 +546,13 @@ export default function CheckoutFlow({
   const canProceedFromAddress =
     customerName.trim().length >= 2 &&
     customerPhone.trim().length >= 8 &&
-    addressDraft.street.trim().length >= 3 &&
-    addressDraft.number.trim().length >= 1 &&
-    addressDraft.neighborhood.trim().length >= 2 &&
-    addressDraft.city.trim().length >= 2 &&
-    !feeOutOfRange &&
-    !feeLoading;
+    (fulfillmentType === 'pickup' ||
+      (addressDraft.street.trim().length >= 3 &&
+        addressDraft.number.trim().length >= 1 &&
+        addressDraft.neighborhood.trim().length >= 2 &&
+        addressDraft.city.trim().length >= 2 &&
+        !feeOutOfRange &&
+        !feeLoading));
 
   useEffect(() => {
     if (restaurantLocation) {
@@ -553,6 +571,14 @@ export default function CheckoutFlow({
   }, [restaurantLocation, restaurantOriginAddress]);
 
   useEffect(() => {
+    if (fulfillmentType === 'pickup') {
+      setDistanceFee(0);
+      setFeeOutOfRange(false);
+      setFeeLoading(false);
+      setDistanceKm(null);
+      return;
+    }
+
     if (resolvedFee.mode === 'flat') {
       setDistanceFee(resolvedFee.flatFee);
       setFeeOutOfRange(false);
@@ -638,6 +664,7 @@ export default function CheckoutFlow({
       window.clearTimeout(timer);
     };
   }, [
+    fulfillmentType,
     resolvedFee,
     addressDraft.street,
     addressDraft.number,
@@ -685,8 +712,33 @@ export default function CheckoutFlow({
       setErrorBanner(t('delivery.choosePayment'));
       return;
     }
+    if (
+      payment.kind === 'cod' &&
+      payment.method === 'money' &&
+      needsChange
+    ) {
+      if (cashChangeFor == null) {
+        setErrorBanner('Informe com quanto vai pagar para calcular o troco');
+        return;
+      }
+      if (cashChangeFor < total) {
+        setErrorBanner(`O valor para troco deve ser pelo menos ${fmt(total)}`);
+        return;
+      }
+    }
     setBusy(true);
     setErrorBanner(null);
+
+    const resolvedAddress =
+      fulfillmentType === 'pickup'
+        ? `Retirada no estabelecimento${
+            restaurantOriginAddress.trim()
+              ? ` — ${restaurantOriginAddress.trim()}`
+              : restaurantName
+                ? ` — ${restaurantName}`
+                : ''
+          }`
+        : customerAddress;
 
     const basePayload: Omit<
       CreateDeliveryOrderData,
@@ -696,7 +748,7 @@ export default function CheckoutFlow({
       restaurantName,
       customerName,
       customerPhone,
-      customerAddress,
+      customerAddress: resolvedAddress,
       items: items.map((it) => ({
         productId: it.product.id,
         productName: it.product.name,
@@ -706,6 +758,18 @@ export default function CheckoutFlow({
       })) as DeliveryOrderItem[],
       total,
       deliveryFee,
+      fulfillmentType,
+      cashChangeFor:
+        payment.kind === 'cod' &&
+        payment.method === 'money' &&
+        needsChange &&
+        cashChangeFor != null
+          ? cashChangeFor
+          : undefined,
+      cashChangeAmount:
+        payment.kind === 'cod' && payment.method === 'money' && needsChange
+          ? cashChangeAmount
+          : undefined,
       observations: observations || undefined,
     };
 
@@ -965,6 +1029,11 @@ export default function CheckoutFlow({
               onAddressDraftChange={handleAddressDraftChange}
               savedAddresses={savedAddresses}
               onSelectSavedAddress={handleSelectSavedAddress}
+              fulfillmentType={fulfillmentType}
+              setFulfillmentType={(next) => {
+                setFulfillmentType(next);
+                if (next === 'pickup') setDeliveryOption('standard');
+              }}
               deliveryOption={deliveryOption}
               setDeliveryOption={setDeliveryOption}
               baseDeliveryFee={distanceFee ?? resolvedFee.flatFee}
@@ -976,6 +1045,7 @@ export default function CheckoutFlow({
               feeOutOfRange={feeOutOfRange}
               feeMode={resolvedFee.mode}
               maxRadiusKm={resolvedFee.maxRadiusKm}
+              restaurantAddress={restaurantOriginAddress}
             />
           )}
 
@@ -985,7 +1055,13 @@ export default function CheckoutFlow({
               savedCards={savedCards}
               loadingCards={loadingCards}
               payment={payment}
-              setPayment={setPayment}
+              setPayment={(next) => {
+                setPayment(next);
+                if (!(next?.kind === 'cod' && next.method === 'money')) {
+                  setNeedsChange(false);
+                  setCashChangeForInput('');
+                }
+              }}
               onAddNewCard={handleStartNewCard}
               authLoading={authLoading}
               onLoginForCard={() => {
@@ -1008,6 +1084,11 @@ export default function CheckoutFlow({
               accentColor={accentColor}
               hasUser={!!user}
               busy={busy}
+              needsChange={needsChange}
+              setNeedsChange={setNeedsChange}
+              cashChangeForInput={cashChangeForInput}
+              setCashChangeForInput={setCashChangeForInput}
+              cashChangeAmount={cashChangeAmount}
             />
           )}
 
@@ -1074,7 +1155,7 @@ export default function CheckoutFlow({
             goTo('address');
           }}
           onContinueAddress={() => {
-            if (feeOutOfRange) {
+            if (fulfillmentType === 'delivery' && feeOutOfRange) {
               setErrorBanner(
                 resolvedFee.mode === 'neighborhood'
                   ? 'Este bairro não está na área de entrega deste restaurante.'
@@ -1083,10 +1164,16 @@ export default function CheckoutFlow({
               return;
             }
             if (!canProceedFromAddress) {
-              setErrorBanner(t('delivery.fillDeliveryData'));
+              setErrorBanner(
+                fulfillmentType === 'pickup'
+                  ? 'Preencha nome e telefone para retirada'
+                  : t('delivery.fillDeliveryData')
+              );
               return;
             }
-            persistAddressHistory(customerAddress);
+            if (fulfillmentType === 'delivery') {
+              persistAddressHistory(customerAddress);
+            }
             goTo('payment');
           }}
           onConfirmPayment={handleConfirmOrder}
@@ -1243,7 +1330,7 @@ function Footer({
             </div>
             <div className="flex justify-between text-gray-600">
               <span>{t('delivery.deliveryFee')}</span>
-              <span>{fmt(deliveryFee)}</span>
+              <span>{deliveryFee > 0 ? fmt(deliveryFee) : 'Grátis'}</span>
             </div>
             <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-100">
               <span>{t('delivery.total')}</span>
@@ -1271,7 +1358,7 @@ function Footer({
             </div>
             <div className="flex justify-between text-gray-600">
               <span>{t('delivery.deliveryFee')}</span>
-              <span>{fmt(deliveryFee)}</span>
+              <span>{deliveryFee > 0 ? fmt(deliveryFee) : 'Grátis'}</span>
             </div>
             <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-100">
               <span>{t('delivery.total')}</span>
@@ -1433,6 +1520,8 @@ function AddressStep({
   onAddressDraftChange,
   savedAddresses,
   onSelectSavedAddress,
+  fulfillmentType,
+  setFulfillmentType,
   deliveryOption,
   setDeliveryOption,
   baseDeliveryFee,
@@ -1444,6 +1533,7 @@ function AddressStep({
   feeOutOfRange,
   feeMode,
   maxRadiusKm,
+  restaurantAddress,
 }: {
   customerName: string;
   setCustomerName: (v: string) => void;
@@ -1453,6 +1543,8 @@ function AddressStep({
   onAddressDraftChange: (v: AddressDraft) => void;
   savedAddresses: string[];
   onSelectSavedAddress: (v: string) => void;
+  fulfillmentType: FulfillmentType;
+  setFulfillmentType: (v: FulfillmentType) => void;
   deliveryOption: DeliveryOption;
   setDeliveryOption: (v: DeliveryOption) => void;
   baseDeliveryFee: number;
@@ -1464,13 +1556,53 @@ function AddressStep({
   feeOutOfRange: boolean;
   feeMode: DeliveryFeeMode;
   maxRadiusKm: number;
+  restaurantAddress: string;
 }) {
   const { t } = useTranslation();
+  const isPickup = fulfillmentType === 'pickup';
   return (
     <div className="p-4 space-y-5">
       <div>
+        <h3 className="text-sm font-bold text-gray-900 mb-3">Como deseja receber?</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setFulfillmentType('delivery')}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-semibold transition-colors"
+            style={{
+              borderColor: !isPickup ? accentColor : '#E5E7EB',
+              backgroundColor: !isPickup ? `${accentColor}10` : '#fff',
+              color: !isPickup ? accentColor : '#374151',
+            }}
+          >
+            <Bike className="w-4 h-4" />
+            Entrega
+          </button>
+          <button
+            type="button"
+            onClick={() => setFulfillmentType('pickup')}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-semibold transition-colors"
+            style={{
+              borderColor: isPickup ? accentColor : '#E5E7EB',
+              backgroundColor: isPickup ? `${accentColor}10` : '#fff',
+              color: isPickup ? accentColor : '#374151',
+            }}
+          >
+            <Store className="w-4 h-4" />
+            Retirar na loja
+          </button>
+        </div>
+        {isPickup && (
+          <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+            Sem taxa de entrega e sem motoboy. Você busca o pedido no restaurante.
+            {restaurantAddress.trim() ? ` Endereço: ${restaurantAddress.trim()}` : ''}
+          </p>
+        )}
+      </div>
+
+      <div>
         <h3 className="text-sm font-bold text-gray-900 mb-3">
-          {t('delivery.addressSectionTitle')}
+          {isPickup ? 'Seus dados' : t('delivery.addressSectionTitle')}
         </h3>
         <div className="space-y-3">
           <LabeledInput
@@ -1488,125 +1620,131 @@ function AddressStep({
             placeholder="(00) 00000-0000"
             type="tel"
           />
-          {savedAddresses.length > 0 && (
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => onSelectSavedAddress(savedAddresses[0])}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-left text-sm bg-gray-50 hover:bg-gray-100 transition-colors"
-              >
-                <span className="block text-xs font-semibold text-gray-600 mb-0.5">
-                  {t('delivery.useLastAddress')}
-                </span>
-                <span className="block text-gray-900 truncate">{savedAddresses[0]}</span>
-              </button>
-              {savedAddresses.length > 1 && (
-                <select
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-300"
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (!e.target.value) return;
-                    onSelectSavedAddress(e.target.value);
-                    e.currentTarget.value = '';
-                  }}
-                >
-                  <option value="">{t('delivery.selectSavedAddress')}</option>
-                  {savedAddresses.slice(1).map((address) => (
-                    <option key={address} value={address}>
-                      {address}
-                    </option>
-                  ))}
-                </select>
+          {!isPickup && (
+            <>
+              {savedAddresses.length > 0 && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => onSelectSavedAddress(savedAddresses[0])}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-left text-sm bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <span className="block text-xs font-semibold text-gray-600 mb-0.5">
+                      {t('delivery.useLastAddress')}
+                    </span>
+                    <span className="block text-gray-900 truncate">{savedAddresses[0]}</span>
+                  </button>
+                  {savedAddresses.length > 1 && (
+                    <select
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-300"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        onSelectSavedAddress(e.target.value);
+                        e.currentTarget.value = '';
+                      }}
+                    >
+                      <option value="">{t('delivery.selectSavedAddress')}</option>
+                      {savedAddresses.slice(1).map((address) => (
+                        <option key={address} value={address}>
+                          {address}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               )}
-            </div>
+              <LabeledInput
+                icon={<MapPin className="w-4 h-4" />}
+                label={t('delivery.city')}
+                value={addressDraft.city}
+                onChange={(city) => onAddressDraftChange({ ...addressDraft, city })}
+                placeholder={t('delivery.cityPlaceholder')}
+              />
+              <LabeledInput
+                icon={<Building2 className="w-4 h-4" />}
+                label={t('delivery.neighborhood')}
+                value={addressDraft.neighborhood}
+                onChange={(neighborhood) =>
+                  onAddressDraftChange({ ...addressDraft, neighborhood })
+                }
+                placeholder={t('delivery.neighborhoodPlaceholder')}
+              />
+              <LabeledInput
+                icon={<Home className="w-4 h-4" />}
+                label={t('delivery.street')}
+                value={addressDraft.street}
+                onChange={(street) => onAddressDraftChange({ ...addressDraft, street })}
+                placeholder={t('delivery.streetPlaceholder')}
+              />
+              <LabeledInput
+                icon={<Hash className="w-4 h-4" />}
+                label={t('delivery.number')}
+                value={addressDraft.number}
+                onChange={(number) => onAddressDraftChange({ ...addressDraft, number })}
+                placeholder={t('delivery.numberPlaceholder')}
+              />
+              <LabeledInput
+                icon={<MapPin className="w-4 h-4" />}
+                label={t('delivery.complement')}
+                value={addressDraft.complement}
+                onChange={(complement) => onAddressDraftChange({ ...addressDraft, complement })}
+                placeholder={t('delivery.complementPlaceholder')}
+              />
+            </>
           )}
-          <LabeledInput
-            icon={<MapPin className="w-4 h-4" />}
-            label={t('delivery.city')}
-            value={addressDraft.city}
-            onChange={(city) => onAddressDraftChange({ ...addressDraft, city })}
-            placeholder={t('delivery.cityPlaceholder')}
-          />
-          <LabeledInput
-            icon={<Building2 className="w-4 h-4" />}
-            label={t('delivery.neighborhood')}
-            value={addressDraft.neighborhood}
-            onChange={(neighborhood) =>
-              onAddressDraftChange({ ...addressDraft, neighborhood })
-            }
-            placeholder={t('delivery.neighborhoodPlaceholder')}
-          />
-          <LabeledInput
-            icon={<Home className="w-4 h-4" />}
-            label={t('delivery.street')}
-            value={addressDraft.street}
-            onChange={(street) => onAddressDraftChange({ ...addressDraft, street })}
-            placeholder={t('delivery.streetPlaceholder')}
-          />
-          <LabeledInput
-            icon={<Hash className="w-4 h-4" />}
-            label={t('delivery.number')}
-            value={addressDraft.number}
-            onChange={(number) => onAddressDraftChange({ ...addressDraft, number })}
-            placeholder={t('delivery.numberPlaceholder')}
-          />
-          <LabeledInput
-            icon={<MapPin className="w-4 h-4" />}
-            label={t('delivery.complement')}
-            value={addressDraft.complement}
-            onChange={(complement) => onAddressDraftChange({ ...addressDraft, complement })}
-            placeholder={t('delivery.complementPlaceholder')}
-          />
         </div>
       </div>
 
-      <div>
-        <h3 className="text-sm font-bold text-gray-900 mb-3">
-          {t('delivery.deliveryOptionTitle')}
-        </h3>
-        {feeMode === 'distance' && (
-          <p className="text-xs text-gray-500 mb-2">
-            {feeLoading
-              ? 'Calculando distância até o restaurante…'
-              : feeOutOfRange
-                ? `Fora da área de entrega (máx. ${maxRadiusKm} km).`
-                : distanceKm != null
-                  ? `Distância estimada: ${distanceKm.toFixed(1).replace('.', ',')} km`
-                  : 'Preencha o endereço para calcular a taxa por km.'}
-          </p>
-        )}
-        {feeMode === 'neighborhood' && (
-          <p className="text-xs text-gray-500 mb-2">
-            {feeLoading
-              ? 'Validando bairro e distância…'
-              : feeOutOfRange
-                ? 'Este restaurante não entrega neste bairro (ou está longe demais).'
-                : addressDraft.neighborhood.trim()
-                  ? `Taxa do bairro ${addressDraft.neighborhood}: ${fmt(baseDeliveryFee)}`
-                  : 'Informe o bairro para calcular o frete.'}
-          </p>
-        )}
-        <div className="space-y-2">
-          <DeliveryOptionCard
-            selected={deliveryOption === 'standard'}
-            onSelect={() => setDeliveryOption('standard')}
-            icon={<Bike className="w-5 h-5" />}
-            title={t('delivery.deliveryStandard')}
-            subtitle={t('delivery.deliveryStandardDesc')}
-            feeLabel={fmt(baseDeliveryFee)}
-            accentColor={accentColor}
-          />
-          <DeliveryOptionCard
-            selected={deliveryOption === 'turbo'}
-            onSelect={() => setDeliveryOption('turbo')}
-            icon={<Zap className="w-5 h-5" />}
-            title={t('delivery.deliveryTurbo')}
-            subtitle={t('delivery.deliveryTurboDesc')}
-            feeLabel={`${fmt(baseDeliveryFee)} + ${fmt(turboFeeExtra)}`}
-            accentColor={accentColor}
-          />
+      {!isPickup && (
+        <div>
+          <h3 className="text-sm font-bold text-gray-900 mb-3">
+            {t('delivery.deliveryOptionTitle')}
+          </h3>
+          {feeMode === 'distance' && (
+            <p className="text-xs text-gray-500 mb-2">
+              {feeLoading
+                ? 'Calculando distância até o restaurante…'
+                : feeOutOfRange
+                  ? `Fora da área de entrega (máx. ${maxRadiusKm} km).`
+                  : distanceKm != null
+                    ? `Distância estimada: ${distanceKm.toFixed(1).replace('.', ',')} km`
+                    : 'Preencha o endereço para calcular a taxa por km.'}
+            </p>
+          )}
+          {feeMode === 'neighborhood' && (
+            <p className="text-xs text-gray-500 mb-2">
+              {feeLoading
+                ? 'Validando bairro e distância…'
+                : feeOutOfRange
+                  ? 'Este restaurante não entrega neste bairro (ou está longe demais).'
+                  : addressDraft.neighborhood.trim()
+                    ? `Taxa do bairro ${addressDraft.neighborhood}: ${fmt(baseDeliveryFee)}`
+                    : 'Informe o bairro para calcular o frete.'}
+            </p>
+          )}
+          <div className="space-y-2">
+            <DeliveryOptionCard
+              selected={deliveryOption === 'standard'}
+              onSelect={() => setDeliveryOption('standard')}
+              icon={<Bike className="w-5 h-5" />}
+              title={t('delivery.deliveryStandard')}
+              subtitle={t('delivery.deliveryStandardDesc')}
+              feeLabel={fmt(baseDeliveryFee)}
+              accentColor={accentColor}
+            />
+            <DeliveryOptionCard
+              selected={deliveryOption === 'turbo'}
+              onSelect={() => setDeliveryOption('turbo')}
+              icon={<Zap className="w-5 h-5" />}
+              title={t('delivery.deliveryTurbo')}
+              subtitle={t('delivery.deliveryTurboDesc')}
+              feeLabel={`${fmt(baseDeliveryFee)} + ${fmt(turboFeeExtra)}`}
+              accentColor={accentColor}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1717,6 +1855,11 @@ function PaymentStep({
   hasUser,
   authLoading,
   busy,
+  needsChange,
+  setNeedsChange,
+  cashChangeForInput,
+  setCashChangeForInput,
+  cashChangeAmount,
 }: {
   onlineCardPaymentsEnabled: boolean;
   savedCards: SavedCard[];
@@ -1732,6 +1875,11 @@ function PaymentStep({
   hasUser: boolean;
   authLoading: boolean;
   busy: boolean;
+  needsChange: boolean;
+  setNeedsChange: (v: boolean) => void;
+  cashChangeForInput: string;
+  setCashChangeForInput: (v: string) => void;
+  cashChangeAmount: number | undefined;
 }) {
   const { t } = useTranslation();
   const selectedSavedId =
@@ -1932,6 +2080,47 @@ function PaymentStep({
             );
           })}
         </div>
+        {payment?.kind === 'cod' && payment.method === 'money' && (
+          <div className="mt-3 p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
+            <label className="flex items-center gap-2 text-sm text-amber-950 font-medium">
+              <input
+                type="checkbox"
+                checked={needsChange}
+                onChange={(e) => {
+                  setNeedsChange(e.target.checked);
+                  if (!e.target.checked) setCashChangeForInput('');
+                }}
+                className="rounded border-amber-400"
+              />
+              Preciso de troco
+            </label>
+            {needsChange && (
+              <>
+                <LabeledInput
+                  icon={<Banknote className="w-4 h-4" />}
+                  label="Vou pagar com"
+                  value={cashChangeForInput}
+                  onChange={setCashChangeForInput}
+                  placeholder="Ex.: 50,00"
+                  type="text"
+                />
+                {cashChangeAmount != null ? (
+                  <p className="text-xs font-semibold text-amber-900">
+                    Troco: {fmt(cashChangeAmount)}
+                  </p>
+                ) : cashChangeForInput.trim() ? (
+                  <p className="text-xs text-red-600">
+                    Informe um valor maior ou igual a {fmt(total)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-800">
+                    Informe o valor da nota/bilhete para o restaurante saber o troco.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

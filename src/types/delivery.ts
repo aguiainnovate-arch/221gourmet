@@ -6,6 +6,9 @@ export interface DeliveryOrderItem {
   observations?: string;
 }
 
+/** Entrega com motoboy ou retirada no estabelecimento (sem frete). */
+export type FulfillmentType = 'delivery' | 'pickup';
+
 export interface DeliveryOrder {
   id: string;
   restaurantId: string;
@@ -19,6 +22,15 @@ export interface DeliveryOrder {
   status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
   paymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   deliveryFee: number;
+  /** Padrão: delivery. pickup = retirada na loja (sem motoboy/frete). */
+  fulfillmentType?: FulfillmentType;
+  /**
+   * Valor em dinheiro que o cliente vai pagar (ex.: 50 = nota de R$ 50).
+   * Só faz sentido com paymentMethod === 'money'.
+   */
+  cashChangeFor?: number;
+  /** Troco calculado: cashChangeFor - total (quando informado). */
+  cashChangeAmount?: number;
   stripePaymentIntentId?: string;
   asaasPaymentId?: string;
   pixCopyPaste?: string;
@@ -42,6 +54,9 @@ export interface CreateDeliveryOrderData {
   total: number;
   paymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   deliveryFee: number;
+  fulfillmentType?: FulfillmentType;
+  cashChangeFor?: number;
+  cashChangeAmount?: number;
   stripePaymentIntentId?: string;
   asaasPaymentId?: string;
   pixCopyPaste?: string;
