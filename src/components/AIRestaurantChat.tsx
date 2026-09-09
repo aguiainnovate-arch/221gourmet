@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Sparkles, Bot, User, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
+import { X, Send, User, AlertCircle } from 'lucide-react';
 import { recommendRestaurants } from '../services/openaiService';
 import { getAllRestaurantsWithMenus, type RestaurantWithMenu } from '../services/restaurantService';
-import { getChatbotConfig } from '../services/chatbotConfigService';
+import { AI_ASSISTANT_NAME, getChatbotConfig } from '../services/chatbotConfigService';
 import RestaurantChatCard from './RestaurantChatCard';
 import { restaurantMatchesRegion } from '../utils/restaurantRegion';
 import type { DeliveryLocation } from '../utils/deliveryLocationStorage';
@@ -20,6 +20,41 @@ interface Message {
   sender: 'user' | 'ai';
   timestamp: Date;
   restaurants?: RecommendedRestaurant[];
+}
+
+function BorisMascot({ size, className }: { size: number; className?: string }) {
+  const [useVideo] = useState(() => {
+    if (typeof document === 'undefined') return false;
+    const probe = document.createElement('video');
+    return probe.canPlayType('video/webm; codecs=vp9') === 'probably';
+  });
+  const style: CSSProperties = {
+    width: size,
+    height: size,
+    objectFit: 'contain',
+    display: 'block',
+    pointerEvents: 'none',
+    background: 'transparent',
+    transform: 'rotate(4deg)',
+  };
+
+  if (useVideo) {
+    return (
+      <video
+        className={className}
+        autoPlay
+        loop
+        muted
+        playsInline
+        disablePictureInPicture
+        src="/boris-mascot.webm?v=2"
+        style={style}
+        aria-hidden
+      />
+    );
+  }
+
+  return <img className={className} src="/boris-mascot.gif?v=2" alt="" style={style} aria-hidden />;
 }
 
 function toChatRestaurants(restaurants: Restaurant[]): RestaurantWithMenu[] {
@@ -42,7 +77,9 @@ export default function AIRestaurantChat({
   restaurants?: Restaurant[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [greeting, setGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
+  const [greeting, setGreeting] = useState(
+    `Olá! 👋 Eu sou o ${AI_ASSISTANT_NAME}, seu assistente do Bora Comer. Como posso te ajudar a encontrar o restaurante perfeito hoje?`
+  );
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -232,65 +269,62 @@ export default function AIRestaurantChat({
 
   return (
     <>
-      {/* Floating Action Button — ancorado na viewport via fixed */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed z-40 text-white rounded-full p-4 shadow-2xl transition-all duration-300 hover:opacity-90 ${
+        className={`fixed z-40 rounded-full p-0 bg-transparent transition-all duration-300 hover:scale-105 ${
           isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={{
           bottom: fabBottomStyle,
-          right: '1.25rem',
-          backgroundColor: '#E91120',
+          right: '0.75rem',
+          filter: 'drop-shadow(0 8px 14px rgba(0,0,0,0.22))',
         }}
+        aria-label={`Abrir chat com ${AI_ASSISTANT_NAME}`}
       >
-        <div className="relative">
-          <MessageCircle className="w-6 h-6" />
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-        </div>
+        <BorisMascot size={132} />
       </button>
 
-      {/* Chat Modal — responsivo: ocupa viewport em mobile */}
       {isOpen && (
         <div
-          className="fixed z-50 flex flex-col bg-white shadow-2xl overflow-hidden"
+          className="fixed z-50 flex flex-col bg-[#FFF6F4] shadow-2xl overflow-hidden"
           style={{
             bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
             right: '1.25rem',
             left: '1.25rem',
             maxWidth: '400px',
             marginLeft: 'auto',
-            height: 'min(600px, calc(100vh - 6rem))',
-            borderRadius: '1rem',
+            height: 'min(640px, calc(100vh - 5.5rem))',
+            borderRadius: '1.35rem',
           }}
         >
-          {/* Header */}
-          <div className="text-white p-5 flex items-center justify-between" style={{ backgroundColor: '#E91120' }}>
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#D6081B] ${
-                  aiConfigured ? 'bg-green-400' : 'bg-yellow-400'
-                }`}></div>
+          <div
+            className="relative text-white px-4 py-3"
+            style={{ backgroundColor: '#E91120' }}
+          >
+            <div className="flex items-center gap-3 pr-10">
+              <div className="flex-shrink-0 w-[72px] h-[72px] flex items-center justify-center">
+                <BorisMascot size={72} />
               </div>
-              <div>
-                <h3 className="font-bold text-lg">Assistente IA</h3>
-                <p className="text-xs text-amber-100">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                  Assistente Bora Comer
+                </p>
+                <h3 className="font-black text-xl leading-tight mt-0.5">{AI_ASSISTANT_NAME}</h3>
+                <p className="text-xs text-white/90 mt-1 flex items-center gap-1.5">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${aiConfigured ? 'bg-green-400' : 'bg-yellow-300'}`} />
                   {isLoadingData ? 'Carregando dados...' : 'Online agora'}
                 </p>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="hover:bg-white/20 rounded-full p-2 transition-colors"
+              className="absolute top-2.5 right-2.5 hover:bg-white/20 rounded-full p-2 transition-colors"
+              aria-label="Fechar chat"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* AI Status Warning */}
           {!aiConfigured && (
             <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 text-yellow-600" />
@@ -300,38 +334,30 @@ export default function AIRestaurantChat({
             </div>
           )}
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-orange-50/30 to-white space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[#FFF6F4]">
             {messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
               >
-                <div className={`flex items-start space-x-2 max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                  {/* Avatar */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    message.sender === 'user' 
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
-                      : 'bg-gradient-to-br from-orange-500 to-amber-600'
-                  }`}>
-                    {message.sender === 'user' ? (
-                      <User className="w-4 h-4 text-white" />
-                    ) : (
-                      <Bot className="w-4 h-4 text-white" />
-                    )}
-                  </div>
+                <div className={`flex items-end gap-2 max-w-[88%] ${message.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                  {message.sender === 'user' && (
+                    <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-[#E91120]">
+                      <User className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  )}
 
-                  {/* Message Bubble */}
-                  <div className="flex-1">
-                    <div className={`rounded-2xl px-4 py-2.5 ${
-                      message.sender === 'user'
-                        ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white'
-                        : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
-                    }`}>
+                  <div className="min-w-0">
+                    <div
+                      className={`px-4 py-2.5 shadow-sm ${
+                        message.sender === 'user'
+                          ? 'rounded-2xl rounded-br-md bg-[#E91120] text-white'
+                          : 'rounded-2xl rounded-tl-md bg-white text-gray-800 border border-red-100'
+                      }`}
+                    >
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
                     </div>
 
-                    {/* Restaurant Cards */}
                     {message.sender === 'ai' && message.restaurants && message.restaurants.length > 0 && (
                       <div className="mt-3 space-y-2">
                         {message.restaurants.map((restaurant) => {
@@ -351,7 +377,7 @@ export default function AIRestaurantChat({
                       </div>
                     )}
 
-                    <p className={`text-xs text-gray-400 mt-1 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                    <p className={`text-[11px] text-gray-400 mt-1 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
                       {message.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
@@ -359,19 +385,13 @@ export default function AIRestaurantChat({
               </div>
             ))}
 
-            {/* Typing Indicator */}
             {isTyping && (
               <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-start space-x-2 max-w-[80%]">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
-                    <div className="flex space-x-1.5">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
+                <div className="bg-white border border-red-100 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
+                  <div className="flex space-x-1.5">
+                    <div className="w-2 h-2 bg-[#E91120]/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-[#E91120]/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-[#E91120]/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
@@ -380,10 +400,9 @@ export default function AIRestaurantChat({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Suggestions */}
           {messages.length === 1 && (
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-              <p className="text-xs text-gray-500 mb-2 font-medium">Sugestões rápidas:</p>
+            <div className="px-4 pb-2">
+              <p className="text-[11px] text-gray-500 mb-2 font-medium">Pergunte pro Boris:</p>
               <div className="flex flex-wrap gap-2">
                 {quickSuggestions.map((suggestion, index) => (
                   <button
@@ -392,7 +411,7 @@ export default function AIRestaurantChat({
                       setInputText(suggestion);
                       setTimeout(() => handleSendMessage(), 100);
                     }}
-                    className="text-xs bg-white border border-orange-200 text-orange-700 px-3 py-1.5 rounded-full hover:bg-orange-50 hover:border-orange-300 transition-colors"
+                    className="text-xs bg-white border border-red-200 text-[#E91120] px-3 py-1.5 rounded-full hover:bg-red-50 hover:border-red-300 transition-colors"
                   >
                     {suggestion}
                   </button>
@@ -401,29 +420,28 @@ export default function AIRestaurantChat({
             </div>
           )}
 
-          {/* Input Area */}
-          <div className="p-4 bg-white border-t border-gray-200">
-            <div className="flex items-center space-x-2">
+          <div className="p-3 pt-2 bg-[#FFF6F4]">
+            <div className="flex items-center gap-2 rounded-full bg-white border border-red-100 px-2 py-1.5 shadow-sm">
               <input
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Digite sua mensagem..."
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-black placeholder:text-gray-500"
+                placeholder={`Fala com o ${AI_ASSISTANT_NAME}...`}
+                className="flex-1 px-3 py-1.5 bg-transparent focus:outline-none text-sm text-black placeholder:text-gray-400"
               />
               <button
                 onClick={handleSendMessage}
                 disabled={!inputText.trim()}
-                className="text-white p-2.5 rounded-full hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                className="text-white p-2.5 rounded-full hover:opacity-90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#E91120' }}
               >
-                <Send className="w-5 h-5" />
+                <Send className="w-4 h-4" />
               </button>
             </div>
             {regionRestaurants.length > 0 && (
-              <p className="text-xs text-gray-400 mt-2 text-center">
-                Conhecendo {regionRestaurants.length} restaurante{regionRestaurants.length !== 1 ? 's' : ''} para te ajudar 🍽️
+              <p className="text-[11px] text-gray-400 mt-2 text-center">
+                Conhecendo {regionRestaurants.length} restaurante{regionRestaurants.length !== 1 ? 's' : ''} para te ajudar
               </p>
             )}
           </div>

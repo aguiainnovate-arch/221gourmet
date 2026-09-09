@@ -21,10 +21,11 @@ import {
   type OpenAIConfig,
   type TestPromptResult 
 } from '../../services/openaiService';
-import { 
-  saveChatbotConfig, 
+import {
+  saveChatbotConfig,
   getChatbotConfig,
-  type ChatbotConfig 
+  AI_ASSISTANT_NAME,
+  type ChatbotConfig
 } from '../../services/chatbotConfigService';
 
 export default function AIConfiguration() {
@@ -45,7 +46,9 @@ export default function AIConfiguration() {
   const [chatbotCustomRules, setChatbotCustomRules] = useState('');
   const [chatbotTone, setChatbotTone] = useState('friendly'); // friendly, professional, casual
   const [chatbotShowCardsThreshold, setChatbotShowCardsThreshold] = useState('conservative'); // conservative, balanced, eager
-  const [chatbotGreeting, setChatbotGreeting] = useState('Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?');
+  const [chatbotGreeting, setChatbotGreeting] = useState(
+    `Olá! 👋 Eu sou o ${AI_ASSISTANT_NAME}, seu assistente do Bora Comer. Como posso te ajudar a encontrar o restaurante perfeito hoje?`
+  );
   const [isSavingChatbot, setIsSavingChatbot] = useState(false);
 
   useEffect(() => {

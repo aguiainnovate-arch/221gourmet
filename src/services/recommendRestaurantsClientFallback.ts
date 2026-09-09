@@ -68,7 +68,7 @@ async function buildSystemPrompt(restaurantsData: unknown[]): Promise<string> {
 
   const restaurantsInfo = buildRestaurantsInfo(restaurantsData);
 
-  return `Você é um assistente virtual especializado em recomendar restaurantes.
+  return `Você é o Boris, o assistente virtual do Bora Comer especializado em recomendar restaurantes. Quando fizer sentido, apresente-se como Boris.
 
 TOM DE VOZ:
 ${toneInstructions}

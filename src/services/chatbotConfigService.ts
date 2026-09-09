@@ -10,11 +10,13 @@ export interface ChatbotConfig {
   updatedAt?: Date;
 }
 
+/** Nome público da IA de recomendação no delivery. */
+export const AI_ASSISTANT_NAME = 'Boris';
+
 const CHATBOT_CONFIG_DOC_ID = 'global-chatbot-config';
 
 const DEFAULT_CONFIG: ChatbotConfig = {
-  greeting:
-    'Olá! 👋 Sou seu assistente virtual. Como posso te ajudar a encontrar o restaurante perfeito hoje?',
+  greeting: `Olá! 👋 Eu sou o ${AI_ASSISTANT_NAME}, seu assistente do Bora Comer. Como posso te ajudar a encontrar o restaurante perfeito hoje?`,
   tone: 'friendly',
   showCardsThreshold: 'conservative',
   customRules: '',
