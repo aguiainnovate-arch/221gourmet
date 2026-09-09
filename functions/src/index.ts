@@ -18,6 +18,7 @@ export {
   confirmPartnershipSubscriptionCheckout,
 } from './stripePartnershipBilling';
 export { recommendRestaurantsWithAI } from './recommendRestaurantsWithAI';
+export { whatsappTwilioWebhook } from './twilioWhatsApp';
 
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';
 /** Modelo estável da API de moderação (omni-* pode retornar 400 em contas/regiões sem acesso). */

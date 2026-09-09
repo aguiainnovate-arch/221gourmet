@@ -26,7 +26,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.recommendRestaurantsWithAI = exports.confirmPartnershipSubscriptionCheckout = exports.createPartnershipSubscriptionCheckout = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
+exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.whatsappTwilioWebhook = exports.recommendRestaurantsWithAI = exports.confirmPartnershipSubscriptionCheckout = exports.createPartnershipSubscriptionCheckout = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const openai_1 = __importStar(require("openai"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -46,6 +46,8 @@ Object.defineProperty(exports, "createPartnershipSubscriptionCheckout", { enumer
 Object.defineProperty(exports, "confirmPartnershipSubscriptionCheckout", { enumerable: true, get: function () { return stripePartnershipBilling_1.confirmPartnershipSubscriptionCheckout; } });
 var recommendRestaurantsWithAI_1 = require("./recommendRestaurantsWithAI");
 Object.defineProperty(exports, "recommendRestaurantsWithAI", { enumerable: true, get: function () { return recommendRestaurantsWithAI_1.recommendRestaurantsWithAI; } });
+var twilioWhatsApp_1 = require("./twilioWhatsApp");
+Object.defineProperty(exports, "whatsappTwilioWebhook", { enumerable: true, get: function () { return twilioWhatsApp_1.whatsappTwilioWebhook; } });
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';
 /** Modelo estável da API de moderação (omni-* pode retornar 400 em contas/regiões sem acesso). */
 const LEAD_MODERATION_MOD_MODEL = 'text-moderation-latest';
