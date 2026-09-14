@@ -7,6 +7,7 @@ import Permissions from './admin/Permissions';
 import Plans from './admin/Plans';
 import RestaurantLeads from './admin/RestaurantLeads';
 import Motoboys from './admin/Motoboys';
+import MotoboyLeads from './admin/MotoboyLeads';
 import AIConfiguration from './owner/AIConfiguration';
 import RegistrationLinks from './owner/RegistrationLinks';
 import GenerateRegistrationLinkModal from '../components/GenerateRegistrationLinkModal';
@@ -18,6 +19,7 @@ const SECTION_TITLES: Record<string, string> = {
   plans: 'Planos',
   leads: 'Solicitações de Parceiros',
   motoboys: 'Motoboys',
+  'motoboy-leads': 'Leads de motoboys',
   'ai-config': 'Configuração de IA',
   'registration-links': 'Links de Cadastro'
 };
@@ -39,6 +41,8 @@ export default function Owner() {
         return <RestaurantLeads />;
       case 'motoboys':
         return <Motoboys />;
+      case 'motoboy-leads':
+        return <MotoboyLeads />;
       case 'ai-config':
         return <AIConfiguration />;
       case 'registration-links':

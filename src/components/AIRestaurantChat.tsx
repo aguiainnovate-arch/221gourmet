@@ -22,39 +22,67 @@ interface Message {
   restaurants?: RecommendedRestaurant[];
 }
 
-function BorisMascot({ size, className }: { size: number; className?: string }) {
-  const [useVideo] = useState(() => {
-    if (typeof document === 'undefined') return false;
-    const probe = document.createElement('video');
-    return probe.canPlayType('video/webm; codecs=vp9') === 'probably';
-  });
+/** iOS / Safari não suportam WebM VP9 com alpha → vídeo vira quadrado preto. */
+function needsBorisGifFallback(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) return true;
+  // iPadOS reportando desktop
+  if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
+  // Safari (desktop ou iOS) sem Chrome/Firefox/Edge
+  const isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|Chromium|FxiOS|EdgiOS|Edg\//i.test(ua);
+  return isSafari;
+}
+
+function BorisMascot({
+  size,
+  className,
+  rotate = false,
+}: {
+  size: number;
+  className?: string;
+  rotate?: boolean;
+}) {
+  const [useGif, setUseGif] = useState(() => needsBorisGifFallback());
+
   const style: CSSProperties = {
     width: size,
     height: size,
     objectFit: 'contain',
     display: 'block',
     pointerEvents: 'none',
-    background: 'transparent',
-    transform: 'rotate(4deg)',
+    backgroundColor: 'transparent',
+    transform: rotate ? 'rotate(4deg)' : undefined,
   };
 
-  if (useVideo) {
+  // GIF 89a com transparência — funciona no iPhone / Safari / Capacitor iOS
+  if (useGif) {
     return (
-      <video
+      <img
         className={className}
-        autoPlay
-        loop
-        muted
-        playsInline
-        disablePictureInPicture
-        src="/boris-mascot.webm?v=2"
+        src="/boris-mascot.gif?v=4"
+        alt=""
         style={style}
         aria-hidden
+        draggable={false}
       />
     );
   }
 
-  return <img className={className} src="/boris-mascot.gif?v=2" alt="" style={style} aria-hidden />;
+  return (
+    <video
+      className={className}
+      autoPlay
+      loop
+      muted
+      playsInline
+      disablePictureInPicture
+      src="/boris-mascot.webm?v=4"
+      style={style}
+      aria-hidden
+      onError={() => setUseGif(true)}
+    />
+  );
 }
 
 function toChatRestaurants(restaurants: Restaurant[]): RestaurantWithMenu[] {
@@ -281,12 +309,12 @@ export default function AIRestaurantChat({
         }}
         aria-label={`Abrir chat com ${AI_ASSISTANT_NAME}`}
       >
-        <BorisMascot size={132} />
+        <BorisMascot size={132} rotate />
       </button>
 
       {isOpen && (
         <div
-          className="fixed z-50 flex flex-col bg-[#FFF6F4] shadow-2xl overflow-hidden"
+          className="fixed z-50"
           style={{
             bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
             right: '1.25rem',
@@ -294,27 +322,28 @@ export default function AIRestaurantChat({
             maxWidth: '400px',
             marginLeft: 'auto',
             height: 'min(640px, calc(100vh - 5.5rem))',
-            borderRadius: '1.35rem',
           }}
         >
           <div
-            className="relative text-white px-4 py-3"
+            className="flex flex-col h-full shadow-2xl overflow-hidden"
+            style={{
+              borderRadius: '1.35rem',
+              backgroundColor: '#FFF6F4',
+            }}
+          >
+          <div
+            className="relative shrink-0 text-white pl-[6.75rem] pr-12 py-3.5 rounded-t-[1.35rem]"
             style={{ backgroundColor: '#E91120' }}
           >
-            <div className="flex items-center gap-3 pr-10">
-              <div className="flex-shrink-0 w-[72px] h-[72px] flex items-center justify-center">
-                <BorisMascot size={72} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
-                  Assistente Bora Comer
-                </p>
-                <h3 className="font-black text-xl leading-tight mt-0.5">{AI_ASSISTANT_NAME}</h3>
-                <p className="text-xs text-white/90 mt-1 flex items-center gap-1.5">
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${aiConfigured ? 'bg-green-400' : 'bg-yellow-300'}`} />
-                  {isLoadingData ? 'Carregando dados...' : 'Online agora'}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                Assistente Bora Comer
+              </p>
+              <h3 className="font-black text-[1.45rem] leading-none mt-0.5">{AI_ASSISTANT_NAME}</h3>
+              <p className="text-xs text-white/90 mt-1.5 flex items-center gap-1.5">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${aiConfigured ? 'bg-green-400' : 'bg-yellow-300'}`} />
+                {isLoadingData ? 'Carregando dados...' : 'Online agora'}
+              </p>
             </div>
             <button
               onClick={() => setIsOpen(false)}
@@ -334,7 +363,8 @@ export default function AIRestaurantChat({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[#FFF6F4]">
+          <div className="relative flex-1 min-h-0 flex flex-col bg-[#FFF6F4]">
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3 space-y-3 pt-3">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -444,6 +474,14 @@ export default function AIRestaurantChat({
                 Conhecendo {regionRestaurants.length} restaurante{regionRestaurants.length !== 1 ? 's' : ''} para te ajudar
               </p>
             )}
+          </div>
+          </div>
+          </div>
+          <div
+            className="absolute left-1 top-1 pointer-events-none z-10"
+            style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))' }}
+          >
+            <BorisMascot size={88} />
           </div>
         </div>
       )}
