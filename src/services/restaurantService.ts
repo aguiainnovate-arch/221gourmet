@@ -21,6 +21,7 @@ import {
   normalizePartnershipSubscription,
   partnershipSubscriptionToFirestore,
 } from '../types/partnership';
+import { normalizeDigitalMenu } from '../types/digitalMenuOffer';
 import { isCapacitorRuntime, listFirestoreCollection, getFirestoreDocument, deleteFirestoreDocument } from '../utils/firestoreRest';
 
 // Re-exportar os tipos para facilitar imports
@@ -73,6 +74,7 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
     openingHours: data.openingHours ? normalizeOpeningHours(data.openingHours) : undefined,
     menuShifts: normalizeMenuShifts(data.menuShifts),
     partnershipSubscription: normalizePartnershipSubscription(data.partnershipSubscription),
+    digitalMenu: normalizeDigitalMenu(data.digitalMenu),
     stripeConnectAccountId:
       typeof data.stripeConnectAccountId === 'string' ? data.stripeConnectAccountId : undefined,
     stripeConnectChargesEnabled:

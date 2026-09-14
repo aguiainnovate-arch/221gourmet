@@ -17,6 +17,10 @@ export {
   createPartnershipSubscriptionCheckout,
   confirmPartnershipSubscriptionCheckout,
 } from './stripePartnershipBilling';
+export {
+  createDigitalMenuCheckout,
+  confirmDigitalMenuCheckout,
+} from './stripeDigitalMenuBilling';
 export { recommendRestaurantsWithAI } from './recommendRestaurantsWithAI';
 export { whatsappTwilioWebhook } from './twilioWhatsApp';
 

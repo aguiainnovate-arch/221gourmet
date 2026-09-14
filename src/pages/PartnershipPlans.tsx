@@ -8,7 +8,7 @@ import {
   Smartphone,
   Store,
 } from 'lucide-react';
-import { isIosNative } from '../utils/capacitorUtils';
+import { isIosNative, isNativePlatform } from '../utils/capacitorUtils';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurantById } from '../services/restaurantService';
 import {
@@ -16,6 +16,12 @@ import {
   confirmPartnershipCheckout,
   startPartnershipCheckout,
 } from '../services/partnershipSubscriptionService';
+import {
+  activateDigitalMenuLocally,
+  confirmDigitalMenuCheckout,
+  startDigitalMenuCheckout,
+} from '../services/digitalMenuService';
+import DigitalMenuUpsellModal from '../components/DigitalMenuUpsellModal';
 import type { Restaurant } from '../types/restaurant';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
@@ -24,6 +30,7 @@ import {
   PARTNERSHIP_TRIAL_DAYS,
   type PartnershipDeliveryMode,
 } from '../types/partnership';
+import { hasActiveDigitalMenu } from '../types/digitalMenuOffer';
 import {
   getPartnershipAccessState,
   resolveEffectiveSubscriptionStatus,
@@ -60,6 +67,8 @@ export default function PartnershipPlans() {
   const [message, setMessage] = useState<{ type: 'ok' | 'err' | 'info'; text: string } | null>(
     null
   );
+  const [showDigitalMenuUpsell, setShowDigitalMenuUpsell] = useState(false);
+  const [digitalMenuSubmitting, setDigitalMenuSubmitting] = useState(false);
 
   const plan = PARTNERSHIP_PLANS[selectedMode];
   const access = restaurant ? getPartnershipAccessState(restaurant) : null;
@@ -95,10 +104,56 @@ export default function PartnershipPlans() {
     };
   }, [currentRestaurantId]);
 
-  // Retorno do Stripe Checkout
+  // Retorno do Stripe Checkout (parceria + cardápio digital)
   useEffect(() => {
     const checkout = searchParams.get('checkout');
+    const digitalMenu = searchParams.get('digital_menu');
     const sessionId = searchParams.get('session_id');
+
+    if (digitalMenu === 'cancel') {
+      setMessage({
+        type: 'info',
+        text: 'Pagamento do cardápio digital cancelado. Você pode adquirir depois quando quiser.',
+      });
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    if (digitalMenu === 'success' && sessionId) {
+      let cancelled = false;
+      (async () => {
+        try {
+          setSubmitting(true);
+          setMessage({ type: 'info', text: 'Confirmando cardápio digital...' });
+          await confirmDigitalMenuCheckout(sessionId);
+          if (cancelled) return;
+          setMessage({
+            type: 'ok',
+            text: 'Cardápio digital ativado! QR de mesas e IA para WhatsApp liberados.',
+          });
+          if (currentRestaurantId) {
+            const refreshed = await getRestaurantById(currentRestaurantId);
+            if (!cancelled) setRestaurant(refreshed);
+          }
+          setShowDigitalMenuUpsell(false);
+          setSearchParams({}, { replace: true });
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) {
+            setMessage({
+              type: 'err',
+              text: 'Não foi possível confirmar o cardápio digital. Se o valor foi cobrado, fale com o suporte.',
+            });
+          }
+        } finally {
+          if (!cancelled) setSubmitting(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (checkout === 'cancel') {
       setMessage({ type: 'info', text: 'Pagamento cancelado. Você pode tentar novamente quando quiser.' });
       setSearchParams({}, { replace: true });
@@ -117,9 +172,13 @@ export default function PartnershipPlans() {
           type: 'ok',
           text: 'Assinatura ativada! Bem-vindo de volta à parceria Bora Comer!.',
         });
+        let refreshed: Restaurant | null = null;
         if (currentRestaurantId) {
-          const refreshed = await getRestaurantById(currentRestaurantId);
+          refreshed = await getRestaurantById(currentRestaurantId);
           if (!cancelled) setRestaurant(refreshed);
+        }
+        if (!cancelled && !hasActiveDigitalMenu(refreshed?.digitalMenu)) {
+          setShowDigitalMenuUpsell(true);
         }
         setSearchParams({}, { replace: true });
       } catch (err) {
@@ -163,13 +222,35 @@ export default function PartnershipPlans() {
     return null;
   }, [restaurant, access]);
 
-  const partnershipWebUrl = `${(import.meta.env.VITE_APP_URL || 'https://boracomer.com.br').replace(/\/$/, '')}/planos`;
+  /** Deve bater com PUBLIC_APP_URL das Cloud Functions (retorno do Stripe). */
+  const appOrigin = (
+    import.meta.env.VITE_APP_URL || 'https://boracoomer.netlify.app'
+  ).replace(/\/$/, '');
+  const partnershipWebUrl = `${appOrigin}/planos`;
+
+  /** No app nativo, abrir Stripe no browser externo — WebView perde sessão e quebra o return. */
+  const openCheckoutUrl = (url: string) => {
+    if (isNativePlatform()) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setMessage({
+        type: 'info',
+        text: 'Pagamento aberto no navegador. Conclua lá e depois volte ao app — a assinatura sincroniza sozinha.',
+      });
+      return;
+    }
+    window.location.href = url;
+  };
 
   const handleSubscribe = async () => {
     setMessage(null);
 
     if (isIosNative()) {
+      // App Store: mensalidade de plataforma não pode ser cobrada in-app sem IAP.
       window.open(partnershipWebUrl, '_blank', 'noopener,noreferrer');
+      setMessage({
+        type: 'info',
+        text: 'No iPhone, a assinatura é feita no site. Abra o link, faça login e conclua o pagamento.',
+      });
       return;
     }
 
@@ -184,7 +265,7 @@ export default function PartnershipPlans() {
         restaurantId: currentRestaurantId,
         deliveryMode: selectedMode,
       });
-      window.location.href = url;
+      openCheckoutUrl(url);
     } catch (err) {
       console.error(err);
       // Fallback local (dev / function ainda não deployada)
@@ -200,6 +281,9 @@ export default function PartnershipPlans() {
             type: 'ok',
             text: 'Assinatura ativada em modo local (dev). Em produção o pagamento vai pelo Stripe.',
           });
+          if (!hasActiveDigitalMenu(refreshed?.digitalMenu)) {
+            setShowDigitalMenuUpsell(true);
+          }
           return;
         } catch (localErr) {
           console.error(localErr);
@@ -217,6 +301,39 @@ export default function PartnershipPlans() {
   const goToPanel = () => {
     if (currentRestaurantId) {
       navigate(`/${currentRestaurantId}/settings`);
+    }
+  };
+
+  const handleDigitalMenuAccept = async () => {
+    if (!currentRestaurantId) return;
+    try {
+      setDigitalMenuSubmitting(true);
+      const { url } = await startDigitalMenuCheckout(currentRestaurantId);
+      openCheckoutUrl(url);
+      setShowDigitalMenuUpsell(false);
+    } catch (err) {
+      console.error(err);
+      if (import.meta.env.DEV) {
+        try {
+          await activateDigitalMenuLocally(currentRestaurantId);
+          const refreshed = await getRestaurantById(currentRestaurantId);
+          setRestaurant(refreshed);
+          setShowDigitalMenuUpsell(false);
+          setMessage({
+            type: 'ok',
+            text: 'Cardápio digital ativado em modo local (dev). Em produção o pagamento vai pelo Stripe.',
+          });
+          return;
+        } catch (localErr) {
+          console.error(localErr);
+        }
+      }
+      setMessage({
+        type: 'err',
+        text: 'Não foi possível iniciar o pagamento do cardápio digital.',
+      });
+    } finally {
+      setDigitalMenuSubmitting(false);
     }
   };
 
@@ -345,6 +462,31 @@ export default function PartnershipPlans() {
                 )}
               </div>
             )}
+
+            {access?.access &&
+              access.reason === 'active' &&
+              !hasActiveDigitalMenu(restaurant?.digitalMenu) && (
+                <button
+                  type="button"
+                  onClick={() => setShowDigitalMenuUpsell(true)}
+                  className="mb-4 w-full rounded-2xl px-4 py-3.5 text-left border shadow-sm"
+                  style={{
+                    background: tokens.card,
+                    borderColor: tokens.border,
+                    color: tokens.ink,
+                  }}
+                >
+                  <span className="block text-xs font-bold uppercase tracking-wide" style={{ color: tokens.accent }}>
+                    Oferta
+                  </span>
+                  <span className="mt-0.5 block text-sm font-extrabold">
+                    Cardápio digital + IA WhatsApp — R$ 297
+                  </span>
+                  <span className="mt-1 block text-xs" style={{ color: tokens.muted }}>
+                    QR Code de mesas e cardápio no celular. Toque para ver detalhes.
+                  </span>
+                </button>
+              )}
 
             {!isAuthenticated && (
               <div
@@ -508,6 +650,13 @@ export default function PartnershipPlans() {
           </>
         )}
       </main>
+
+      <DigitalMenuUpsellModal
+        open={showDigitalMenuUpsell}
+        submitting={digitalMenuSubmitting}
+        onAccept={handleDigitalMenuAccept}
+        onDismiss={() => setShowDigitalMenuUpsell(false)}
+      />
     </div>
   );
 }

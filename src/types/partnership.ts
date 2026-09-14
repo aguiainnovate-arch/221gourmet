@@ -21,7 +21,7 @@ export const PARTNERSHIP_PLANS: Record<PartnershipDeliveryMode, PartnershipPlanO
     id: 'store_delivery',
     title: 'Delivery com entrega feita pela loja',
     subtitle: 'Você recebe os pedidos na Bora Comer! e faz a entrega com sua própria equipe.',
-    platformFeePercent: 14.99,
+    platformFeePercent: 12,
     monthlyFee: PARTNERSHIP_MONTHLY_FEE,
   },
   platform_delivery: {

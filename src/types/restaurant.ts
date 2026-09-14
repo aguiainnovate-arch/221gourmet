@@ -1,4 +1,5 @@
 import type { PartnershipSubscription } from './partnership';
+import type { DigitalMenuPurchase } from './digitalMenuOffer';
 import type { MenuShift } from './menuShift';
 
 /** Taxa de entrega configurada pelo restaurante. */
@@ -298,6 +299,8 @@ export interface Restaurant {
   menuShifts?: MenuShift[];
   /** Trial / assinatura de parceria Bora Comer!. */
   partnershipSubscription?: PartnershipSubscription;
+  /** Compra avulsa do cardápio digital (QR mesas + IA WhatsApp). */
+  digitalMenu?: DigitalMenuPurchase;
   /** Stripe Connect — Express (IDs e flags sincronizados pelo backend). */
   stripeConnectAccountId?: string;
   stripeConnectChargesEnabled?: boolean;
@@ -328,6 +331,7 @@ export interface CreateRestaurantData {
   openingHours?: RestaurantOpeningHours;
   menuShifts?: MenuShift[];
   partnershipSubscription?: PartnershipSubscription;
+  digitalMenu?: DigitalMenuPurchase;
 }
 
 export interface UpdateRestaurantData {
@@ -352,4 +356,5 @@ export interface UpdateRestaurantData {
   openingHours?: RestaurantOpeningHours;
   menuShifts?: MenuShift[];
   partnershipSubscription?: PartnershipSubscription;
+  digitalMenu?: DigitalMenuPurchase;
 }
