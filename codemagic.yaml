@@ -97,6 +97,7 @@ workflows:
         script: |
           # BUILD_NUMBER do Codemagic é o nº do job (ex.: 5), NÃO o CFBundleVersion da Apple.
           # TestFlight só oferece o maior número; 5 nunca substitui o 18 já publicado.
+          # CFBundleShortVersionString (MARKETING_VERSION) precisa ser > último aprovado na App Store.
           set -euo pipefail
           cd $CM_BUILD_DIR/ios/App
           LATEST_TF=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" --platform IOS || echo 0)
@@ -111,6 +112,13 @@ workflows:
           NEXT=$((LATEST + 1))
           echo "Último TestFlight=$LATEST_TF App Store=$LATEST_AS → CFBundleVersion=$NEXT"
           agvtool new-version -all "$NEXT"
+          # Garante marketing version >= 2.1.0 (trem 1.0 já fechado na App Store)
+          MARKETING=$(grep -m1 'MARKETING_VERSION' App.xcodeproj/project.pbxproj | sed 's/.*= //;s/;//' | tr -d ' ')
+          echo "MARKETING_VERSION no projeto=$MARKETING"
+          if [ "$MARKETING" = "1.0" ] || [ "$MARKETING" = "1.0.0" ]; then
+            echo "ERROR: MARKETING_VERSION ainda em $MARKETING — bump no repo antes do build." >&2
+            exit 1
+          fi
       - name: Build IPA
         script: |
           cd $CM_BUILD_DIR/ios/App
