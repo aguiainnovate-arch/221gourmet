@@ -30,7 +30,7 @@ import {
   PARTNERSHIP_TRIAL_DAYS,
   type PartnershipDeliveryMode,
 } from '../types/partnership';
-import { hasActiveDigitalMenu } from '../types/digitalMenuOffer';
+import { DIGITAL_MENU_OFFER, hasActiveDigitalMenu } from '../types/digitalMenuOffer';
 import {
   getPartnershipAccessState,
   resolveEffectiveSubscriptionStatus,
@@ -480,7 +480,7 @@ export default function PartnershipPlans() {
                     Oferta
                   </span>
                   <span className="mt-0.5 block text-sm font-extrabold">
-                    Cardápio digital + IA WhatsApp — R$ 297
+                    Cardápio digital + IA WhatsApp — {DIGITAL_MENU_OFFER.priceLabel}
                   </span>
                   <span className="mt-1 block text-xs" style={{ color: tokens.muted }}>
                     QR Code de mesas e cardápio no celular. Toque para ver detalhes.

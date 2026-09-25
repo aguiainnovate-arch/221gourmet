@@ -255,11 +255,16 @@ export default function CaptarRestaurant() {
 
       <section className="captar-stats">
         <div className="captar-stat">
-          <strong>14,99%</strong>
+          <strong>
+            {PARTNERSHIP_PLANS.store_delivery.platformFeePercent
+              .toFixed(2)
+              .replace('.', ',')}
+            %
+          </strong>
           <span>taxa a partir de, no plano com entrega da loja</span>
         </div>
         <div className="captar-stat">
-          <strong>R$ {PARTNERSHIP_MONTHLY_FEE.toFixed(0)}</strong>
+          <strong>R$ {PARTNERSHIP_MONTHLY_FEE.toFixed(2).replace('.', ',')}</strong>
           <span>mensalidade após o trial, com isenção por faturamento</span>
         </div>
         <div className="captar-stat">

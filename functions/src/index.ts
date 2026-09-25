@@ -22,6 +22,7 @@ export {
   confirmDigitalMenuCheckout,
 } from './stripeDigitalMenuBilling';
 export { recommendRestaurantsWithAI } from './recommendRestaurantsWithAI';
+export { translateMenuWithAI } from './translateMenuWithAI';
 export { whatsappTwilioWebhook } from './twilioWhatsApp';
 
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';

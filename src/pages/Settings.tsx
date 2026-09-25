@@ -54,7 +54,7 @@ import type { ImportMenuFromClaudeResponse } from '../services/menuClaudeImportS
 import { importProductsFromCSV, generateCSVTemplate } from '../services/csvImportService';
 import { getStatistics, type GeneralStats } from '../services/statisticsService';
 import { hasRestaurantPermission } from '../services/permissionService';
-import { translateProduct } from '../services/openaiService';
+import { translateMenuItem, translateFullMenu } from '../services/translateMenuService';
 import { getDeliveryOrdersByRestaurant, updateDeliveryOrderStatus, cancelDeliveryOrder, subscribeDeliveryOrdersByRestaurant } from '../services/deliveryService';
 import {
   startRestaurantStripeConnectOnboarding,
@@ -142,6 +142,11 @@ export default function Settings() {
   // Estados para permissões
   const [hasAutomaticTranslation, setHasAutomaticTranslation] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isTranslatingFullMenu, setIsTranslatingFullMenu] = useState(false);
+  const [fullMenuTranslateProgress, setFullMenuTranslateProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [hasImageMenuTransfer, setHasImageMenuTransfer] = useState(false);
 
   // Estados para importação por imagem
@@ -560,16 +565,22 @@ export default function Settings() {
   }, [showImageImportModal, hasAutomaticTranslation]);
 
   const handleAutoTranslateProduct = async () => {
-    if (!hasAutomaticTranslation || !productForm.name.trim() || !productForm.description.trim()) {
+    if (!hasAutomaticTranslation || !restaurantId || !productForm.name.trim() || !productForm.description.trim()) {
       return;
     }
 
     setIsTranslating(true);
     try {
-      const result = await translateProduct(productForm.name, productForm.description);
+      const result = await translateMenuItem({
+        restaurantId,
+        id: editingProduct?.id || 'draft-product',
+        name: productForm.name,
+        description: productForm.description,
+        type: 'product',
+        restaurantName: restaurantDisplayName || settings?.restaurantName,
+      });
 
       if (result.success && result.translations) {
-        // Aplicar as traduções aos campos corretos
         setProductTranslations(prev => ({
           ...prev,
           name: {
@@ -672,9 +683,16 @@ export default function Settings() {
             };
 
             // Se a opção de tradução automática estiver ativada, traduzir o produto
-            if (autoTranslateOnImport) {
+            if (autoTranslateOnImport && restaurantId) {
               try {
-                const translationResult = await translateProduct(product.name, product.description || '');
+                const translationResult = await translateMenuItem({
+                  restaurantId,
+                  id: `import-${product.name}`.slice(0, 64),
+                  name: product.name,
+                  description: product.description || product.name,
+                  type: 'product',
+                  restaurantName: restaurantDisplayName || settings?.restaurantName,
+                });
 
                 if (translationResult.success && translationResult.translations) {
                   productTranslations = {
@@ -759,17 +777,22 @@ export default function Settings() {
   };
 
   const handleAutoTranslateCategory = async () => {
-    if (!hasAutomaticTranslation || !categoryForm.trim()) {
+    if (!hasAutomaticTranslation || !restaurantId || !categoryForm.trim()) {
       return;
     }
 
     setIsTranslating(true);
     try {
-      // Para categorias, usamos o nome como descrição também
-      const result = await translateProduct(categoryForm, categoryForm);
+      const result = await translateMenuItem({
+        restaurantId,
+        id: editingCategory || 'draft-category',
+        name: categoryForm,
+        description: categoryForm,
+        type: 'category',
+        restaurantName: restaurantDisplayName || settings?.restaurantName,
+      });
 
       if (result.success && result.translations) {
-        // Aplicar as traduções aos campos corretos
         setCategoryTranslations(prev => ({
           ...prev,
           name: {
@@ -787,6 +810,107 @@ export default function Settings() {
       alert('Erro ao traduzir categoria. Tente novamente.');
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  const handleTranslateFullMenu = async () => {
+    if (!hasAutomaticTranslation || !restaurantId || isTranslatingFullMenu) return;
+
+    const items = [
+      ...products.map((p) => ({
+        id: `product:${p.id}`,
+        name: p.name,
+        description: p.description || p.name,
+        type: 'product' as const,
+      })),
+      ...categories.map((c) => ({
+        id: `category:${c.id}`,
+        name: c.name,
+        description: c.name,
+        type: 'category' as const,
+      })),
+    ].filter((i) => i.name.trim());
+
+    if (items.length === 0) {
+      alert('Não há produtos ou categorias para traduzir.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Traduzir o cardápio inteiro (${products.length} produtos e ${categories.length} categorias) para inglês e francês? Isso pode levar alguns minutos.`
+    );
+    if (!confirmed) return;
+
+    setIsTranslatingFullMenu(true);
+    setFullMenuTranslateProgress({ done: 0, total: items.length });
+
+    try {
+      const result = await translateFullMenu({
+        restaurantId,
+        items,
+        restaurantName: restaurantDisplayName || settings?.restaurantName,
+        onProgress: (done, total) => setFullMenuTranslateProgress({ done, total }),
+      });
+
+      if (!result.success || !result.translations) {
+        alert(`Erro na tradução: ${result.error || 'Erro desconhecido'}`);
+        return;
+      }
+
+      let updatedProducts = 0;
+      let updatedCategories = 0;
+      const errors: string[] = [];
+
+      for (const product of products) {
+        const key = `product:${product.id}`;
+        const t = result.translations[key];
+        if (!t) continue;
+        try {
+          await updateProduct(product.id, {
+            translations: {
+              name: { 'en-US': t['en-US'].name, 'fr-FR': t['fr-FR'].name },
+              description: {
+                'en-US': t['en-US'].description,
+                'fr-FR': t['fr-FR'].description,
+              },
+            },
+          });
+          updatedProducts += 1;
+        } catch (e) {
+          console.error('Erro ao gravar tradução do produto', product.id, e);
+          errors.push(product.name);
+        }
+      }
+
+      for (const category of categories) {
+        const key = `category:${category.id}`;
+        const t = result.translations[key];
+        if (!t) continue;
+        try {
+          await updateCategory(category.id, category.name, {
+            name: { 'en-US': t['en-US'].name, 'fr-FR': t['fr-FR'].name },
+          });
+          updatedCategories += 1;
+        } catch (e) {
+          console.error('Erro ao gravar tradução da categoria', category.id, e);
+          errors.push(category.name);
+        }
+      }
+
+      await reloadRestaurantData();
+
+      const summary = `Tradução concluída: ${updatedProducts} produtos e ${updatedCategories} categorias.`;
+      if (errors.length) {
+        alert(`${summary}\nFalhas ao gravar: ${errors.slice(0, 5).join(', ')}${errors.length > 5 ? '…' : ''}`);
+      } else {
+        alert(summary);
+      }
+    } catch (error) {
+      console.error('Erro ao traduzir cardápio inteiro:', error);
+      alert('Erro ao traduzir o cardápio inteiro. Tente novamente.');
+    } finally {
+      setIsTranslatingFullMenu(false);
+      setFullMenuTranslateProgress(null);
     }
   };
 
@@ -2746,6 +2870,29 @@ export default function Settings() {
                         </div>
                       )}
                     </div>
+                    <PanelButton
+                      variant={hasAutomaticTranslation ? 'secondary' : 'secondary'}
+                      onClick={() => void handleTranslateFullMenu()}
+                      disabled={!hasAutomaticTranslation || isTranslatingFullMenu}
+                      icon={
+                        isTranslatingFullMenu ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )
+                      }
+                      title={
+                        !hasAutomaticTranslation
+                          ? 'Você não possui permissão para tradução automática'
+                          : isTranslatingFullMenu && fullMenuTranslateProgress
+                            ? `Traduzindo ${fullMenuTranslateProgress.done}/${fullMenuTranslateProgress.total}…`
+                            : 'Traduzir todos os produtos e categorias para inglês e francês (via IA do sistema)'
+                      }
+                    >
+                      {isTranslatingFullMenu && fullMenuTranslateProgress
+                        ? `Traduzindo ${fullMenuTranslateProgress.done}/${fullMenuTranslateProgress.total}`
+                        : 'Traduzir cardápio inteiro'}
+                    </PanelButton>
                     <PanelButton onClick={() => openProductModal()} icon={<Plus className="w-4 h-4" />}>
                       Adicionar Produto
                     </PanelButton>
@@ -4367,9 +4514,10 @@ export default function Settings() {
                                         src={product.image}
                                         alt={product.name}
                                         className="w-12 h-12 rounded-lg object-cover"
+                                        containerClassName="w-12 h-12 shrink-0"
                                       />
                                     )}
-                                    <div className="flex-1">
+                                    <div className="flex-1 min-w-0">
                                       <p className="font-medium text-gray-900">{product.name}</p>
                                       <p className="text-sm text-gray-500">
                                         Delivery R$ {(product.deliveryPrice ?? product.price).toFixed(2)}
@@ -4784,7 +4932,7 @@ export default function Settings() {
                             ? 'Preencha o nome e descrição do produto antes de traduzir'
                             : isTranslating
                               ? 'Traduzindo...'
-                              : 'Traduzir automaticamente este produto para inglês, espanhol e francês'
+                              : 'Traduzir automaticamente este produto para inglês e francês'
                       }
                     >
                       {isTranslating ? (
@@ -4888,7 +5036,7 @@ export default function Settings() {
                             ? 'Preencha o nome da categoria antes de traduzir'
                             : isTranslating
                               ? 'Traduzindo...'
-                              : 'Traduzir automaticamente esta categoria para inglês, espanhol e francês'
+                              : 'Traduzir automaticamente esta categoria para inglês e francês'
                       }
                     >
                       {isTranslating ? (
@@ -5423,7 +5571,7 @@ export default function Settings() {
                     </div>
                     <p className={`text-sm mt-1 ${hasAutomaticTranslation ? 'text-purple-700' : 'text-gray-500'}`}>
                       {hasAutomaticTranslation
-                        ? 'Os produtos importados serão traduzidos automaticamente para inglês, espanhol e francês'
+                        ? 'Os produtos importados serão traduzidos automaticamente para inglês e francês'
                         : 'Esta funcionalidade requer permissão de tradução automática no seu plano'
                       }
                     </p>
