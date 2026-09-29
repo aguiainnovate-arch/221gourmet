@@ -66,7 +66,7 @@ export const notifyDeliveryStatusOnWhatsApp = onDocumentWritten(
   {
     document: 'deliveries/{orderId}',
     secrets: [twilioAuthToken],
-    region: 'us-central1',
+    region: 'southamerica-east1',
     timeoutSeconds: 30,
   },
   async (event) => {
