@@ -126,16 +126,21 @@ body.landing-cardapio * {
 .cd-hero {
   position: relative;
   min-height: 100vh;
-  padding: 120px 6vw 40px;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  width: min(1160px, 100%);
+  margin-inline: auto;
+  padding: 100px 28px 36px;
   display: grid;
-  grid-template-columns: minmax(280px, 460px) 1fr;
-  gap: 4vw;
-  align-items: end;
+  grid-template-columns: minmax(280px, 450px) minmax(360px, 560px);
+  justify-content: center;
+  gap: 64px;
+  align-items: center;
 }
 
 .cd-hero-copy h1 {
   margin: 18px 0 0;
-  font-size: clamp(46px, 5.6vw, 92px);
+  font-size: clamp(42px, 3.4vw, 64px);
 }
 
 .cd-hero-copy p {
@@ -148,14 +153,22 @@ body.landing-cardapio * {
 
 .cd-hero-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
   margin-top: 28px;
 }
 
 .cd-hero-stage {
   position: relative;
-  height: min(78vh, 760px);
+  height: min(72vh, 680px);
+  min-height: 480px;
+}
+
+.cd-hero-cluster {
+  position: relative;
+  width: min(480px, calc(100% - 24px));
+  height: 100%;
+  margin-inline: auto;
   transform-style: preserve-3d;
 }
 
@@ -216,13 +229,13 @@ body.landing-cardapio * {
 }
 
 .cd-phone-left {
-  left: 4%;
+  left: 0;
   top: 16%;
   z-index: 2;
 }
 
 .cd-phone-right {
-  right: 2%;
+  right: 0;
   top: 22%;
   z-index: 1;
 }
@@ -997,8 +1010,9 @@ body.landing-cardapio * {
 
   .cd-hero {
     grid-template-columns: 1fr;
+    width: 100%;
     min-height: auto;
-    padding-top: 88px;
+    padding: 88px 16px 24px;
     align-items: start;
   }
 
@@ -1006,9 +1020,18 @@ body.landing-cardapio * {
     font-size: clamp(40px, 8vw, 64px);
   }
 
+  .cd-hero-actions {
+    flex-wrap: wrap;
+  }
+
   .cd-hero-stage {
     height: 430px;
     margin-top: 28px;
+  }
+
+  .cd-hero-cluster {
+    width: 100%;
+    margin: 0;
   }
 
   .cd-phone-center {

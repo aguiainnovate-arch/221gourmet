@@ -83,10 +83,12 @@ function Hero() {
           </a>
         </div>
       </div>
-      <div className="cd-hero-stage" ref={stageRef} onPointerMove={onPointerMove}>
-        <PhoneFrame scene="product" className="cd-phone-abs cd-phone-left cd-phone-sm" />
-        <PhoneFrame scene="home" className="cd-phone-abs cd-phone-center" />
-        <PhoneFrame scene="categories" className="cd-phone-abs cd-phone-right cd-phone-sm" />
+      <div className="cd-hero-stage">
+        <div className="cd-hero-cluster" ref={stageRef} onPointerMove={onPointerMove}>
+          <PhoneFrame scene="product" className="cd-phone-abs cd-phone-left cd-phone-sm" />
+          <PhoneFrame scene="home" className="cd-phone-abs cd-phone-center" />
+          <PhoneFrame scene="categories" className="cd-phone-abs cd-phone-right cd-phone-sm" />
+        </div>
       </div>
     </section>
   );
