@@ -1,11 +1,12 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
 import twilio from 'twilio';
 
 import { admin } from './firebaseAdmin';
+import { replyToInbound } from './boris/orchestrator';
+import { openaiApiKey } from './openaiSecret';
+import { twilioAuthToken } from './twilioSecret';
 
-/** Auth Token do Console Twilio (Account → API keys & tokens). */
-export const twilioAuthToken = defineSecret('TWILIO_AUTH_TOKEN');
+export { twilioAuthToken };
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : value == null ? '' : String(value);
@@ -34,9 +35,11 @@ function candidateWebhookUrls(req: {
  */
 export const whatsappTwilioWebhook = onRequest(
   {
-    secrets: [twilioAuthToken],
+    secrets: [twilioAuthToken, openaiApiKey],
     cors: false,
     invoker: 'public',
+    timeoutSeconds: 60,
+    memory: '512MiB',
   },
   async (req, res) => {
     if (req.method !== 'POST') {
@@ -67,28 +70,35 @@ export const whatsappTwilioWebhook = onRequest(
     const profileName = asString(params.ProfileName);
     const waId = asString(params.WaId);
 
-    console.log('[whatsappTwilioWebhook] inbound', {
-      from,
-      to,
-      body,
-      messageSid,
-      profileName,
-      waId,
-    });
+    if (messageSid) {
+      const eventRef = admin.firestore().collection('whatsappWebhookEvents').doc(messageSid);
+      const existing = await eventRef.get();
+      if (existing.exists) {
+        res.status(200).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
+      }
+      try {
+        await eventRef.create({
+          from,
+          to,
+          body,
+          messageSid,
+          profileName,
+          waId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          source: 'twilio',
+        });
+      } catch (err) {
+        console.warn('[whatsappTwilioWebhook] messageSid duplicado', err);
+        res.status(200).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
+      }
+    }
 
     try {
-      await admin.firestore().collection('whatsappWebhookEvents').add({
-        from,
-        to,
-        body,
-        messageSid,
-        profileName,
-        waId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        source: 'twilio',
-      });
+      await replyToInbound({ from, body, profileName, waId });
     } catch (err) {
-      console.error('[whatsappTwilioWebhook] falha ao gravar evento', err);
+      console.error('[whatsappTwilioWebhook] falha ao responder', err);
     }
 
     res

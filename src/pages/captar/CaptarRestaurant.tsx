@@ -22,6 +22,7 @@ import {
   formatCnpj,
   formatPhone,
 } from './CaptarShared';
+import { pushCaptarRestaurantSubmit } from '../../utils/gtm';
 
 const initial: RestaurantLeadPayload = {
   restaurantName: '',
@@ -151,6 +152,7 @@ export default function CaptarRestaurant() {
     setMessage('');
     try {
       const res = await submitRestaurantLead(form);
+      pushCaptarRestaurantSubmit(form.restaurantName);
       setStatus('success');
       setStep(4);
       if (res.restaurantProvisioned) setProvision(res.restaurantProvisioned);

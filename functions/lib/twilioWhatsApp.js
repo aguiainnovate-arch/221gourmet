@@ -5,11 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.whatsappTwilioWebhook = exports.twilioAuthToken = void 0;
 const https_1 = require("firebase-functions/v2/https");
-const params_1 = require("firebase-functions/params");
 const twilio_1 = __importDefault(require("twilio"));
 const firebaseAdmin_1 = require("./firebaseAdmin");
-/** Auth Token do Console Twilio (Account → API keys & tokens). */
-exports.twilioAuthToken = (0, params_1.defineSecret)('TWILIO_AUTH_TOKEN');
+const orchestrator_1 = require("./boris/orchestrator");
+const openaiSecret_1 = require("./openaiSecret");
+const twilioSecret_1 = require("./twilioSecret");
+Object.defineProperty(exports, "twilioAuthToken", { enumerable: true, get: function () { return twilioSecret_1.twilioAuthToken; } });
 function asString(value) {
     return typeof value === 'string' ? value : value == null ? '' : String(value);
 }
@@ -30,9 +31,11 @@ function candidateWebhookUrls(req) {
  * Responde TwiML vazio para o Twilio não retentar.
  */
 exports.whatsappTwilioWebhook = (0, https_1.onRequest)({
-    secrets: [exports.twilioAuthToken],
+    secrets: [twilioSecret_1.twilioAuthToken, openaiSecret_1.openaiApiKey],
     cors: false,
     invoker: 'public',
+    timeoutSeconds: 60,
+    memory: '512MiB',
 }, async (req, res) => {
     var _a;
     if (req.method !== 'POST') {
@@ -40,7 +43,7 @@ exports.whatsappTwilioWebhook = (0, https_1.onRequest)({
         return;
     }
     const params = ((_a = req.body) !== null && _a !== void 0 ? _a : {});
-    const authToken = exports.twilioAuthToken.value().trim();
+    const authToken = twilioSecret_1.twilioAuthToken.value().trim();
     const signature = asString(req.headers['x-twilio-signature']);
     // Placeholder "unset" permite deploy antes de colar o Auth Token real.
     const canValidate = Boolean(authToken && authToken !== 'unset' && signature);
@@ -59,28 +62,36 @@ exports.whatsappTwilioWebhook = (0, https_1.onRequest)({
     const messageSid = asString(params.MessageSid);
     const profileName = asString(params.ProfileName);
     const waId = asString(params.WaId);
-    console.log('[whatsappTwilioWebhook] inbound', {
-        from,
-        to,
-        body,
-        messageSid,
-        profileName,
-        waId,
-    });
+    if (messageSid) {
+        const eventRef = firebaseAdmin_1.admin.firestore().collection('whatsappWebhookEvents').doc(messageSid);
+        const existing = await eventRef.get();
+        if (existing.exists) {
+            res.status(200).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+            return;
+        }
+        try {
+            await eventRef.create({
+                from,
+                to,
+                body,
+                messageSid,
+                profileName,
+                waId,
+                createdAt: firebaseAdmin_1.admin.firestore.FieldValue.serverTimestamp(),
+                source: 'twilio',
+            });
+        }
+        catch (err) {
+            console.warn('[whatsappTwilioWebhook] messageSid duplicado', err);
+            res.status(200).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+            return;
+        }
+    }
     try {
-        await firebaseAdmin_1.admin.firestore().collection('whatsappWebhookEvents').add({
-            from,
-            to,
-            body,
-            messageSid,
-            profileName,
-            waId,
-            createdAt: firebaseAdmin_1.admin.firestore.FieldValue.serverTimestamp(),
-            source: 'twilio',
-        });
+        await (0, orchestrator_1.replyToInbound)({ from, body, profileName, waId });
     }
     catch (err) {
-        console.error('[whatsappTwilioWebhook] falha ao gravar evento', err);
+        console.error('[whatsappTwilioWebhook] falha ao responder', err);
     }
     res
         .status(200)

@@ -26,7 +26,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.whatsappTwilioWebhook = exports.translateMenuWithAI = exports.recommendRestaurantsWithAI = exports.confirmDigitalMenuCheckout = exports.createDigitalMenuCheckout = exports.confirmPartnershipSubscriptionCheckout = exports.createPartnershipSubscriptionCheckout = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
+exports.removeDeliverySavedCard = exports.listDeliverySavedCards = exports.createDeliverySetupIntent = exports.ensureDeliveryStripeCustomer = exports.createDeliveryPaymentIntent = exports.moderateLead = exports.notifyDeliveryStatusOnWhatsApp = exports.whatsappTwilioWebhook = exports.translateMenuWithAI = exports.recommendRestaurantsWithAI = exports.confirmDigitalMenuCheckout = exports.createDigitalMenuCheckout = exports.confirmPartnershipSubscriptionCheckout = exports.createPartnershipSubscriptionCheckout = exports.syncRestaurantStripeConnectStatus = exports.createRestaurantStripeConnectOnboardingLink = exports.importMenuFromClaudeText = exports.extractMenuPdfText = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const openai_1 = __importStar(require("openai"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -53,6 +53,8 @@ var translateMenuWithAI_1 = require("./translateMenuWithAI");
 Object.defineProperty(exports, "translateMenuWithAI", { enumerable: true, get: function () { return translateMenuWithAI_1.translateMenuWithAI; } });
 var twilioWhatsApp_1 = require("./twilioWhatsApp");
 Object.defineProperty(exports, "whatsappTwilioWebhook", { enumerable: true, get: function () { return twilioWhatsApp_1.whatsappTwilioWebhook; } });
+var orderNotifications_1 = require("./boris/orderNotifications");
+Object.defineProperty(exports, "notifyDeliveryStatusOnWhatsApp", { enumerable: true, get: function () { return orderNotifications_1.notifyDeliveryStatusOnWhatsApp; } });
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';
 /** Modelo estável da API de moderação (omni-* pode retornar 400 em contas/regiões sem acesso). */
 const LEAD_MODERATION_MOD_MODEL = 'text-moderation-latest';

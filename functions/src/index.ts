@@ -24,6 +24,7 @@ export {
 export { recommendRestaurantsWithAI } from './recommendRestaurantsWithAI';
 export { translateMenuWithAI } from './translateMenuWithAI';
 export { whatsappTwilioWebhook } from './twilioWhatsApp';
+export { notifyDeliveryStatusOnWhatsApp } from './boris/orderNotifications';
 
 const LEAD_MODERATION_CHAT_MODEL = 'gpt-4o-mini';
 /** Modelo estável da API de moderação (omni-* pode retornar 400 em contas/regiões sem acesso). */
