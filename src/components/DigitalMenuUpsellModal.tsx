@@ -10,14 +10,11 @@ interface DigitalMenuUpsellModalProps {
 }
 
 const tokens = {
-  cream: '#FAF0DB',
-  base: '#F5EFE7',
-  ink: '#2A1E1A',
-  muted: '#6B5A54',
+  ink: '#F4EDE4',
+  muted: '#B7A99A',
   accent: '#E91120',
-  accentDeep: '#B40E18',
-  card: '#FFFFFF',
-  border: '#E9D7C4',
+  card: '#141210',
+  border: 'rgba(244, 237, 228, 0.14)',
 };
 
 export default function DigitalMenuUpsellModal({
@@ -36,12 +33,7 @@ export default function DigitalMenuUpsellModal({
         role="dialog"
         aria-labelledby="digital-menu-upsell-title"
       >
-        <div
-          className="px-6 pt-6 pb-4"
-          style={{
-            background: `linear-gradient(165deg, ${tokens.cream} 0%, ${tokens.base} 100%)`,
-          }}
-        >
+        <div className="px-6 pt-6 pb-4">
           <button
             type="button"
             onClick={onDismiss}
@@ -60,13 +52,18 @@ export default function DigitalMenuUpsellModal({
           </div>
 
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: tokens.accent }}>
-            Nova oferta
+            Cardápio digital
           </p>
-          <h2 id="digital-menu-upsell-title" className="mt-1 text-xl font-extrabold leading-snug">
-            {DIGITAL_MENU_OFFER.headline}
+          <h2
+            id="digital-menu-upsell-title"
+            className="mt-1 text-2xl leading-tight"
+            style={{ fontFamily: "'Iowan Old Style', Georgia, serif", fontStyle: 'italic', fontWeight: 400 }}
+          >
+            Quer transformar também a experiência dos seus clientes?
           </h2>
-          <p className="mt-2 text-sm" style={{ color: tokens.muted }}>
-            {DIGITAL_MENU_OFFER.title} — QR Code de mesas, cardápio no celular do cliente e mais.
+          <p className="mt-2 text-sm leading-relaxed" style={{ color: tokens.muted }}>
+            Conheça nosso Cardápio Digital e apresente seus produtos de forma moderna, profissional e
+            acessível por QR Code.
           </p>
         </div>
 
@@ -82,7 +79,7 @@ export default function DigitalMenuUpsellModal({
 
           <div
             className="rounded-2xl border px-4 py-3 flex items-start gap-3"
-            style={{ borderColor: tokens.border, background: tokens.cream }}
+            style={{ borderColor: tokens.border, background: '#1C1916' }}
           >
             <Sparkles className="w-5 h-5 shrink-0 mt-0.5" style={{ color: tokens.accent }} />
             <p className="text-sm leading-relaxed" style={{ color: tokens.ink }}>
@@ -112,7 +109,7 @@ export default function DigitalMenuUpsellModal({
                 Abrindo pagamento…
               </>
             ) : (
-              'Quero o cardápio digital'
+              'Conhecer o Cardápio Digital'
             )}
           </button>
 

@@ -16,6 +16,7 @@ import CaptarRestaurant from './pages/captar/CaptarRestaurant';
 import CaptarMotoboy from './pages/captar/CaptarMotoboy';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import PartnershipPlans from './pages/PartnershipPlans';
+import CardapioDigitalLanding from './pages/cardapio-digital/CardapioDigitalLanding';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import { OrderProvider } from './contexts/OrderContext';
@@ -60,6 +61,7 @@ function App() {
                 <Route path="/captar/restaurante" element={<CaptarRestaurant />} />
                 <Route path="/captar/motoboy" element={<CaptarMotoboy />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/cardapio-digital" element={<Navigate to="/delivery/cardapio-digital" replace />} />
                 <Route
                   path="/planos"
                   element={
@@ -76,7 +78,16 @@ function App() {
                   </RestaurantAuthProvider>
                 } />
 
-                {/* Rotas de delivery */}
+                {/* Rotas de delivery. Estas ficam antes de /delivery/:restaurantId. */}
+                <Route
+                  path="/delivery/cardapio-digital"
+                  element={
+                    <RestaurantAuthProvider>
+                      <CardapioDigitalLanding />
+                    </RestaurantAuthProvider>
+                  }
+                />
+                <Route path="/delivery/cardapio-digital.css" element={<Navigate to="/delivery/cardapio-digital" replace />} />
                 <Route path="/delivery" element={
                   <DeliveryAuthProvider>
                     <Delivery />

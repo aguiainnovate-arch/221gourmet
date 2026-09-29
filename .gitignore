@@ -40,3 +40,6 @@ android/local.properties
 ios/App/Podfile.lock
 ios/App/Pods
 ios/App/build
+
+# Local Netlify folder
+.netlify

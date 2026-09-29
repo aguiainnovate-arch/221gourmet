@@ -3,6 +3,21 @@
 # Detalhes: README.md → "Netlify e Stripe (Content-Security-Policy)".
 
 [[redirects]]
+from = "/cardapio-digital"
+to = "/delivery/cardapio-digital"
+status = 301
+
+[[redirects]]
+from = "/cardapio-digital/"
+to = "/delivery/cardapio-digital"
+status = 301
+
+[[redirects]]
+from = "/delivery/cardapio-digital.css"
+to = "/delivery/cardapio-digital"
+status = 301
+
+[[redirects]]
 from = "/__proxy-openai/*"
 to = "https://api.openai.com/:splat"
 status = 200

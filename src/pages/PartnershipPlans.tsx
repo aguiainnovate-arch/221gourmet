@@ -16,11 +16,8 @@ import {
   confirmPartnershipCheckout,
   startPartnershipCheckout,
 } from '../services/partnershipSubscriptionService';
-import {
-  activateDigitalMenuLocally,
-  confirmDigitalMenuCheckout,
-  startDigitalMenuCheckout,
-} from '../services/digitalMenuService';
+import { confirmDigitalMenuCheckout } from '../services/digitalMenuService';
+import { CARDAPIO_DIGITAL_PATH } from './cardapio-digital/content';
 import DigitalMenuUpsellModal from '../components/DigitalMenuUpsellModal';
 import type { Restaurant } from '../types/restaurant';
 import {
@@ -68,7 +65,6 @@ export default function PartnershipPlans() {
     null
   );
   const [showDigitalMenuUpsell, setShowDigitalMenuUpsell] = useState(false);
-  const [digitalMenuSubmitting, setDigitalMenuSubmitting] = useState(false);
 
   const plan = PARTNERSHIP_PLANS[selectedMode];
   const access = restaurant ? getPartnershipAccessState(restaurant) : null;
@@ -304,37 +300,9 @@ export default function PartnershipPlans() {
     }
   };
 
-  const handleDigitalMenuAccept = async () => {
-    if (!currentRestaurantId) return;
-    try {
-      setDigitalMenuSubmitting(true);
-      const { url } = await startDigitalMenuCheckout(currentRestaurantId);
-      openCheckoutUrl(url);
-      setShowDigitalMenuUpsell(false);
-    } catch (err) {
-      console.error(err);
-      if (import.meta.env.DEV) {
-        try {
-          await activateDigitalMenuLocally(currentRestaurantId);
-          const refreshed = await getRestaurantById(currentRestaurantId);
-          setRestaurant(refreshed);
-          setShowDigitalMenuUpsell(false);
-          setMessage({
-            type: 'ok',
-            text: 'Cardápio digital ativado em modo local (dev). Em produção o pagamento vai pelo Stripe.',
-          });
-          return;
-        } catch (localErr) {
-          console.error(localErr);
-        }
-      }
-      setMessage({
-        type: 'err',
-        text: 'Não foi possível iniciar o pagamento do cardápio digital.',
-      });
-    } finally {
-      setDigitalMenuSubmitting(false);
-    }
+  const handleDigitalMenuAccept = () => {
+    setShowDigitalMenuUpsell(false);
+    navigate(CARDAPIO_DIGITAL_PATH);
   };
 
   if (isIosNative()) {
@@ -653,7 +621,6 @@ export default function PartnershipPlans() {
 
       <DigitalMenuUpsellModal
         open={showDigitalMenuUpsell}
-        submitting={digitalMenuSubmitting}
         onAccept={handleDigitalMenuAccept}
         onDismiss={() => setShowDigitalMenuUpsell(false)}
       />
