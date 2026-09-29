@@ -994,8 +994,21 @@ body.landing-cardapio * {
   color: var(--muted);
   font-size: 13px;
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 16px;
   border-top: 1px solid var(--line);
+}
+
+.cd-footer-logo {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.cd-footer-logo img {
+  height: 112px;
+  width: auto;
+  object-fit: contain;
 }
 
 @media (max-width: 980px) {

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './cardapio-digital.css';
@@ -551,7 +552,9 @@ function Shell() {
         <Finale />
       </main>
       <footer className="cd-footer">
-        <span>Bora Comer!</span>
+        <Link to="/delivery" className="cd-footer-logo" aria-label="Bora Comer!">
+          <img src="/BoraComerlogo.png" alt="Bora Comer!" />
+        </Link>
         <span>{note ?? 'Pagamento único'}</span>
       </footer>
     </div>

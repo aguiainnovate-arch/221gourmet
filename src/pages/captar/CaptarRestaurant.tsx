@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, X } from 'lucide-react';
 import {
@@ -110,6 +110,11 @@ export default function CaptarRestaurant() {
     document.title = 'Cadastre seu restaurante — Bora Comer!';
   }, []);
 
+  useLayoutEffect(() => {
+    if (location.hash !== '#cadastro') return;
+    document.getElementById('cadastro')?.scrollIntoView({ block: 'center' });
+  }, [location.hash]);
+
   const canStep1 = form.email.trim().includes('@');
   const canStep2 = form.ownerName.trim() && form.phone.trim() && form.whatsapp.trim();
   const canStep3 = useMemo(
@@ -211,7 +216,7 @@ export default function CaptarRestaurant() {
             <h1>Conecte sua loja a quem está com fome agora</h1>
             <p>De comida a gente entende. Entra na Bora Comer! e vende no app com taxa clara.</p>
           </div>
-          <form className="captar-form-card" onSubmit={onHeroSubmit}>
+          <form id="cadastro" className="captar-form-card" onSubmit={onHeroSubmit}>
             <h2>Cadastre sua cozinha</h2>
             <p className="hint">
               Entre e ganhe {PARTNERSHIP_TRIAL_DAYS} dias de mensalidade em trial.

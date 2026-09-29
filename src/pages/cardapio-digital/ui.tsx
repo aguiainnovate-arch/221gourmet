@@ -5,7 +5,7 @@ import { getRestaurantById } from '../../services/restaurantService';
 import { activateDigitalMenuLocally, startDigitalMenuCheckout } from '../../services/digitalMenuService';
 import { hasActiveDigitalMenu } from '../../types/digitalMenuOffer';
 import { isNativePlatform } from '../../utils/capacitorUtils';
-import { CARDAPIO_DIGITAL_PATH, venues, type MenuScene } from './content';
+import { venues, type MenuScene } from './content';
 
 type CheckoutApi = {
   buy: () => Promise<void>;
@@ -24,7 +24,7 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
   const buy = async () => {
     if (isLoading || busy) return;
     if (!currentRestaurantId) {
-      navigate(`/restaurant/auth?returnUrl=${encodeURIComponent(CARDAPIO_DIGITAL_PATH)}`);
+      navigate('/captar/restaurante#cadastro');
       return;
     }
     try {
