@@ -5,6 +5,11 @@ body.landing-cardapio {
   max-width: none;
 }
 
+html:has(body.landing-cardapio) {
+  overflow-x: clip;
+  overflow-y: auto;
+}
+
 body.landing-cardapio * {
   -webkit-user-select: auto;
   user-select: auto;
@@ -162,6 +167,7 @@ body.landing-cardapio * {
   position: relative;
   height: min(72vh, 680px);
   min-height: 480px;
+  overflow: visible;
 }
 
 .cd-hero-cluster {
@@ -170,6 +176,11 @@ body.landing-cardapio * {
   height: 100%;
   margin-inline: auto;
   transform-style: preserve-3d;
+  overflow: visible;
+}
+
+.cd-hero {
+  overflow: visible;
 }
 
 .cd-phone {
@@ -501,7 +512,6 @@ body.landing-cardapio * {
   opacity: 0;
 }
 
-.cd-hero,
 .cd-qr,
 .cd-desire,
 .cd-finale {

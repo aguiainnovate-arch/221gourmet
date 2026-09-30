@@ -21,6 +21,22 @@ function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+function pageScroller(): HTMLElement {
+  const html = document.documentElement;
+  const body = document.body;
+  if (body.scrollHeight > body.clientHeight && html.scrollHeight <= html.clientHeight) {
+    return body;
+  }
+  return html;
+}
+
+function scrollYOf(scroller: HTMLElement) {
+  if (scroller === document.documentElement || scroller === document.body) {
+    return window.scrollY || scroller.scrollTop;
+  }
+  return scroller.scrollTop;
+}
+
 function Hero() {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -32,22 +48,30 @@ function Hero() {
 
     const mm = gsap.matchMedia();
     mm.add('(min-width: 981px) and (prefers-reduced-motion: no-preference)', () => {
-      gsap.set('.cd-phone-left', { rotation: -14 });
-      gsap.set('.cd-phone-right', { rotation: 12 });
+      const left = section.querySelector<HTMLElement>('.cd-phone-left');
+      const right = section.querySelector<HTMLElement>('.cd-phone-right');
+      const center = section.querySelector<HTMLElement>('.cd-phone-center');
+      if (!left || !right || !center) return;
+
+      gsap.set(left, { rotation: -14, x: 0, y: 0, opacity: 1 });
+      gsap.set(right, { rotation: 12, x: 0, y: 0, opacity: 1 });
+      gsap.set(center, { x: 0, y: 0, scale: 1, opacity: 1 });
 
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
+          scroller: pageScroller(),
           start: 'top top',
           end: '+=90%',
           pin: true,
           scrub: 0.6,
           anticipatePin: 1,
+          invalidateOnRefresh: true,
         },
       });
-      tl.to('.cd-phone-left', { x: -220, y: -30, rotation: -22, opacity: 0.15 }, 0)
-        .to('.cd-phone-right', { x: 220, y: 40, rotation: 20, opacity: 0.15 }, 0)
-        .to('.cd-phone-center', { y: -50, scale: 0.86, opacity: 0.25 }, 0);
+      tl.to(left, { x: -48, y: -16, rotation: -18, opacity: 0.35 }, 0)
+        .to(right, { x: 48, y: 18, rotation: 16, opacity: 0.35 }, 0)
+        .to(center, { y: -28, scale: 0.94, opacity: 0.55 }, 0);
     });
 
     return () => mm.revert();
@@ -112,11 +136,13 @@ function QrSection() {
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
+          scroller: pageScroller(),
           start: 'top top',
           end,
           pin: true,
           scrub: 0.7,
           anticipatePin: 1,
+          invalidateOnRefresh: true,
         },
       });
       tl.to('.cd-qr-card', { scale: 1, opacity: 1, duration: 0.3 })
@@ -182,16 +208,23 @@ function StorySection() {
     mm.add('(prefers-reduced-motion: no-preference)', () => {
       let current: MenuScene = 'home';
       const apply = () => {
+        const scroller = pageScroller();
         const distance = section.offsetHeight - window.innerHeight;
-        const progress = distance <= 0 ? 0 : Math.min(1, Math.max(0, (window.scrollY - layoutTop(section)) / distance));
+        const progress =
+          distance <= 0 ? 0 : Math.min(1, Math.max(0, (scrollYOf(scroller) - layoutTop(section)) / distance));
         const next = storySteps[Math.min(storySteps.length - 1, Math.floor(progress * storySteps.length))];
         if (next.scene === current) return;
         current = next.scene;
         setScene(next.scene);
       };
+      const scroller = pageScroller();
+      scroller.addEventListener('scroll', apply, { passive: true });
       window.addEventListener('scroll', apply, { passive: true });
       apply();
-      return () => window.removeEventListener('scroll', apply);
+      return () => {
+        scroller.removeEventListener('scroll', apply);
+        window.removeEventListener('scroll', apply);
+      };
     });
 
     return () => mm.revert();
@@ -265,6 +298,7 @@ function DesireSection() {
         ease: 'none',
         scrollTrigger: {
           trigger: section,
+          scroller: pageScroller(),
           start: 'top top',
           end: () => `+=${Math.max(window.innerHeight * 2.4, getOverflow())}`,
           pin: true,
@@ -324,7 +358,7 @@ function BenefitsSection() {
           opacity: 0,
           duration: 0.7,
           ease: 'power2.out',
-          scrollTrigger: { trigger: item, start: 'top 88%' },
+          scrollTrigger: { trigger: item, scroller: pageScroller(), start: 'top 88%' },
         });
       });
     }, section);
@@ -417,7 +451,13 @@ function JourneySection() {
         {
           width: '100%',
           ease: 'none',
-          scrollTrigger: { trigger: section, start: 'top 70%', end: 'bottom 60%', scrub: 0.4 },
+          scrollTrigger: {
+            trigger: section,
+            scroller: pageScroller(),
+            start: 'top 70%',
+            end: 'bottom 60%',
+            scrub: 0.4,
+          },
         }
       );
     }, section);
@@ -507,7 +547,13 @@ function Finale() {
         gsap.to(item, {
           y: index % 2 === 0 ? -36 : 28,
           ease: 'none',
-          scrollTrigger: { trigger: section, start: 'top bottom', end: 'bottom top', scrub: 0.6 },
+          scrollTrigger: {
+            trigger: section,
+            scroller: pageScroller(),
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: 0.6,
+          },
         });
       });
     }, section);
