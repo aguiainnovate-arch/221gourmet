@@ -1,6 +1,6 @@
 import twilio from 'twilio';
 
-import { twilioAuthToken } from '../twilioSecret';
+import { twilioAccountSid, twilioAuthToken } from '../twilioSecret';
 
 const MAX_BODY = 500;
 const GAP_MS = 800;
@@ -26,12 +26,18 @@ function sleep(ms: number): Promise<void> {
 }
 
 export async function sendWhatsApp(to: string, body: string): Promise<boolean> {
-  const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const accountSid = twilioAccountSid.value().trim();
   const from = (process.env.TWILIO_WHATSAPP_FROM || '').trim();
   const token = twilioAuthToken.value().trim();
   const text = clip(body);
   if (!accountSid || !from || !token || token === 'unset' || !to || !text) {
-    console.error('[sendWhatsApp] config ou corpo ausente');
+    console.error('[sendWhatsApp] config ou corpo ausente', {
+      hasSid: Boolean(accountSid),
+      hasFrom: Boolean(from),
+      hasToken: Boolean(token) && token !== 'unset',
+      hasTo: Boolean(to),
+      hasText: Boolean(text),
+    });
     return false;
   }
 

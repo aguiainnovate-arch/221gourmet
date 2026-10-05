@@ -38,7 +38,7 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
       const { url } = await startDigitalMenuCheckout(currentRestaurantId);
       if (isNativePlatform()) {
         window.open(url, '_blank', 'noopener,noreferrer');
-        setNote('Pagamento aberto no navegador.');
+        setNote('Continue no navegador.');
         return;
       }
       window.location.href = url;
@@ -47,13 +47,13 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
       if (import.meta.env.DEV) {
         try {
           await activateDigitalMenuLocally(currentRestaurantId);
-          setNote('Cardápio digital ativado em modo local (dev). Em produção o pagamento vai pelo Stripe.');
+          setNote('Cardápio digital ativado neste computador.');
           return;
         } catch (localError) {
           console.error(localError);
         }
       }
-      setNote('Não foi possível abrir o pagamento. Tente de novo.');
+      setNote('Não foi possível continuar. Tente de novo.');
     } finally {
       setBusy(false);
     }
@@ -89,7 +89,7 @@ export function BuyButton({
       }}
       disabled={busy}
     >
-      {busy ? 'Abrindo pagamento…' : children}
+      {busy ? 'Abrindo…' : children}
     </button>
   );
 }

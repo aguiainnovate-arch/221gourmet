@@ -31,7 +31,7 @@ function candidateWebhookUrls(req) {
  * Responde TwiML vazio para o Twilio não retentar.
  */
 exports.whatsappTwilioWebhook = (0, https_1.onRequest)({
-    secrets: [twilioSecret_1.twilioAuthToken, openaiSecret_1.openaiApiKey],
+    secrets: [twilioSecret_1.twilioAuthToken, twilioSecret_1.twilioAccountSid, openaiSecret_1.openaiApiKey],
     cors: false,
     invoker: 'public',
     timeoutSeconds: 60,

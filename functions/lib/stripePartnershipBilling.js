@@ -15,7 +15,7 @@ const WAIVER_THRESHOLD = 1500;
 const PLAN_META = {
     store_delivery: {
         label: 'Delivery com entrega pela loja',
-        platformFeePercent: 14.99,
+        platformFeePercent: 12,
     },
     platform_delivery: {
         label: 'Delivery + entrega Bora Comer!',

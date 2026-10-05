@@ -4,7 +4,7 @@ import twilio from 'twilio';
 import { admin } from './firebaseAdmin';
 import { replyToInbound } from './boris/orchestrator';
 import { openaiApiKey } from './openaiSecret';
-import { twilioAuthToken } from './twilioSecret';
+import { twilioAccountSid, twilioAuthToken } from './twilioSecret';
 
 export { twilioAuthToken };
 
@@ -35,7 +35,7 @@ function candidateWebhookUrls(req: {
  */
 export const whatsappTwilioWebhook = onRequest(
   {
-    secrets: [twilioAuthToken, openaiApiKey],
+    secrets: [twilioAuthToken, twilioAccountSid, openaiApiKey],
     cors: false,
     invoker: 'public',
     timeoutSeconds: 60,

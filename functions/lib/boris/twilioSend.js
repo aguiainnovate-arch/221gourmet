@@ -29,12 +29,18 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function sendWhatsApp(to, body) {
-    const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+    const accountSid = twilioSecret_1.twilioAccountSid.value().trim();
     const from = (process.env.TWILIO_WHATSAPP_FROM || '').trim();
     const token = twilioSecret_1.twilioAuthToken.value().trim();
     const text = clip(body);
     if (!accountSid || !from || !token || token === 'unset' || !to || !text) {
-        console.error('[sendWhatsApp] config ou corpo ausente');
+        console.error('[sendWhatsApp] config ou corpo ausente', {
+            hasSid: Boolean(accountSid),
+            hasFrom: Boolean(from),
+            hasToken: Boolean(token) && token !== 'unset',
+            hasTo: Boolean(to),
+            hasText: Boolean(text),
+        });
         return false;
     }
     try {

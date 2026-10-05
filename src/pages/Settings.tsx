@@ -87,7 +87,9 @@ import {
   type Restaurant,
   type RestaurantOpeningHours,
 } from '../types/restaurant';
-import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { getPartnershipAccessState, hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { hasActiveDigitalMenu } from '../types/digitalMenuOffer';
+import { DigitalMenuLockCard, TrialDaysBanner } from '../components/TrialAndDigitalMenu';
 import {
   PanelPage,
   PanelPageHeader,
@@ -256,6 +258,7 @@ export default function Settings() {
   const [restaurantDisplayName, setRestaurantDisplayName] = useState<string>('');
   const [partnershipRestaurant, setPartnershipRestaurant] = useState<Restaurant | null>(null);
   const [partnershipAccessChecked, setPartnershipAccessChecked] = useState(false);
+  const [qrLockOpen, setQrLockOpen] = useState(false);
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -2412,6 +2415,16 @@ export default function Settings() {
     );
   }
 
+  const partnershipAccess = partnershipRestaurant
+    ? getPartnershipAccessState(partnershipRestaurant)
+    : null;
+  const trialDaysLeft =
+    partnershipAccess?.access && partnershipAccess.reason === 'trial'
+      ? partnershipAccess.daysLeft
+      : undefined;
+  const digitalMenuActive =
+    !partnershipAccessChecked || hasActiveDigitalMenu(partnershipRestaurant?.digitalMenu);
+
   const closeSidebar = () => setSidebarOpen(false);
   const openSidebar = () => setSidebarOpen(true);
 
@@ -2710,6 +2723,7 @@ export default function Settings() {
         {/* Conteúdo Principal */}
         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
           <div className="max-w-[1600px] mx-auto w-full">
+          {typeof trialDaysLeft === 'number' && <TrialDaysBanner daysLeft={trialDaysLeft} />}
           {pendingWaiterCalls.length > 0 && activeTab !== 'mesas' && (
             <button
               type="button"
@@ -2752,6 +2766,12 @@ export default function Settings() {
                 }
               />
 
+              {mesasSubTab === 'salao' && qrLockOpen && !digitalMenuActive && restaurantId && (
+                <div className="mb-4 max-w-lg">
+                  <DigitalMenuLockCard restaurantId={restaurantId} />
+                </div>
+              )}
+
               {mesasSubTab === 'salao' && (
                 <VisaoSalao
                   restaurantId={restaurantId ?? ''}
@@ -2765,8 +2785,8 @@ export default function Settings() {
                   onRemoveTable={removerMesa}
                   onAddArea={handleAddArea}
                   onRemoveArea={handleRemoveArea}
-                  visualizarQRCode={visualizarQRCode}
-                  baixarQRCode={baixarQRCode}
+                  visualizarQRCode={digitalMenuActive ? visualizarQRCode : () => setQrLockOpen(true)}
+                  baixarQRCode={digitalMenuActive ? baixarQRCode : () => setQrLockOpen(true)}
                   onMesaCreated={(mesa) => {
                     setMesaToast({
                       type: 'success',
@@ -3142,7 +3162,20 @@ export default function Settings() {
             </PanelPage>
           )}
 
-          {activeTab === 'personalizacao' && (
+          {activeTab === 'personalizacao' && !digitalMenuActive && restaurantId && (
+            <PanelPage>
+              <PanelPageHeader
+                title="Personalização"
+                description="O cardápio digital no celular, o QR da mesa e a IA no WhatsApp ficam neste plano."
+                icon={<Palette className="w-5 h-5" />}
+              />
+              <div className="max-w-lg">
+                <DigitalMenuLockCard restaurantId={restaurantId} />
+              </div>
+            </PanelPage>
+          )}
+
+          {activeTab === 'personalizacao' && digitalMenuActive && (
             <PanelPage>
               <PanelPageHeader
                 title="Personalização"

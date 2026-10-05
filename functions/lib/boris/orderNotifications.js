@@ -64,7 +64,7 @@ function statusMessage(data) {
 }
 exports.notifyDeliveryStatusOnWhatsApp = (0, firestore_1.onDocumentWritten)({
     document: 'deliveries/{orderId}',
-    secrets: [twilioSecret_1.twilioAuthToken],
+    secrets: [twilioSecret_1.twilioAuthToken, twilioSecret_1.twilioAccountSid],
     region: 'southamerica-east1',
     timeoutSeconds: 30,
 }, async (event) => {

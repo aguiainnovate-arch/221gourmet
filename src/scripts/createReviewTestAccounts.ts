@@ -62,7 +62,7 @@ async function ensureRestaurant(planId: string): Promise<string> {
     trialStartedAt: new Date(),
     trialEndsAt: periodEnd,
     deliveryMode: 'store_delivery' as const,
-    platformFeePercent: 14.99,
+    platformFeePercent: 12,
     monthlyFee: PARTNERSHIP_MONTHLY_FEE,
     monthlyFeeWaiverThreshold: PARTNERSHIP_FEE_WAIVER_THRESHOLD,
     currentPeriodEnd: periodEnd,

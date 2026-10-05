@@ -3,7 +3,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { admin } from '../firebaseAdmin';
 import { conversationDocId, normalizePhone, toWhatsAppAddress } from './phone';
 import { sendWhatsAppTurn } from './twilioSend';
-import { twilioAuthToken } from '../twilioSecret';
+import { twilioAccountSid, twilioAuthToken } from '../twilioSecret';
 
 type OrderData = Record<string, unknown>;
 
@@ -65,7 +65,7 @@ export function statusMessage(data: OrderData): string | null {
 export const notifyDeliveryStatusOnWhatsApp = onDocumentWritten(
   {
     document: 'deliveries/{orderId}',
-    secrets: [twilioAuthToken],
+    secrets: [twilioAuthToken, twilioAccountSid],
     region: 'southamerica-east1',
     timeoutSeconds: 30,
   },

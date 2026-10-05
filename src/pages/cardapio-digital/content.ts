@@ -3,8 +3,10 @@ import { DIGITAL_MENU_OFFER } from '../../types/digitalMenuOffer';
 export const CARDAPIO_DIGITAL_PATH = '/delivery/cardapio-digital';
 
 export const offer = {
-  priceLabel: DIGITAL_MENU_OFFER.priceLabel,
-  payment: 'Pagamento único, via Stripe',
+  priceLabel: 'R$ 297',
+  times: '/mês',
+  payment: 'Mensal',
+  annual: 'Plano anual · 12x de R$ 242',
   included: [...DIGITAL_MENU_OFFER.bullets],
   guarantee: '[Garantia a definir]',
 } as const;

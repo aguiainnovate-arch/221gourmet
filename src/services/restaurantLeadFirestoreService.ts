@@ -23,9 +23,30 @@ export interface RestaurantLead extends RestaurantLeadPayload {
   /** Restaurante criado automaticamente após moderação IA aprovar (Bora Comer). */
   createdRestaurantId?: string;
   provisionDomain?: string;
+  /** Conta criada na hora após moderação IA (sem aprovação manual). */
+  aiAutoProvisioned?: boolean;
 }
 
 const COLLECTION = 'restaurantLeads';
+
+/** Firestore rejeita campos `undefined`; garante objeto plano só com strings. */
+function leadPayloadForFirestore(payload: RestaurantLeadPayload): Record<string, string> {
+  return {
+    restaurantName: payload.restaurantName ?? '',
+    ownerName: payload.ownerName ?? '',
+    phone: payload.phone ?? '',
+    whatsapp: payload.whatsapp ?? '',
+    email: payload.email ?? '',
+    cnpj: payload.cnpj ?? '',
+    address: payload.address ?? '',
+    cityState: payload.cityState ?? '',
+    cuisineType: payload.cuisineType ?? '',
+    openingHours: payload.openingHours ?? '',
+    priceRange: payload.priceRange ?? '',
+    socialLink: payload.socialLink ?? '',
+    description: payload.description ?? '',
+  };
+}
 
 export type SaveLeadOptions = {
   /** Falha técnica na moderação automática; lead segue pendente para revisão humana. */
@@ -46,7 +67,7 @@ export async function saveLeadToFirestore(
   const provision = options?.aiProvisionedRestaurant;
   const status: LeadStatus = provision ? 'approved' : 'pending';
   const docRef = await addDoc(collection(db, COLLECTION), {
-    ...payload,
+    ...leadPayloadForFirestore(payload),
     status,
     ...(savedWithoutAiModeration ? { savedWithoutAiModeration: true } : {}),
     ...(provision
@@ -100,6 +121,7 @@ export async function getRestaurantLeads(): Promise<RestaurantLead[]> {
         ? { createdRestaurantId: data.createdRestaurantId }
         : {}),
       ...(typeof data.provisionDomain === 'string' ? { provisionDomain: data.provisionDomain } : {}),
+      ...(data.aiAutoProvisioned === true ? { aiAutoProvisioned: true as const } : {}),
       status: (data.status as LeadStatus) ?? 'pending',
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
       updatedAt: data.updatedAt?.toDate?.() ?? new Date()
@@ -113,4 +135,19 @@ export async function updateLeadStatus(
 ): Promise<void> {
   const ref = doc(db, COLLECTION, id);
   await updateDoc(ref, { status, updatedAt: Timestamp.now() });
+}
+
+/** Após criar o restaurante no Firestore, marca o lead como aprovado e vincula a loja. */
+export async function updateLeadAfterAutoProvision(
+  id: string,
+  data: { restaurantId: string; domain: string }
+): Promise<void> {
+  const ref = doc(db, COLLECTION, id);
+  await updateDoc(ref, {
+    status: 'approved',
+    createdRestaurantId: data.restaurantId,
+    provisionDomain: data.domain,
+    aiAutoProvisioned: true,
+    updatedAt: Timestamp.now(),
+  });
 }

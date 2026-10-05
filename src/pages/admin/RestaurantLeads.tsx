@@ -5,12 +5,13 @@ import {
 } from '../../services/restaurantLeadFirestoreService';
 import type { RestaurantLead, LeadStatus } from '../../services/restaurantLeadFirestoreService';
 
-type Tab = 'pending' | 'approved' | 'rejected';
+type Tab = 'all' | 'pending' | 'approved' | 'rejected';
 
 const TAB_LABELS: Record<Tab, string> = {
+  all: 'Todos',
   pending: 'Pendentes',
   approved: 'Aprovados',
-  rejected: 'Rejeitados'
+  rejected: 'Rejeitados',
 };
 
 const STATUS_BADGE: Record<LeadStatus, string> = {
@@ -37,9 +38,16 @@ function LeadCard({
           <h3 className="font-semibold text-gray-900 text-lg leading-tight">{lead.restaurantName}</h3>
           <p className="text-sm text-gray-500 mt-0.5">{lead.ownerName}</p>
         </div>
-        <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_BADGE[lead.status]}`}>
-          {TAB_LABELS[lead.status]}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_BADGE[lead.status]}`}>
+            {TAB_LABELS[lead.status]}
+          </span>
+          {lead.aiAutoProvisioned && (
+            <span className="text-[10px] font-medium text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full">
+              Conta criada automaticamente
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-gray-600">
@@ -50,6 +58,13 @@ function LeadCard({
         {lead.cnpj && <span><b className="text-gray-700">CNPJ:</b> {lead.cnpj}</span>}
         {lead.priceRange && <span><b className="text-gray-700">Faixa:</b> {lead.priceRange}</span>}
       </div>
+
+      {lead.createdRestaurantId && lead.provisionDomain && (
+        <p className="text-sm text-violet-800 bg-violet-50 rounded-lg px-3 py-2">
+          <b>Loja:</b> {lead.provisionDomain}
+          <span className="text-violet-600 text-xs ml-2">(id {lead.createdRestaurantId.slice(0, 8)}…)</span>
+        </p>
+      )}
 
       {lead.description && (
         <p className="text-sm text-gray-500 border-t border-gray-50 pt-2">{lead.description}</p>
@@ -85,7 +100,7 @@ export default function RestaurantLeads() {
   const [leads, setLeads] = useState<RestaurantLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('pending');
+  const [activeTab, setActiveTab] = useState<Tab>('all');
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -114,12 +129,14 @@ export default function RestaurantLeads() {
     }
   }
 
-  const filtered = leads.filter((l) => l.status === activeTab);
+  const filtered =
+    activeTab === 'all' ? leads : leads.filter((l) => l.status === activeTab);
 
   const tabCounts: Record<Tab, number> = {
+    all: leads.length,
     pending: leads.filter((l) => l.status === 'pending').length,
     approved: leads.filter((l) => l.status === 'approved').length,
-    rejected: leads.filter((l) => l.status === 'rejected').length
+    rejected: leads.filter((l) => l.status === 'rejected').length,
   };
 
   return (
@@ -133,7 +150,7 @@ export default function RestaurantLeads() {
 
       {/* Abas */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
-        {(['pending', 'approved', 'rejected'] as Tab[]).map((tab) => (
+        {(['all', 'pending', 'approved', 'rejected'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -180,7 +197,11 @@ export default function RestaurantLeads() {
           <svg className="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
           </svg>
-          <p className="font-medium">Nenhuma solicitação {TAB_LABELS[activeTab].toLowerCase()}</p>
+          <p className="font-medium">
+            {activeTab === 'all'
+              ? 'Nenhuma solicitação recebida ainda'
+              : `Nenhuma solicitação ${TAB_LABELS[activeTab].toLowerCase()}`}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

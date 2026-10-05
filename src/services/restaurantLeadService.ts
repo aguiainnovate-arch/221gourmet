@@ -1,5 +1,8 @@
 import { devLog, devWarn, devError } from '../utils/devTerminalMirror';
-import { saveLeadToFirestore } from './restaurantLeadFirestoreService';
+import {
+  saveLeadToFirestore,
+  updateLeadAfterAutoProvision,
+} from './restaurantLeadFirestoreService';
 import {
   provisionRestaurantFromApprovedLead,
   RestaurantLeadAutoProvisionError,
@@ -170,7 +173,19 @@ export async function submitRestaurantLead(
     }
   }
 
-  devLog(`${LOG} Moderação OK — provisionando restaurante e salvando lead`);
+  devLog(`${LOG} Moderação OK — salvando solicitação e provisionando restaurante`);
+
+  let leadId: string;
+  try {
+    const lead = await saveLeadToFirestore(payload);
+    leadId = lead.id;
+    devLog(`${LOG} Lead salvo (pendente) antes do provisionamento`, { leadId });
+  } catch (leadErr) {
+    devError(`${LOG} Falha ao salvar lead no Firestore antes do provisionamento`, leadErr);
+    throw new RestaurantLeadAutoProvisionError(
+      'Não foi possível registrar sua solicitação agora. Verifique sua conexão e tente novamente em instantes.'
+    );
+  }
 
   try {
     const provisioned = await provisionRestaurantFromApprovedLead(payload);
@@ -181,25 +196,36 @@ export async function submitRestaurantLead(
     };
 
     try {
-      const lead = await saveLeadToFirestore(payload, {
-        aiProvisionedRestaurant: {
+      await updateLeadAfterAutoProvision(leadId, {
+        restaurantId: provisioned.restaurantId,
+        domain: provisioned.domain,
+      });
+    } catch (updateErr) {
+      devWarn(`${LOG} Lead salvo, restaurante criado, mas falha ao atualizar status do lead`, {
+        leadId,
+        updateErr,
+      });
+      try {
+        await updateLeadAfterAutoProvision(leadId, {
           restaurantId: provisioned.restaurantId,
           domain: provisioned.domain,
-        },
-      });
-      devLog(`${LOG} Restaurante criado e lead salvo`, {
-        restaurantId: provisioned.restaurantId,
-        leadId: lead.id,
-      });
-      return {
-        id: lead.id,
-        status: 'created',
-        restaurantProvisioned,
-      };
-    } catch (leadErr) {
-      devWarn(`${LOG} Lead não persistido no Firestore após criação do restaurante`, { leadErr });
-      return saveLeadFallback(payload, { restaurantProvisioned });
+        });
+      } catch {
+        devWarn(
+          `${LOG} Lead ${leadId} permanece pendente no admin; restaurante ${provisioned.restaurantId} já existe`
+        );
+      }
     }
+
+    devLog(`${LOG} Restaurante criado e lead atualizado`, {
+      restaurantId: provisioned.restaurantId,
+      leadId,
+    });
+    return {
+      id: leadId,
+      status: 'created',
+      restaurantProvisioned,
+    };
   } catch (err) {
     if (err instanceof RestaurantLeadDuplicateEmailError) {
       throw err;

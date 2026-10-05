@@ -1081,6 +1081,64 @@ body.captar-bora-comer * {
   margin: 8px 0;
 }
 
+.captar-success-facts {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.captar-success-facts,
+.captar-success-facts * {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
+}
+
+.captar-copy-fact {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f6f1ea;
+}
+
+.captar-copy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.captar-success-facts span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b5a54;
+  user-select: none;
+}
+
+.captar-copy-row strong {
+  font-size: 16px;
+  font-weight: 700;
+  word-break: break-all;
+  cursor: text;
+}
+
+.captar-copy-row button {
+  flex-shrink: 0;
+  border: 0;
+  background: #fff;
+  color: #e91120;
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
 @media (max-width: 800px) {
   .captar-nav {
     display: none;

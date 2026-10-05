@@ -927,6 +927,16 @@ body.landing-cardapio * {
   margin: 0;
 }
 
+.cd-price-period {
+  font-style: normal;
+  font-size: 28px;
+  margin-left: 6px;
+}
+
+.cd-offer-annual {
+  margin-top: 4px;
+}
+
 .cd-offer-card ul {
   margin: 22px 0;
   padding: 0;

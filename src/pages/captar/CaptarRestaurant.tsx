@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, X } from 'lucide-react';
 import {
@@ -23,6 +23,40 @@ import {
   formatPhone,
 } from './CaptarShared';
 import { pushCaptarRestaurantSubmit } from '../../utils/gtm';
+
+function CopyFact({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = value;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div className="captar-copy-fact">
+      <span>{label}</span>
+      <div className="captar-copy-row">
+        <strong onMouseDown={(event: MouseEvent) => event.stopPropagation()}>{value}</strong>
+        <button type="button" onClick={() => void copy()}>
+          {copied ? 'Copiado' : 'Copiar'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const initial: RestaurantLeadPayload = {
   restaurantName: '',
@@ -557,11 +591,10 @@ export default function CaptarRestaurant() {
                 <h3>Cadastro enviado</h3>
                 <p>{message || 'Recebemos seus dados.'}</p>
                 {provision && (
-                  <p style={{ fontSize: 14 }}>
-                    Loja <strong>{provision.domain}</strong>
-                    <br />
-                    Senha temporária: <strong>{provision.temporaryPassword}</strong>
-                  </p>
+                  <div className="captar-success-facts">
+                    <CopyFact label="Loja" value={provision.domain} />
+                    <CopyFact label="Senha temporária" value={provision.temporaryPassword} />
+                  </div>
                 )}
                 <Link className="captar-btn-solid captar-btn-lg" to="/restaurant/auth" style={{ marginTop: 12 }}>
                   Ir para o portal

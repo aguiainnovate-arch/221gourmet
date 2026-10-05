@@ -518,10 +518,14 @@ function OfferSection() {
           <h2 className="cd-display">Pronto para transformar a experiência do seu cardápio?</h2>
         </div>
         <div className="cd-offer-card">
-          <p className="cd-price">{offer.priceLabel}</p>
+          <p className="cd-price">
+            {offer.priceLabel}
+            <span className="cd-price-period">{offer.times}</span>
+          </p>
           <p className="cd-note" style={{ marginTop: 8 }}>
             {offer.payment}
           </p>
+          <p className="cd-note cd-offer-annual">{offer.annual}</p>
           <ul>
             {offer.included.map((item) => (
               <li key={item}>{item}</li>
@@ -601,7 +605,7 @@ function Shell() {
         <Link to="/delivery" className="cd-footer-logo" aria-label="Bora Comer!">
           <img src="/BoraComerlogo.png" alt="Bora Comer!" />
         </Link>
-        <span>{note ?? 'Pagamento único'}</span>
+        <span>{note ?? 'Mensal ou plano anual'}</span>
       </footer>
     </div>
   );
