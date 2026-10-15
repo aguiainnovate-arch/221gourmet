@@ -127,7 +127,8 @@ function saveLeadFallback(
  * A moderação automática roda na Cloud Function `moderateLead` (OpenAI no servidor).
  */
 export async function submitRestaurantLead(
-  payload: RestaurantLeadPayload
+  payload: RestaurantLeadPayload,
+  options?: { password?: string }
 ): Promise<RestaurantLeadResponse> {
   devLog(`${LOG} submit iniciado`, { restaurante: payload.restaurantName?.slice(0, 60) });
 
@@ -188,7 +189,7 @@ export async function submitRestaurantLead(
   }
 
   try {
-    const provisioned = await provisionRestaurantFromApprovedLead(payload);
+    const provisioned = await provisionRestaurantFromApprovedLead(payload, options?.password);
     const restaurantProvisioned = {
       restaurantId: provisioned.restaurantId,
       domain: provisioned.domain,

@@ -39,6 +39,11 @@ function persistSession(restaurantId: string, waiterId: string | null, motoboyUs
   );
 }
 
+/** Abre a sessão do painel sem passar pela tela de login. A senha não entra aqui. */
+export function persistRestaurantSession(restaurantId: string) {
+  persistSession(restaurantId, null, null);
+}
+
 export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(null);

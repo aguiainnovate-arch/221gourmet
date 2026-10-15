@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, Check, ClipboardList, Eye, EyeOff, Link2, MessageCircle, Share2, X } from 'lucide-react';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
   PARTNERSHIP_MONTHLY_FEE,
@@ -19,44 +19,10 @@ import {
   CaptarFaq,
   CaptarLayout,
   CaptarSheet,
-  formatCnpj,
   formatPhone,
 } from './CaptarShared';
 import { pushCaptarRestaurantSubmit } from '../../utils/gtm';
-
-function CopyFact({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const area = document.createElement('textarea');
-      area.value = value;
-      area.setAttribute('readonly', '');
-      area.style.position = 'fixed';
-      area.style.left = '-9999px';
-      document.body.appendChild(area);
-      area.select();
-      document.execCommand('copy');
-      area.remove();
-    }
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
-  }
-
-  return (
-    <div className="captar-copy-fact">
-      <span>{label}</span>
-      <div className="captar-copy-row">
-        <strong onMouseDown={(event: MouseEvent) => event.stopPropagation()}>{value}</strong>
-        <button type="button" onClick={() => void copy()}>
-          {copied ? 'Copiado' : 'Copiar'}
-        </button>
-      </div>
-    </div>
-  );
-}
+import { persistRestaurantSession } from '../../contexts/RestaurantAuthContext';
 
 const initial: RestaurantLeadPayload = {
   restaurantName: '',
@@ -89,11 +55,11 @@ const FAQ = [
   },
   {
     q: 'Do que preciso para me cadastrar?',
-    a: 'E-mail, celular, nome do responsável, CNPJ, endereço e um resumo da cozinha. Depois você escolhe o plano e conclui o Stripe Connect para receber online.',
+    a: 'Nome do restaurante, WhatsApp com DDD, e-mail e uma senha. Cardápio, endereço e recebimento ficam para depois, no painel.',
   },
   {
     q: 'É necessário ter CNPJ?',
-    a: 'Sim. O cadastro da loja usa CNPJ para contrato, nota e recebimento Stripe.',
+    a: 'Neste cadastro, não. CNPJ entra depois, no contrato e no recebimento Stripe.',
   },
   {
     q: 'Quais planos existem?',
@@ -104,6 +70,16 @@ const FAQ = [
     a: 'Depois da análise e do preenchimento de cardápio, horário e conta de recebimento. Quando o Connect estiver apto, o checkout online libera sozinho.',
   },
 ];
+
+const MIN_PASSWORD = 6;
+
+function digitsOf(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 function Field({
   label,
@@ -131,13 +107,14 @@ export default function CaptarRestaurant() {
   const [wizard, setWizard] = useState(openFromNav);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<RestaurantLeadPayload>({ ...initial, email: seededEmail });
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [panelRestaurantId, setPanelRestaurantId] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<
+    Partial<Record<'restaurantName' | 'whatsapp' | 'email' | 'password', string>>
+  >({});
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
-  const [provision, setProvision] = useState<{
-    restaurantId: string;
-    domain: string;
-    temporaryPassword: string;
-  } | null>(null);
   const [openPlan, setOpenPlan] = useState<string | null>('store_delivery');
 
   useEffect(() => {
@@ -149,57 +126,60 @@ export default function CaptarRestaurant() {
     document.getElementById('cadastro')?.scrollIntoView({ block: 'center' });
   }, [location.hash]);
 
-  const canStep1 = form.email.trim().includes('@');
-  const canStep2 = form.ownerName.trim() && form.phone.trim() && form.whatsapp.trim();
-  const canStep3 = useMemo(
-    () =>
-      Boolean(
-        form.restaurantName.trim() &&
-          form.cnpj.trim() &&
-          form.address.trim() &&
-          form.cityState.trim() &&
-          form.cuisineType.trim() &&
-          form.openingHours.trim() &&
-          form.priceRange.trim() &&
-          form.description.trim()
-      ),
-    [form]
-  );
-
   function setField<K extends keyof RestaurantLeadPayload>(key: K, value: string) {
     if (key === 'phone' || key === 'whatsapp') {
       setForm((p) => ({ ...p, [key]: formatPhone(value) }));
-      return;
+    } else {
+      setForm((p) => ({ ...p, [key]: value }));
     }
-    if (key === 'cnpj') {
-      setForm((p) => ({ ...p, cnpj: formatCnpj(value) }));
-      return;
+    if (key === 'restaurantName' || key === 'whatsapp' || key === 'email') {
+      setFieldError((prev) => ({ ...prev, [key]: undefined }));
     }
-    setForm((p) => ({ ...p, [key]: value }));
   }
 
-  function openWizard(email?: string) {
-    if (email) setForm((p) => ({ ...p, email }));
+  function openWizard() {
     setWizard(true);
-    setStep(email && email.includes('@') ? 2 : 1);
+    setStep(1);
     setStatus('idle');
     setMessage('');
+    setFieldError({});
+  }
+
+  function continueStep1() {
+    const next: typeof fieldError = {};
+    if (!form.restaurantName.trim()) next.restaurantName = 'Informe o nome do restaurante.';
+    if (digitsOf(form.whatsapp).length < 10) next.whatsapp = 'Informe o WhatsApp com DDD.';
+    setFieldError(next);
+    if (Object.keys(next).length > 0) return;
+    setStep(2);
   }
 
   async function submitAll() {
+    if (status === 'sending') return;
+    const next: typeof fieldError = {};
+    if (!isEmail(form.email)) next.email = 'Informe um e-mail válido.';
+    if (password.trim().length < MIN_PASSWORD) {
+      next.password = `A senha precisa ter pelo menos ${MIN_PASSWORD} caracteres.`;
+    }
+    setFieldError(next);
+    if (Object.keys(next).length > 0) return;
+
     setStatus('sending');
     setMessage('');
     try {
-      const res = await submitRestaurantLead(form);
+      const res = await submitRestaurantLead(
+        { ...form, ownerName: form.ownerName.trim() || form.restaurantName.trim(), phone: form.whatsapp },
+        { password: password.trim() }
+      );
       pushCaptarRestaurantSubmit(form.restaurantName);
-      setStatus('success');
-      setStep(4);
-      if (res.restaurantProvisioned) setProvision(res.restaurantProvisioned);
-      else if (res.awaitingManualModeration) {
-        setMessage('Recebemos seu cadastro. A equipe confirma os dados e libera o acesso.');
-      } else {
-        setMessage('Cadastro enviado. Você recebe o próximo passo no e-mail informado.');
+      const createdId = res.restaurantProvisioned?.restaurantId ?? null;
+      if (createdId) {
+        persistRestaurantSession(createdId);
+        setPanelRestaurantId(createdId);
       }
+      setPassword('');
+      setStatus('success');
+      setStep(3);
     } catch (err) {
       setStatus('error');
       if (err instanceof RestaurantLeadDuplicateEmailError) {
@@ -211,19 +191,10 @@ export default function CaptarRestaurant() {
       } else if (err instanceof RestaurantLeadAutoProvisionError) {
         setMessage(err.message);
       } else {
-        setMessage('Não foi possível concluir agora. Tente de novo em instantes.');
+        setMessage('Não foi possível criar a conta agora. Confira a conexão e tente de novo.');
       }
     }
   }
-
-  function onHeroSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!canStep1) return;
-    setWizard(true);
-    setStep(2);
-  }
-
-  const progress = step >= 4 ? 100 : (step / 3) * 100;
 
   return (
     <CaptarLayout
@@ -232,9 +203,11 @@ export default function CaptarRestaurant() {
       sheet={
         wizard ? null : (
           <CaptarSheet
-            title="Sua loja na Bora Comer! começa aqui"
-            subtitle={`Cadastre-se e use ${PARTNERSHIP_TRIAL_DAYS} dias de trial da mensalidade. Informe o e-mail para começar.`}
-            onStart={(email) => openWizard(email)}
+            title="Sua conta em dois passos"
+            subtitle="Nome, WhatsApp, e-mail e senha. O restante você configura depois."
+            cta="Cadastrar agora"
+            collectEmail={false}
+            onStart={() => openWizard()}
           />
         )
       }
@@ -250,29 +223,30 @@ export default function CaptarRestaurant() {
             <h1>Conecte sua loja a quem está com fome agora</h1>
             <p>De comida a gente entende. Entra na Bora Comer! e vende no app com taxa clara.</p>
           </div>
-          <form id="cadastro" className="captar-form-card" onSubmit={onHeroSubmit}>
-            <h2>Cadastre sua cozinha</h2>
+          <div id="cadastro" className="captar-form-card captar-pitch">
+            <p className="captar-pitch-kicker">{PARTNERSHIP_TRIAL_DAYS} dias de trial da mensalidade</p>
+            <h2>Abra sua conta sem formulário longo.</h2>
             <p className="hint">
-              Entre e ganhe {PARTNERSHIP_TRIAL_DAYS} dias de mensalidade em trial.
+              Nome, WhatsApp, e-mail e senha. Em seguida você entra e configura o cardápio quando quiser.
             </p>
-            <label htmlFor="captar-email">E-mail*</label>
-            <input
-              id="captar-email"
-              className="captar-input"
-              type="email"
-              required
-              placeholder="email@email.com.br"
-              value={form.email}
-              onChange={(e) => setField('email', e.target.value)}
-            />
-            <button className="captar-btn-solid captar-btn-lg" type="submit" style={{ marginTop: 14 }}>
+            <ul className="captar-pitch-points">
+              <li>Quatro dados para criar a conta</li>
+              <li>Senha sua, para voltar ao painel</li>
+              <li>Cardápio e recebimento ficam para depois</li>
+            </ul>
+            <button
+              className="captar-btn-solid captar-btn-lg captar-pitch-cta"
+              type="button"
+              onClick={() => openWizard()}
+            >
               Cadastrar agora
+              <ArrowRight size={18} />
             </button>
             <p className="captar-legal">
               Ao continuar, você concorda em receber comunicações da Bora Comer!. Confira nossa{' '}
               <Link to="/privacy-policy">Declaração de Privacidade</Link>.
             </p>
-          </form>
+          </div>
         </div>
       </section>
 
@@ -405,8 +379,8 @@ export default function CaptarRestaurant() {
         <div className="captar-steps">
           <article className="captar-step">
             <div className="n">1</div>
-            <h3>Crie a conta e cadastre a loja com CNPJ</h3>
-            <p>Nome, e-mail e celular seus. Da loja: CNPJ, endereço e um resumo da cozinha.</p>
+            <h3>Crie a conta e cadastre a loja</h3>
+            <p>Nome do restaurante, WhatsApp, e-mail e senha. O restante você configura no painel.</p>
           </article>
           <article className="captar-step">
             <div className="n">2</div>
@@ -425,7 +399,7 @@ export default function CaptarRestaurant() {
 
       {wizard && (
         <div className="captar-modal" role="dialog" aria-modal="true" aria-labelledby="wiz-title">
-          <div className="captar-modal-card">
+          <div className={`captar-modal-card${step === 3 ? ' captar-modal-card--offer' : ''}`}>
             <button
               type="button"
               className="captar-sheet-dismiss"
@@ -434,171 +408,245 @@ export default function CaptarRestaurant() {
             >
               <X size={18} />
             </button>
-            <h2 id="wiz-title" style={{ margin: '0 8px 0 0', fontSize: 20 }}>
-              {step < 4 ? 'Cadastro da loja' : 'Pronto'}
-            </h2>
-            <div className="captar-progress">
-              <span style={{ width: `${progress}%` }} />
-            </div>
+            {step < 3 && (
+              <p className="captar-wiz-brand">
+                <strong>bora comer</strong>
+                <span>Etapa {step} de 2</span>
+              </p>
+            )}
 
             {step === 1 && (
               <>
-                <Field label="E-mail*">
+                <h2 id="wiz-title">Seu restaurante começa aqui.</h2>
+                <p className="captar-wiz-sub">Vamos criar sua conta. Você configura os outros detalhes depois.</p>
+                <Field label="Nome do restaurante*">
                   <input
                     className="captar-input"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setField('email', e.target.value)}
+                    autoComplete="organization"
+                    placeholder="Ex.: Cantina da Ana"
+                    value={form.restaurantName}
+                    aria-invalid={Boolean(fieldError.restaurantName)}
+                    aria-describedby={fieldError.restaurantName ? 'err-name' : undefined}
+                    onChange={(e) => setField('restaurantName', e.target.value)}
                   />
+                  {fieldError.restaurantName && (
+                    <span className="captar-field-error" id="err-name" role="alert">
+                      {fieldError.restaurantName}
+                    </span>
+                  )}
                 </Field>
-                <button
-                  type="button"
-                  className="captar-btn-solid captar-btn-lg"
-                  disabled={!canStep1}
-                  onClick={() => setStep(2)}
-                >
+                <Field label="WhatsApp*">
+                  <input
+                    className="captar-input"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="11 99999 9999"
+                    value={form.whatsapp}
+                    aria-invalid={Boolean(fieldError.whatsapp)}
+                    aria-describedby={fieldError.whatsapp ? 'err-wa' : undefined}
+                    onChange={(e) => setField('whatsapp', e.target.value)}
+                  />
+                  {fieldError.whatsapp && (
+                    <span className="captar-field-error" id="err-wa" role="alert">
+                      {fieldError.whatsapp}
+                    </span>
+                  )}
+                </Field>
+                <button type="button" className="captar-btn-solid captar-btn-lg" onClick={continueStep1}>
                   Continuar
                 </button>
+                <Link className="captar-wiz-login" to="/restaurant/auth">
+                  Já tem uma conta? Entrar
+                </Link>
               </>
             )}
 
             {step === 2 && (
               <>
-                <Field label="Nome do responsável*">
+                <h2 id="wiz-title">Agora, crie seu acesso.</h2>
+                <p className="captar-wiz-sub">
+                  Use seu e-mail e uma senha para entrar no Bora Comer sempre que precisar.
+                </p>
+                <Field label="E-mail*">
                   <input
                     className="captar-input"
-                    value={form.ownerName}
-                    onChange={(e) => setField('ownerName', e.target.value)}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="voce@restaurante.com"
+                    value={form.email}
+                    aria-invalid={Boolean(fieldError.email)}
+                    aria-describedby={fieldError.email ? 'err-email' : undefined}
+                    onChange={(e) => setField('email', e.target.value)}
                   />
+                  {fieldError.email && (
+                    <span className="captar-field-error" id="err-email" role="alert">
+                      {fieldError.email}
+                    </span>
+                  )}
                 </Field>
-                <Field label="Telefone*">
-                  <input
-                    className="captar-input"
-                    value={form.phone}
-                    onChange={(e) => setField('phone', e.target.value)}
-                  />
+                <Field label="Senha*">
+                  <div className="captar-pass">
+                    <input
+                      className="captar-input"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      name="new-password"
+                      value={password}
+                      aria-invalid={Boolean(fieldError.password)}
+                      aria-describedby="hint-password"
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFieldError((prev) => ({ ...prev, password: undefined }));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="captar-pass-toggle"
+                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                      onClick={() => setShowPassword((v) => !v)}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <span className="captar-field-hint" id="hint-password">
+                    Mínimo de {MIN_PASSWORD} caracteres. Pode colar ou usar o gerenciador de senhas.
+                  </span>
+                  {fieldError.password && (
+                    <span className="captar-field-error" role="alert">
+                      {fieldError.password}
+                    </span>
+                  )}
                 </Field>
-                <Field label="WhatsApp*">
-                  <input
-                    className="captar-input"
-                    value={form.whatsapp}
-                    onChange={(e) => setField('whatsapp', e.target.value)}
-                  />
-                </Field>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="captar-btn-ghost" onClick={() => setStep(1)}>
-                    Voltar
-                  </button>
-                  <button
-                    type="button"
-                    className="captar-btn-solid captar-btn-lg"
-                    disabled={!canStep2}
-                    onClick={() => setStep(3)}
-                  >
-                    Continuar
-                  </button>
-                </div>
+                {status === 'error' && (
+                  <p className="captar-field-error" role="alert">
+                    {message}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="captar-btn-solid captar-btn-lg"
+                  disabled={status === 'sending'}
+                  onClick={() => void submitAll()}
+                >
+                  {status === 'sending' ? 'Criando sua conta...' : 'Criar conta e acessar'}
+                </button>
+                <p className="captar-wiz-note">Depois, você configura o cardápio e os detalhes do restaurante.</p>
+                <button
+                  type="button"
+                  className="captar-wiz-back"
+                  onClick={() => {
+                    setStatus('idle');
+                    setMessage('');
+                    setStep(1);
+                  }}
+                >
+                  Voltar
+                </button>
               </>
             )}
 
             {step === 3 && (
-              <>
-                <Field label="Nome da loja*">
-                  <input
-                    className="captar-input"
-                    value={form.restaurantName}
-                    onChange={(e) => setField('restaurantName', e.target.value)}
-                  />
-                </Field>
-                <Field label="CNPJ*">
-                  <input
-                    className="captar-input"
-                    value={form.cnpj}
-                    onChange={(e) => setField('cnpj', e.target.value)}
-                  />
-                </Field>
-                <Field label="Endereço*">
-                  <input
-                    className="captar-input"
-                    value={form.address}
-                    onChange={(e) => setField('address', e.target.value)}
-                  />
-                </Field>
-                <Field label="Cidade / UF*">
-                  <input
-                    className="captar-input"
-                    value={form.cityState}
-                    onChange={(e) => setField('cityState', e.target.value)}
-                  />
-                </Field>
-                <Field label="Tipo de cozinha*">
-                  <input
-                    className="captar-input"
-                    value={form.cuisineType}
-                    onChange={(e) => setField('cuisineType', e.target.value)}
-                  />
-                </Field>
-                <Field label="Horário*">
-                  <input
-                    className="captar-input"
-                    value={form.openingHours}
-                    onChange={(e) => setField('openingHours', e.target.value)}
-                  />
-                </Field>
-                <Field label="Faixa de preço*">
-                  <input
-                    className="captar-input"
-                    value={form.priceRange}
-                    onChange={(e) => setField('priceRange', e.target.value)}
-                  />
-                </Field>
-                <Field label="Link (Instagram ou site)">
-                  <input
-                    className="captar-input"
-                    value={form.socialLink}
-                    onChange={(e) => setField('socialLink', e.target.value)}
-                  />
-                </Field>
-                <Field label="Conte um pouco da casa*">
-                  <textarea
-                    className="captar-input"
-                    rows={3}
-                    value={form.description}
-                    onChange={(e) => setField('description', e.target.value)}
-                  />
-                </Field>
-                {status === 'error' && (
-                  <p style={{ color: '#c40d1a', fontSize: 14 }}>{message}</p>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="captar-btn-ghost" onClick={() => setStep(2)}>
-                    Voltar
-                  </button>
-                  <button
-                    type="button"
-                    className="captar-btn-solid captar-btn-lg"
-                    disabled={!canStep3 || status === 'sending'}
-                    onClick={() => void submitAll()}
-                  >
-                    {status === 'sending' ? 'Enviando…' : 'Enviar cadastro'}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {step === 4 && (
-              <div className="captar-success">
-                <h3>Cadastro enviado</h3>
-                <p>{message || 'Recebemos seus dados.'}</p>
-                {provision && (
-                  <div className="captar-success-facts">
-                    <CopyFact label="Loja" value={provision.domain} />
-                    <CopyFact label="Senha temporária" value={provision.temporaryPassword} />
+              <div className="captar-offer">
+                <header className="captar-offer-top">
+                  <div className="captar-offer-brand">
+                    <strong>bora comer</strong>
+                    <span>Parceiros</span>
                   </div>
-                )}
-                <Link className="captar-btn-solid captar-btn-lg" to="/restaurant/auth" style={{ marginTop: 12 }}>
-                  Ir para o portal
-                </Link>
+                  <a href="#faq" onClick={() => setWizard(false)}>
+                    Precisa de ajuda?
+                  </a>
+                </header>
+                <p className="captar-offer-done" id="wiz-title">
+                  <Check size={16} strokeWidth={3} />
+                  Cadastro concluído
+                </p>
+                <div className="captar-offer-card">
+                  <div className="captar-offer-copy">
+                    <p className="captar-offer-ok">
+                      <Check size={16} strokeWidth={3} />
+                      Seu restaurante já está cadastrado!
+                    </p>
+                    <h2>
+                      Quer também receber pedidos do seu restaurante e{' '}
+                      <em>WhatsApp de forma automática?</em>
+                    </h2>
+                    <p className="captar-offer-lead">
+                      Conheça seu cardápio digital com link próprio e recursos para organizar os pedidos.
+                    </p>
+                    <ul>
+                      <li>
+                        <Link2 size={18} />
+                        Um link exclusivo do seu restaurante
+                      </li>
+                      <li>
+                        <Share2 size={18} />
+                        Atendimento automático pelo WhatsApp
+                      </li>
+                      <li>
+                        <ClipboardList size={18} />
+                        Seu cardápio sempre à mão
+                      </li>
+                    </ul>
+                    <Link className="captar-btn-solid captar-btn-lg captar-offer-cta" to="/delivery/cardapio-digital">
+                      Conhecer o cardápio digital
+                      <ArrowRight size={18} />
+                    </Link>
+                    <Link
+                      className="captar-offer-skip"
+                      to={panelRestaurantId ? `/${panelRestaurantId}/settings` : '/restaurant/auth'}
+                    >
+                      Continuar no marketplace
+                    </Link>
+                    <p className="captar-offer-later">Você pode conhecer agora ou deixar para depois.</p>
+                  </div>
+                  <div className="captar-offer-stage" aria-hidden>
+                    <div className="captar-offer-phone">
+                      <div className="captar-offer-status">
+                        <span>9:41</span>
+                        <span className="captar-offer-dots" />
+                      </div>
+                      <img src="/cardapio-digital/burger.jpg" alt="" />
+                      <div className="captar-offer-sheet">
+                        <div className="captar-offer-shop">
+                          <img src="/cardapio-digital/burger.jpg" alt="" />
+                          <div>
+                            <strong>{form.restaurantName.trim() || 'Seu restaurante'}</strong>
+                            <span>Cardápio digital</span>
+                          </div>
+                        </div>
+                        <div className="captar-offer-tabs">
+                          <span className="on">Destaques</span>
+                          <span>Combos</span>
+                          <span>Bebidas</span>
+                        </div>
+                        <div className="captar-offer-grid">
+                          <article>
+                            <img src="/cardapio-digital/burger.jpg" alt="" />
+                            <b>Burger da casa</b>
+                          </article>
+                          <article>
+                            <img src="/cardapio-digital/pizza.jpg" alt="" />
+                            <b>Combo especial</b>
+                          </article>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="captar-offer-chip captar-offer-chip-link">
+                      <Link2 size={16} />
+                      <span>
+                        Seu link,
+                        <br />
+                        sua marca
+                      </span>
+                    </div>
+                    <div className="captar-offer-chip captar-offer-chip-wa">
+                      <MessageCircle size={22} />
+                    </div>
+                    <p className="captar-offer-caption">Uma nova forma de receber seus clientes.</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

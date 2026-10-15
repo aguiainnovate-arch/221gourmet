@@ -56,14 +56,17 @@ function generateTemporaryPassword(): string {
  * Cria restaurante no Firestore após moderação automática aprovar o lead (Bora Comer).
  * Domínio derivado do nome; plano = primeiro plano ativo (menor preço); senha provisória aleatória (hash bcrypt).
  */
-export async function provisionRestaurantFromApprovedLead(payload: {
-  restaurantName: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  address: string;
-  cityState: string;
-}): Promise<{ restaurantId: string; domain: string; temporaryPassword: string }> {
+export async function provisionRestaurantFromApprovedLead(
+  payload: {
+    restaurantName: string;
+    email: string;
+    phone: string;
+    whatsapp: string;
+    address: string;
+    cityState: string;
+  },
+  chosenPassword?: string
+): Promise<{ restaurantId: string; domain: string; temporaryPassword: string }> {
   if (await checkRestaurantEmailTaken(payload.email)) {
     throw new RestaurantLeadDuplicateEmailError();
   }
@@ -92,7 +95,8 @@ export async function provisionRestaurantFromApprovedLead(payload: {
     domain = `${base.slice(0, Math.max(1, 25 - suffix.length))}${suffix}`;
   }
 
-  const temporaryPassword = generateTemporaryPassword();
+  const picked = chosenPassword?.trim() ?? '';
+  const temporaryPassword = picked.length >= 6 ? picked : generateTemporaryPassword();
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
   let restaurant;

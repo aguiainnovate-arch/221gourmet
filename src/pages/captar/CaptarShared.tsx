@@ -241,11 +241,13 @@ export function CaptarSheet({
   subtitle,
   onStart,
   cta = 'Iniciar cadastro',
+  collectEmail = true,
 }: {
   title: string;
   subtitle: string;
   onStart: (email: string) => void;
   cta?: string;
+  collectEmail?: boolean;
 }) {
   const [email, setEmail] = useState('');
   const [hidden, setHidden] = useState(false);
@@ -265,15 +267,17 @@ export function CaptarSheet({
         <h2>{title}</h2>
         <p>{subtitle}</p>
         <form className="captar-sheet-row" onSubmit={submit}>
-          <input
-            className="captar-input"
-            type="email"
-            required
-            placeholder="email@email.com.br"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            aria-label="E-mail"
-          />
+          {collectEmail && (
+            <input
+              className="captar-input"
+              type="email"
+              required
+              placeholder="email@email.com.br"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              aria-label="E-mail"
+            />
+          )}
           <button className="captar-btn-solid captar-btn-lg" type="submit" style={{ minWidth: 180 }}>
             {cta}
           </button>
