@@ -25,6 +25,7 @@ import {
   Building2,
   Package,
   Store,
+  Gift,
 } from 'lucide-react';
 import type { Stripe as StripeType, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -48,6 +49,17 @@ import {
 } from '../../services/deliveryStripeService';
 import PixWaitStep from './PixWaitStep';
 import { extractPixDetailsFromPaymentIntent } from '../../utils/stripePix';
+import {
+  computeSpendCapCents,
+  getCashbackBalance,
+  getCashbackSettings,
+  previewCashbackEarn,
+  spendCashback,
+} from '../../services/cashbackService';
+import {
+  normalizeCashbackSettings,
+  type RestaurantCashbackSettings,
+} from '../../types/cashback';
 
 function parseMoneyInput(raw: string): number | null {
   const cleaned = raw.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
@@ -260,6 +272,12 @@ export default function CheckoutFlow({
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeOutOfRange, setFeeOutOfRange] = useState(false);
   const [distanceFee, setDistanceFee] = useState<number | null>(null);
+  const [cashbackSettings, setCashbackSettings] = useState<RestaurantCashbackSettings>(() =>
+    normalizeCashbackSettings(null)
+  );
+  const [cashbackBalanceCents, setCashbackBalanceCents] = useState(0);
+  const [useCashback, setUseCashback] = useState(false);
+  const [cashbackLoading, setCashbackLoading] = useState(false);
 
   const resolvedFee = useMemo(
     () => getFeeSettings(feeSettings ?? { ...DEFAULT_DELIVERY_FEE, flatFee: baseDeliveryFee }),
@@ -385,12 +403,84 @@ export default function CheckoutFlow({
     const base = distanceFee ?? resolvedFee.flatFee;
     return base + (deliveryOption === 'turbo' ? turboFeeExtra : 0);
   }, [fulfillmentType, distanceFee, resolvedFee.flatFee, deliveryOption, turboFeeExtra]);
-  const total = subtotal + deliveryFee;
+  const grossTotal = subtotal + deliveryFee;
+  const cashbackSpendCents = useMemo(() => {
+    if (!useCashback || !cashbackSettings.enabled) return 0;
+    return computeSpendCapCents(cashbackSettings, cashbackBalanceCents, grossTotal);
+  }, [useCashback, cashbackSettings, cashbackBalanceCents, grossTotal]);
+  const cashbackSpendReais = cashbackSpendCents / 100;
+  const total = Math.max(0, Math.round((grossTotal - cashbackSpendReais) * 100) / 100);
+  const earnPreview = useMemo(() => {
+    if (!cashbackSettings.enabled) return null;
+    return previewCashbackEarn(
+      cashbackSettings,
+      items.map((it) => ({
+        productId: it.product.id,
+        quantity: it.quantity,
+        price: it.product.price,
+      }))
+    );
+  }, [cashbackSettings, items]);
   const cashChangeFor = needsChange ? parseMoneyInput(cashChangeForInput) : null;
   const cashChangeAmount =
     cashChangeFor != null && cashChangeFor >= total
       ? Math.round((cashChangeFor - total) * 100) / 100
       : undefined;
+
+  useEffect(() => {
+    if (!open || !restaurantId) return;
+    let cancelled = false;
+    setCashbackLoading(true);
+    (async () => {
+      try {
+        const settings = await getCashbackSettings(restaurantId);
+        if (cancelled) return;
+        setCashbackSettings(settings);
+        if (!settings.enabled || !user?.id) {
+          setCashbackBalanceCents(0);
+          setUseCashback(false);
+          return;
+        }
+        const balance = await getCashbackBalance(user.id, restaurantId);
+        if (cancelled) return;
+        setCashbackBalanceCents(balance?.balanceCents ?? 0);
+      } catch (err) {
+        console.error('[CheckoutFlow] cashback load', err);
+        if (!cancelled) {
+          setCashbackSettings(normalizeCashbackSettings(null));
+          setCashbackBalanceCents(0);
+        }
+      } finally {
+        if (!cancelled) setCashbackLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, restaurantId, user?.id]);
+
+  const finalizeCashbackSpend = useCallback(
+    async (orderId: string | void | null) => {
+      if (!orderId || !user?.id || cashbackSpendCents <= 0) return;
+      try {
+        await spendCashback({
+          deliveryUserId: user.id,
+          restaurantId,
+          amountCents: cashbackSpendCents,
+          orderId,
+        });
+        setCashbackBalanceCents((prev) => Math.max(0, prev - cashbackSpendCents));
+      } catch (err) {
+        console.error('[CheckoutFlow] spendCashback', err);
+        setErrorBanner(
+          err instanceof Error
+            ? err.message
+            : 'Pedido criado, mas o cashback não pôde ser debitado. Fale com o suporte.'
+        );
+      }
+    },
+    [user?.id, cashbackSpendCents, restaurantId]
+  );
 
   const ensureCustomerFor = useCallback(async (): Promise<string | undefined> => {
     if (!user) return undefined;
@@ -515,10 +605,11 @@ export default function CheckoutFlow({
         if (paymentIntent?.status === 'succeeded' && !pixSucceededRef.current) {
           pixSucceededRef.current = true;
           const base = pixOrderBaseRef.current;
+          const paidOrderId = pendingPixOrderIdRef.current;
           if (base) {
-            await onOrderCreatedRef.current({
+            const createdId = await onOrderCreatedRef.current({
               pixPhase: 'paid',
-              orderId: pendingPixOrderIdRef.current ?? undefined,
+              orderId: paidOrderId ?? undefined,
               orderPayload: {
                 ...base,
                 paymentMethod: 'stripe',
@@ -526,6 +617,9 @@ export default function CheckoutFlow({
                 pixStatus: 'paid',
               },
             });
+            await finalizeCashbackSpend(
+              typeof createdId === 'string' ? createdId : paidOrderId
+            );
           }
           setPixWait(null);
           pixOrderBaseRef.current = null;
@@ -541,7 +635,7 @@ export default function CheckoutFlow({
     void run();
     const id = window.setInterval(() => void run(), 2500);
     return () => window.clearInterval(id);
-  }, [step, pixWait, stripePromise, ensurePixPendingOrder]);
+  }, [step, pixWait, stripePromise, ensurePixPendingOrder, finalizeCashbackSpend]);
 
   const canProceedFromAddress =
     customerName.trim().length >= 2 &&
@@ -759,6 +853,8 @@ export default function CheckoutFlow({
       total,
       deliveryFee,
       fulfillmentType,
+      deliveryUserId: user?.id,
+      cashbackSpendCents: cashbackSpendCents > 0 ? cashbackSpendCents : undefined,
       cashChangeFor:
         payment.kind === 'cod' &&
         payment.method === 'money' &&
@@ -775,12 +871,13 @@ export default function CheckoutFlow({
 
     try {
       if (payment.kind === 'cod') {
-        await onOrderCreated({
+        const createdId = await onOrderCreated({
           orderPayload: {
             ...basePayload,
             paymentMethod: payment.method,
           },
         });
+        await finalizeCashbackSpend(createdId);
         return;
       }
 
@@ -864,13 +961,14 @@ export default function CheckoutFlow({
         }
 
         if (pi.status === 'succeeded') {
-          await onOrderCreated({
+          const createdId = await onOrderCreated({
             orderPayload: {
               ...basePayload,
               paymentMethod: 'stripe',
               stripePaymentIntentId: pi.id,
             },
           });
+          await finalizeCashbackSpend(createdId);
           return;
         }
 
@@ -918,13 +1016,14 @@ export default function CheckoutFlow({
         });
 
         if (res.status === 'succeeded') {
-          await onOrderCreated({
+          const createdId = await onOrderCreated({
             orderPayload: {
               ...basePayload,
               paymentMethod: 'stripe',
               stripePaymentIntentId: res.paymentIntentId,
             },
           });
+          await finalizeCashbackSpend(createdId);
           return;
         }
 
@@ -944,13 +1043,14 @@ export default function CheckoutFlow({
             setBusy(false);
             return;
           }
-          await onOrderCreated({
+          const createdId = await onOrderCreated({
             orderPayload: {
               ...basePayload,
               paymentMethod: 'stripe',
               stripePaymentIntentId: paymentIntent.id,
             },
           });
+          await finalizeCashbackSpend(createdId);
           return;
         }
 
@@ -1050,6 +1150,50 @@ export default function CheckoutFlow({
           )}
 
           {step === 'payment' && (
+            <>
+              {cashbackSettings.enabled && user?.id && (
+                <div className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Gift className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-amber-950">
+                        Cashback desta loja
+                      </div>
+                      <p className="text-xs text-amber-900/80 mt-0.5">
+                        Só vale em {restaurantName}. Não pode usar em outro restaurante.
+                      </p>
+                      {cashbackLoading ? (
+                        <p className="text-xs text-amber-800 mt-2">Carregando saldo…</p>
+                      ) : (
+                        <>
+                          <p className="text-sm text-amber-950 mt-2">
+                            Saldo:{' '}
+                            <strong>{fmt(cashbackBalanceCents / 100)}</strong>
+                            {earnPreview && earnPreview.earnReais > 0 && (
+                              <>
+                                {' '}
+                                · neste pedido você pode ganhar cerca de{' '}
+                                <strong>{fmt(earnPreview.earnReais)}</strong>
+                              </>
+                            )}
+                          </p>
+                          {cashbackBalanceCents > 0 && (
+                            <label className="mt-2 flex items-center gap-2 text-sm font-medium text-amber-950">
+                              <input
+                                type="checkbox"
+                                className="accent-amber-700"
+                                checked={useCashback}
+                                onChange={(e) => setUseCashback(e.target.checked)}
+                              />
+                              Usar até {fmt(cashbackSpendCents / 100 || computeSpendCapCents(cashbackSettings, cashbackBalanceCents, grossTotal) / 100)} neste pedido
+                            </label>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             <PaymentStep
               onlineCardPaymentsEnabled={onlineCardPaymentsEnabled}
               savedCards={savedCards}
@@ -1090,6 +1234,7 @@ export default function CheckoutFlow({
               setCashChangeForInput={setCashChangeForInput}
               cashChangeAmount={cashChangeAmount}
             />
+            </>
           )}
 
           {step === 'new-card' && setupClientSecret && stripePromise && (
@@ -1360,6 +1505,12 @@ function Footer({
               <span>{t('delivery.deliveryFee')}</span>
               <span>{deliveryFee > 0 ? fmt(deliveryFee) : 'Grátis'}</span>
             </div>
+            {total < subtotal + deliveryFee && (
+              <div className="flex justify-between text-amber-700">
+                <span>Cashback</span>
+                <span>-{fmt(subtotal + deliveryFee - total)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-100">
               <span>{t('delivery.total')}</span>
               <span style={{ color: accentColor }}>{fmt(total)}</span>

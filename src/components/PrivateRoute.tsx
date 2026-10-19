@@ -1,25 +1,23 @@
-import { Navigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 interface PrivateRouteProps {
   children: React.ReactNode;
 }
 
+/**
+ * Mantém a mesa do QR no sessionStorage.
+ * Se o cliente escanear outro QR (outra mesa), atualiza a mesa atual
+ * em vez de redirecionar de volta para a mesa antiga.
+ */
 export default function PrivateRoute({ children }: PrivateRouteProps) {
-  const { mesaId, restaurantId } = useParams();
-  
-  // Recupera a mesa original do sessionStorage
-  const mesaOriginal = sessionStorage.getItem('mesa_id');
-  
-  // Se não há mesa definida ainda, define a mesa atual
-  if (!mesaOriginal) {
-    sessionStorage.setItem('mesa_id', mesaId || '');
-    return <>{children}</>;
-  }
-  
-  // Se já há uma mesa definida e é diferente da atual, redireciona (mantendo o restaurante na URL)
-  if (mesaOriginal !== mesaId) {
-    const to = restaurantId ? `/${restaurantId}/mesa/${mesaOriginal}` : `/mesa/${mesaOriginal}`;
-    return <Navigate to={to} replace />;
+  const { mesaId } = useParams();
+  const nextMesa = mesaId || '';
+
+  if (typeof window !== 'undefined' && nextMesa) {
+    const current = sessionStorage.getItem('mesa_id');
+    if (current !== nextMesa) {
+      sessionStorage.setItem('mesa_id', nextMesa);
+    }
   }
 
   return <>{children}</>;

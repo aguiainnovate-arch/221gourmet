@@ -22,6 +22,12 @@ export interface DeliveryOrder {
   status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
   paymentMethod: 'money' | 'credit' | 'debit' | 'pix' | 'stripe';
   deliveryFee: number;
+  /** Cliente delivery autenticado (necessário para cashback). */
+  deliveryUserId?: string;
+  /** Centavos de cashback usados neste pedido (só nesta loja). */
+  cashbackSpendCents?: number;
+  /** Centavos de cashback creditados ao entregar (preenchido após earn). */
+  cashbackEarnCents?: number;
   /** Padrão: delivery. pickup = retirada na loja (sem motoboy/frete). */
   fulfillmentType?: FulfillmentType;
   /**
@@ -64,4 +70,6 @@ export interface CreateDeliveryOrderData {
   pixInvoiceUrl?: string;
   pixStatus?: string;
   observations?: string;
+  deliveryUserId?: string;
+  cashbackSpendCents?: number;
 }

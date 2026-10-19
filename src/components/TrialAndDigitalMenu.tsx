@@ -12,7 +12,7 @@ export function trialDaysMessage(daysLeft: number): string {
 
 export function TrialDaysBanner({ daysLeft }: { daysLeft: number }) {
   return (
-    <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[#f3e4c4] bg-[#fff8e8] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-medium text-amber-950">{trialDaysMessage(daysLeft)}</p>
       <Link
         to="/planos"

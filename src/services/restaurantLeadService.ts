@@ -65,6 +65,107 @@ export class RestaurantLeadValidationUnavailableError extends Error {
 const LOCAL_LEADS_KEY = 'bora-comer-restaurant-leads';
 const LOG = '[restaurantLead]';
 
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/** Validação mínima quando a IA está indisponível (só bloqueia lixo óbvio). */
+function basicLeadSafetyCheck(payload: RestaurantLeadPayload): { ok: true } | { ok: false; message: string } {
+  const name = payload.restaurantName?.trim() ?? '';
+  if (name.length < 2) {
+    return { ok: false, message: 'Informe o nome do restaurante.' };
+  }
+  if (!isEmail(payload.email ?? '')) {
+    return { ok: false, message: 'Informe um e-mail válido.' };
+  }
+  const digits = `${payload.whatsapp ?? ''}${payload.phone ?? ''}`.replace(/\D/g, '');
+  if (digits.length < 10) {
+    return { ok: false, message: 'Informe um WhatsApp com DDD.' };
+  }
+  const blob = [name, payload.email, payload.description, payload.ownerName].join('\n');
+  if (/<script|javascript:|onerror\s*=|data:text\/html/i.test(blob)) {
+    return {
+      ok: false,
+      message: 'Não foi possível validar seu cadastro. Use dados reais de um restaurante.',
+    };
+  }
+  return { ok: true };
+}
+
+async function saveLeadProvisionAndReturn(
+  payload: RestaurantLeadPayload,
+  options?: { password?: string; savedWithoutAiModeration?: boolean }
+): Promise<RestaurantLeadResponse> {
+  let leadId: string;
+  try {
+    const lead = await saveLeadToFirestore(payload, {
+      savedWithoutAiModeration: options?.savedWithoutAiModeration,
+    });
+    leadId = lead.id;
+    devLog(`${LOG} Lead salvo antes do provisionamento`, { leadId });
+  } catch (leadErr) {
+    devError(`${LOG} Falha ao salvar lead no Firestore antes do provisionamento`, leadErr);
+    throw new RestaurantLeadAutoProvisionError(
+      'Não foi possível registrar sua solicitação agora. Verifique sua conexão e tente novamente em instantes.'
+    );
+  }
+
+  try {
+    const provisioned = await provisionRestaurantFromApprovedLead(payload, options?.password);
+    const restaurantProvisioned = {
+      restaurantId: provisioned.restaurantId,
+      domain: provisioned.domain,
+      temporaryPassword: provisioned.temporaryPassword,
+    };
+
+    try {
+      await updateLeadAfterAutoProvision(leadId, {
+        restaurantId: provisioned.restaurantId,
+        domain: provisioned.domain,
+      });
+    } catch (updateErr) {
+      devWarn(`${LOG} Lead salvo, restaurante criado, mas falha ao atualizar status do lead`, {
+        leadId,
+        updateErr,
+      });
+      try {
+        await updateLeadAfterAutoProvision(leadId, {
+          restaurantId: provisioned.restaurantId,
+          domain: provisioned.domain,
+        });
+      } catch {
+        devWarn(
+          `${LOG} Lead ${leadId} permanece pendente no admin; restaurante ${provisioned.restaurantId} já existe`
+        );
+      }
+    }
+
+    devLog(`${LOG} Restaurante criado e lead atualizado`, {
+      restaurantId: provisioned.restaurantId,
+      leadId,
+    });
+    return {
+      id: leadId,
+      status: 'created',
+      restaurantProvisioned,
+      ...(options?.savedWithoutAiModeration ? { awaitingManualModeration: true as const } : {}),
+    };
+  } catch (err) {
+    if (err instanceof RestaurantLeadDuplicateEmailError) {
+      throw err;
+    }
+    if (err instanceof RestaurantLeadAutoProvisionError) {
+      throw err;
+    }
+    if (err instanceof Error && err.message) {
+      throw new RestaurantLeadAutoProvisionError(err.message);
+    }
+    devError(`${LOG} Falha inesperada ao provisionar`, err);
+    throw new RestaurantLeadAutoProvisionError(
+      'Seu cadastro foi validado, mas não conseguimos concluir a criação da conta agora. Tente novamente em instantes.'
+    );
+  }
+}
 
 function saveLeadFallback(
   payload: RestaurantLeadPayload,
@@ -145,101 +246,42 @@ export async function submitRestaurantLead(
 
   if (moderation.outcome === 'technical') {
     const code = moderation.firebaseCode;
-    const persistWithoutAi =
-      code === undefined ||
-      code === 'functions/internal' ||
-      code === 'functions/unavailable' ||
-      code === 'functions/resource-exhausted' ||
-      code === 'functions/deadline-exceeded' ||
-      code === 'functions/invalid-response';
-
-    if (!persistWithoutAi) {
-      devWarn(
-        `${LOG} Validação automática indisponível (sem persistência automática). Código: ${code ?? '(nenhum)'}`
+    if (code === 'functions/invalid-argument') {
+      devWarn(`${LOG} Payload rejeitado pela function (invalid-argument).`);
+      throw new RestaurantLeadValidationUnavailableError(
+        moderation.userMessage ||
+          'Não foi possível enviar os dados para validação. Confira o formulário e tente novamente.',
+        code
       );
-      throw new RestaurantLeadValidationUnavailableError(moderation.userMessage, code);
+    }
+
+    const basic = basicLeadSafetyCheck(payload);
+    if (!basic.ok) {
+      throw new RestaurantLeadModerationError(basic.message);
     }
 
     devWarn(
-      `${LOG} Falha técnica na moderação — persistindo lead como pendente para revisão humana (não é reprovação). Código: ${code ?? '(nenhum)'}`
+      `${LOG} Falha técnica na moderação IA — provisionamento automático com validação básica. Código: ${code ?? '(nenhum)'}`
     );
 
     try {
-      const lead = await saveLeadToFirestore(payload, { savedWithoutAiModeration: true });
-      devLog(`${LOG} Lead salvo no Firestore (revisão manual após falha da IA)`, { id: lead.id });
-      return { id: lead.id, status: 'created', awaitingManualModeration: true };
+      return await saveLeadProvisionAndReturn(payload, {
+        password: options?.password,
+        savedWithoutAiModeration: true,
+      });
     } catch (err) {
+      if (
+        err instanceof RestaurantLeadDuplicateEmailError ||
+        err instanceof RestaurantLeadAutoProvisionError ||
+        err instanceof RestaurantLeadModerationError
+      ) {
+        throw err;
+      }
       devWarn(`${LOG} Firestore indisponível — usando localStorage (falha técnica moderação)`, { err });
       return saveLeadFallback(payload, { moderationSkipped: true });
     }
   }
 
-  devLog(`${LOG} Moderação OK — salvando solicitação e provisionando restaurante`);
-
-  let leadId: string;
-  try {
-    const lead = await saveLeadToFirestore(payload);
-    leadId = lead.id;
-    devLog(`${LOG} Lead salvo (pendente) antes do provisionamento`, { leadId });
-  } catch (leadErr) {
-    devError(`${LOG} Falha ao salvar lead no Firestore antes do provisionamento`, leadErr);
-    throw new RestaurantLeadAutoProvisionError(
-      'Não foi possível registrar sua solicitação agora. Verifique sua conexão e tente novamente em instantes.'
-    );
-  }
-
-  try {
-    const provisioned = await provisionRestaurantFromApprovedLead(payload, options?.password);
-    const restaurantProvisioned = {
-      restaurantId: provisioned.restaurantId,
-      domain: provisioned.domain,
-      temporaryPassword: provisioned.temporaryPassword,
-    };
-
-    try {
-      await updateLeadAfterAutoProvision(leadId, {
-        restaurantId: provisioned.restaurantId,
-        domain: provisioned.domain,
-      });
-    } catch (updateErr) {
-      devWarn(`${LOG} Lead salvo, restaurante criado, mas falha ao atualizar status do lead`, {
-        leadId,
-        updateErr,
-      });
-      try {
-        await updateLeadAfterAutoProvision(leadId, {
-          restaurantId: provisioned.restaurantId,
-          domain: provisioned.domain,
-        });
-      } catch {
-        devWarn(
-          `${LOG} Lead ${leadId} permanece pendente no admin; restaurante ${provisioned.restaurantId} já existe`
-        );
-      }
-    }
-
-    devLog(`${LOG} Restaurante criado e lead atualizado`, {
-      restaurantId: provisioned.restaurantId,
-      leadId,
-    });
-    return {
-      id: leadId,
-      status: 'created',
-      restaurantProvisioned,
-    };
-  } catch (err) {
-    if (err instanceof RestaurantLeadDuplicateEmailError) {
-      throw err;
-    }
-    if (err instanceof RestaurantLeadAutoProvisionError) {
-      throw err;
-    }
-    if (err instanceof Error && err.message) {
-      throw new RestaurantLeadAutoProvisionError(err.message);
-    }
-    devError(`${LOG} Falha inesperada ao provisionar após moderação OK`, err);
-    throw new RestaurantLeadAutoProvisionError(
-      'Seu cadastro foi validado, mas não conseguimos concluir a criação da conta agora. Tente novamente em instantes.'
-    );
-  }
+  devLog(`${LOG} Moderação IA aprovou — salvando solicitação e provisionando restaurante`);
+  return saveLeadProvisionAndReturn(payload, { password: options?.password });
 }

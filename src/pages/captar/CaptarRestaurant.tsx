@@ -22,7 +22,10 @@ import {
   formatPhone,
 } from './CaptarShared';
 import { pushCaptarRestaurantSubmit } from '../../utils/gtm';
-import { persistRestaurantSession } from '../../contexts/RestaurantAuthContext';
+import {
+  persistRestaurantSession,
+  readPersistedRestaurantId,
+} from '../../contexts/RestaurantAuthContext';
 
 const initial: RestaurantLeadPayload = {
   restaurantName: '',
@@ -173,10 +176,13 @@ export default function CaptarRestaurant() {
       );
       pushCaptarRestaurantSubmit(form.restaurantName);
       const createdId = res.restaurantProvisioned?.restaurantId ?? null;
-      if (createdId) {
-        persistRestaurantSession(createdId);
-        setPanelRestaurantId(createdId);
+      if (!createdId) {
+        throw new RestaurantLeadAutoProvisionError(
+          'Não foi possível criar sua conta agora. Confira a conexão e tente novamente.'
+        );
       }
+      persistRestaurantSession(createdId);
+      setPanelRestaurantId(createdId);
       setPassword('');
       setStatus('success');
       setStep(3);
@@ -203,8 +209,8 @@ export default function CaptarRestaurant() {
       sheet={
         wizard ? null : (
           <CaptarSheet
-            title="Sua conta em dois passos"
-            subtitle="Nome, WhatsApp, e-mail e senha. O restante você configura depois."
+            title="Sua loja no app"
+            subtitle="Cadastre agora e comece a receber pedidos."
             cta="Cadastrar agora"
             collectEmail={false}
             onStart={() => openWizard()}
@@ -224,28 +230,22 @@ export default function CaptarRestaurant() {
             <p>De comida a gente entende. Entra na Bora Comer! e vende no app com taxa clara.</p>
           </div>
           <div id="cadastro" className="captar-form-card captar-pitch">
-            <p className="captar-pitch-kicker">{PARTNERSHIP_TRIAL_DAYS} dias de trial da mensalidade</p>
-            <h2>Abra sua conta sem formulário longo.</h2>
+            <h2>
+              Menos tempo cadastrando.
+              <br />
+              Mais tempo vendendo.
+            </h2>
             <p className="hint">
-              Nome, WhatsApp, e-mail e senha. Em seguida você entra e configura o cardápio quando quiser.
+              Crie sua conta em poucos passos. Seu cardápio e os demais detalhes você configura depois.
             </p>
-            <ul className="captar-pitch-points">
-              <li>Quatro dados para criar a conta</li>
-              <li>Senha sua, para voltar ao painel</li>
-              <li>Cardápio e recebimento ficam para depois</li>
-            </ul>
             <button
               className="captar-btn-solid captar-btn-lg captar-pitch-cta"
               type="button"
               onClick={() => openWizard()}
             >
-              Cadastrar agora
+              Criar minha conta grátis
               <ArrowRight size={18} />
             </button>
-            <p className="captar-legal">
-              Ao continuar, você concorda em receber comunicações da Bora Comer!. Confira nossa{' '}
-              <Link to="/privacy-policy">Declaração de Privacidade</Link>.
-            </p>
           </div>
         </div>
       </section>
@@ -595,7 +595,14 @@ export default function CaptarRestaurant() {
                     </Link>
                     <Link
                       className="captar-offer-skip"
-                      to={panelRestaurantId ? `/${panelRestaurantId}/settings` : '/restaurant/auth'}
+                      to={(() => {
+                        const id = panelRestaurantId ?? readPersistedRestaurantId();
+                        return id ? `/${id}/settings` : '/restaurant/auth';
+                      })()}
+                      onClick={() => {
+                        const id = panelRestaurantId ?? readPersistedRestaurantId();
+                        if (id) persistRestaurantSession(id);
+                      }}
                     >
                       Continuar no marketplace
                     </Link>

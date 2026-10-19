@@ -7,8 +7,6 @@ import {
   doc,
   query,
   where,
-  orderBy,
-  limit,
   Timestamp,
   type DocumentSnapshot
 } from 'firebase/firestore';
@@ -66,6 +64,10 @@ function toSession(d: DocumentSnapshot): TableSession {
   };
 }
 
+function byAbertaEmDesc(a: TableSession, b: TableSession): number {
+  return b.abertaEm.getTime() - a.abertaEm.getTime();
+}
+
 export const openSession = async (
   restaurantId: string,
   mesaId: string,
@@ -108,16 +110,11 @@ export const openSession = async (
 }
 
 export const getActiveSessionByTable = async (mesaId: string): Promise<TableSession | null> => {
-  const q = query(
-    collection(db, 'tableSessions'),
-    where('mesaId', '==', mesaId),
-    orderBy('abertaEm', 'desc'),
-    limit(20)
-  );
+  // Sem orderBy: evita índice composto. Ordena no cliente.
+  const q = query(collection(db, 'tableSessions'), where('mesaId', '==', mesaId));
   const snapshot = await getDocs(q);
-  const open = snapshot.docs.find((d) => d.data().fechadaEm == null);
-  if (!open) return null;
-  return toSession(open);
+  const sessions = snapshot.docs.map(toSession).sort(byAbertaEmDesc);
+  return sessions.find((s) => s.fechadaEm == null) ?? null;
 };
 
 export const closeSession = async (
@@ -161,21 +158,13 @@ export const getSessionsByRestaurant = async (
   restaurantId: string,
   options?: { mesaId?: string; since?: Date }
 ): Promise<TableSession[]> => {
-  let q = query(
-    collection(db, 'tableSessions'),
-    where('restaurantId', '==', restaurantId),
-    orderBy('abertaEm', 'desc')
-  );
+  // Sem orderBy: evita índice composto (restaurantId + abertaEm). Ordena no cliente.
+  const constraints = [where('restaurantId', '==', restaurantId)];
   if (options?.mesaId) {
-    q = query(
-      collection(db, 'tableSessions'),
-      where('restaurantId', '==', restaurantId),
-      where('mesaId', '==', options.mesaId),
-      orderBy('abertaEm', 'desc')
-    );
+    constraints.push(where('mesaId', '==', options.mesaId));
   }
-  const snapshot = await getDocs(q);
-  let sessions = snapshot.docs.map(toSession);
+  const snapshot = await getDocs(query(collection(db, 'tableSessions'), ...constraints));
+  let sessions = snapshot.docs.map(toSession).sort(byAbertaEmDesc);
   if (options?.since) {
     sessions = sessions.filter((s) => s.abertaEm >= options.since!);
   }

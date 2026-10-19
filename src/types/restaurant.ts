@@ -1,6 +1,9 @@
 import type { PartnershipSubscription } from './partnership';
 import type { DigitalMenuPurchase } from './digitalMenuOffer';
 import type { MenuShift } from './menuShift';
+import type { RestaurantCashbackSettings } from './cashback';
+
+export type { RestaurantCashbackSettings };
 
 /** Taxa de entrega configurada pelo restaurante. */
 export type DeliveryFeeMode = 'flat' | 'distance' | 'neighborhood';
@@ -273,6 +276,8 @@ export interface Restaurant {
   email: string;
   phone: string;
   address: string;
+  /** Texto curto da vitrine, escrito pelo restaurante. */
+  description?: string;
   password: string; // Senha criptografada com bcrypt
   planId?: string;  // Opcional para compatibilidade com restaurantes antigos
   active: boolean;
@@ -308,6 +313,8 @@ export interface Restaurant {
   stripeConnectPayoutsEnabled?: boolean;
   stripeConnectDisabledReason?: string | null;
   stripeConnectRequirementsSummary?: string | null;
+  /** Cashback configurável pelo restaurante (por loja; saldo não transferível). */
+  cashbackSettings?: RestaurantCashbackSettings;
 }
 
 export interface CreateRestaurantData {
@@ -332,6 +339,7 @@ export interface CreateRestaurantData {
   menuShifts?: MenuShift[];
   partnershipSubscription?: PartnershipSubscription;
   digitalMenu?: DigitalMenuPurchase;
+  cashbackSettings?: RestaurantCashbackSettings;
 }
 
 export interface UpdateRestaurantData {
@@ -340,6 +348,7 @@ export interface UpdateRestaurantData {
   email?: string;
   phone?: string;
   address?: string;
+  description?: string;
   password?: string; // Senha criptografada com bcrypt
   planId?: string;
   theme?: {
@@ -357,4 +366,5 @@ export interface UpdateRestaurantData {
   menuShifts?: MenuShift[];
   partnershipSubscription?: PartnershipSubscription;
   digitalMenu?: DigitalMenuPurchase;
+  cashbackSettings?: RestaurantCashbackSettings;
 }

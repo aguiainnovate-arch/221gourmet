@@ -4,8 +4,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
-  limit,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -69,14 +67,13 @@ export const getTableAuditEvents = async (
   restaurantId: string,
   filters?: { mesaId?: string; since?: Date; until?: Date; limitCount?: number }
 ): Promise<TableAuditEvent[]> => {
-  const q = query(
-    collection(db, 'tableAuditEvents'),
-    where('restaurantId', '==', restaurantId),
-    orderBy('timestamp', 'desc'),
-    limit(filters?.limitCount ?? 200)
+  // Sem orderBy: evita índice composto. Ordena e limita no cliente.
+  const snapshot = await getDocs(
+    query(collection(db, 'tableAuditEvents'), where('restaurantId', '==', restaurantId))
   );
-  const snapshot = await getDocs(q);
-  let events = snapshot.docs.map((doc) => toEvent({ id: doc.id, data: doc.data }));
+  let events = snapshot.docs
+    .map((doc) => toEvent({ id: doc.id, data: doc.data }))
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   if (filters?.mesaId) {
     events = events.filter((e) => e.mesaId === filters.mesaId);
   }
@@ -86,5 +83,5 @@ export const getTableAuditEvents = async (
   if (filters?.until) {
     events = events.filter((e) => e.timestamp <= filters.until!);
   }
-  return events;
+  return events.slice(0, filters?.limitCount ?? 200);
 }

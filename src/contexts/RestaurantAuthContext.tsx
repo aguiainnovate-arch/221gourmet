@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import bcrypt from 'bcryptjs';
-import { getRestaurants, updateRestaurant } from '../services/restaurantService';
+import { getRestaurantByEmail, updateRestaurant } from '../services/restaurantService';
 import { verifyWaiterPassword } from '../services/waiterService';
 
 const DEFAULT_PASSWORD = '123456';
@@ -44,6 +44,21 @@ export function persistRestaurantSession(restaurantId: string) {
   persistSession(restaurantId, null, null);
 }
 
+/** ID da loja na sessão local (24h), se ainda válida. */
+export function readPersistedRestaurantId(): string | null {
+  try {
+    const raw = localStorage.getItem('restaurant_auth_session');
+    if (!raw) return null;
+    const session = JSON.parse(raw) as { restaurantId?: string; expiresAt?: number };
+    if (!session.restaurantId || !session.expiresAt || session.expiresAt <= Date.now()) {
+      return null;
+    }
+    return session.restaurantId;
+  } catch {
+    return null;
+  }
+}
+
 export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(null);
@@ -75,8 +90,7 @@ export const RestaurantAuthProvider: React.FC<{ children: ReactNode }> = ({ chil
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const restaurants = await getRestaurants();
-      const restaurant = restaurants.find((r) => r.email.toLowerCase() === email.toLowerCase());
+      const restaurant = await getRestaurantByEmail(email);
 
       if (!restaurant) {
         return false;

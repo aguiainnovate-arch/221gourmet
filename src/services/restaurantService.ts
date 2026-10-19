@@ -15,6 +15,7 @@ import { db } from '../../firebase';
 import { getPlanPermissions, updateRestaurantPermissions } from './permissionService';
 import type { Restaurant, CreateRestaurantData, UpdateRestaurantData, RestaurantDeliverySettings } from '../types/restaurant';
 import { normalizeDeliverySettings, normalizeOpeningHours } from '../types/restaurant';
+import { normalizeCashbackSettings, type RestaurantCashbackSettings } from '../types/cashback';
 import { normalizeMenuShifts } from '../types/menuShift';
 import {
   createTrialPartnershipSubscription,
@@ -62,6 +63,7 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
     email: String(data.email ?? ''),
     phone: String(data.phone ?? ''),
     address: String(data.address ?? ''),
+    description: typeof data.description === 'string' ? data.description : '',
     password: typeof data.password === 'string' ? data.password : '',
     planId: typeof data.planId === 'string' ? data.planId : undefined,
     active: data.active === true,
@@ -97,6 +99,7 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
       typeof data.stripeConnectRequirementsSummary === 'string'
         ? data.stripeConnectRequirementsSummary
         : null,
+    cashbackSettings: normalizeCashbackSettings(data.cashbackSettings),
   };
 }
 
@@ -340,6 +343,29 @@ export const checkDomainExists = async (domain: string, excludeId?: string): Pro
   }
 };
 
+/** Busca restaurante pelo e-mail (login do painel). */
+export const getRestaurantByEmail = async (email: string): Promise<Restaurant | null> => {
+  const trimmed = email.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  try {
+    const tryQuery = async (value: string) => {
+      const q = query(collection(db, 'restaurants'), where('email', '==', value));
+      return getDocs(q);
+    };
+    let snap = await tryQuery(lower);
+    if (snap.empty && lower !== trimmed) {
+      snap = await tryQuery(trimmed);
+    }
+    if (snap.empty) return null;
+    const docSnap = snap.docs[0];
+    return mapRestaurantDoc(docSnap.id, docSnap.data() as Record<string, unknown>);
+  } catch (error) {
+    console.error('Erro ao buscar restaurante por e-mail:', error);
+    return null;
+  }
+};
+
 /** Verifica se já existe restaurante com o mesmo e-mail (normalizado ou valor exato). */
 export const checkRestaurantEmailTaken = async (email: string): Promise<boolean> => {
   const trimmed = email.trim();
@@ -431,6 +457,22 @@ export const updateRestaurantDeliverySettings = async (
   } catch (error) {
     console.error('Erro ao atualizar configurações de delivery:', error);
     throw new Error('Falha ao atualizar configurações de delivery');
+  }
+};
+
+export const updateRestaurantCashbackSettings = async (
+  restaurantId: string,
+  cashbackSettings: RestaurantCashbackSettings
+): Promise<void> => {
+  try {
+    const restaurantRef = doc(db, 'restaurants', restaurantId);
+    await updateDoc(restaurantRef, {
+      cashbackSettings: normalizeCashbackSettings(cashbackSettings),
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar cashback:', error);
+    throw new Error('Falha ao atualizar configurações de cashback');
   }
 };
 

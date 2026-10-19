@@ -9,9 +9,10 @@ interface PanelButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClass: Record<PanelButtonVariant, string> = {
-  primary: 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700',
+  primary:
+    'bg-[#e10600] text-white border border-[#e10600] hover:bg-[#c40500] shadow-sm shadow-rose-600/20',
   secondary:
-    'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400',
+    'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300',
   ghost: 'bg-transparent text-gray-600 border border-transparent hover:bg-gray-100',
   danger: 'bg-red-600 text-white border border-red-600 hover:bg-red-700',
 };

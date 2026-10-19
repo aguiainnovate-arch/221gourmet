@@ -97,6 +97,14 @@ service cloud.firestore {
     match /motoboyProfiles/{document} {
       allow read, write: if true;
     }
+
+    match /cashbackBalances/{document} {
+      allow read, write: if true;
+    }
+
+    match /cashbackLedger/{document} {
+      allow read, write: if true;
+    }
     
     // Regra padrão - negar acesso a outras coleções
     match /{document=**} {

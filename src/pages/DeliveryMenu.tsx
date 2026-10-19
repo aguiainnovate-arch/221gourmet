@@ -325,6 +325,8 @@ export default function DeliveryMenu() {
       pixPhase?: 'awaiting' | 'paid';
       orderId?: string;
     }): Promise<string | void> => {
+      let resolvedOrderId: string | undefined;
+
       if (pixPhase === 'awaiting') {
         const created = await createDeliveryOrder(orderPayload);
         return created.id;
@@ -335,8 +337,10 @@ export default function DeliveryMenu() {
           pixStatus: orderPayload.pixStatus ?? 'paid',
           stripePaymentIntentId: orderPayload.stripePaymentIntentId,
         });
+        resolvedOrderId = orderId;
       } else {
-        await createDeliveryOrder(orderPayload);
+        const created = await createDeliveryOrder(orderPayload);
+        resolvedOrderId = created.id;
       }
 
       if (user) {
@@ -359,6 +363,7 @@ export default function DeliveryMenu() {
       setSelectedItems([]);
       alert(t('delivery.orderSuccess'));
       navigate('/delivery/orders', { state: { phone: orderPayload.customerPhone } });
+      return resolvedOrderId;
     },
     [user, updateUser, t, navigate]
   );

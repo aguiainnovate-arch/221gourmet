@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Table as TableIcon, ArrowLeft, Plus, Trash2, Download, X, Utensils, Edit, Search, Palette, Save, Sparkles, Upload, FileText, Music, Volume2, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Menu, ChevronLeft, ChevronRight, Printer, Bell } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Table as TableIcon, Plus, Trash2, Download, X, Utensils, Edit, Search, Save, Sparkles, Upload, FileText, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Printer, Bell, Gift } from 'lucide-react';
 import { isIosNative } from '../utils/capacitorUtils';
 import {
   getTables,
@@ -70,13 +70,14 @@ import AdvancedTranslations from '../components/AdvancedTranslations';
 import VisaoSalao from '../components/mesas/VisaoSalao';
 import HistoricoAuditoria from '../components/mesas/HistoricoAuditoria';
 import DetalheMesaModal from '../components/mesas/DetalheMesaModal';
-import SidebarLogoutButton from '../components/SidebarLogoutButton';
+import RestaurantPanelShell from '../components/panel/RestaurantPanelShell';
+import PersonalizationStudio from '../components/panel/PersonalizationStudio';
+import CashbackSettingsPanel from '../components/panel/CashbackSettingsPanel';
+import type { PanelChecklistStep, PanelNavItem } from '../components/panel/panelChecklist';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
 import ProductImage from '../components/ProductImage';
-import MenuPreview from '../components/MenuPreview';
-import ThemeColorsPanel from '../components/ThemeColorsPanel';
 import OpeningHoursEditor from '../components/OpeningHoursEditor';
 import {
   createDefaultOpeningHours,
@@ -90,6 +91,10 @@ import {
 import { getPartnershipAccessState, hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { hasActiveDigitalMenu } from '../types/digitalMenuOffer';
 import { DigitalMenuLockCard, TrialDaysBanner } from '../components/TrialAndDigitalMenu';
+import DigitalMenuUpsellModal from '../components/DigitalMenuUpsellModal';
+import ModalOverlay from '../components/ModalOverlay';
+import { activateDigitalMenuLocally, startDigitalMenuCheckout } from '../services/digitalMenuService';
+import { isNativePlatform } from '../utils/capacitorUtils';
 import {
   PanelPage,
   PanelPageHeader,
@@ -120,9 +125,7 @@ export default function Settings() {
   const { isAuthenticated, currentRestaurantId, logout, isLoading: authLoading, isWaiter } = useRestaurantAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState('mesas');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState('visao');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [deletingRestaurantAccount, setDeletingRestaurantAccount] = useState(false);
   const [mesas, setMesas] = useState<Table[]>([]);
@@ -175,7 +178,10 @@ export default function Settings() {
     primaryColor: '',
     secondaryColor: '',
     bannerUrl: '',
-    audioUrl: ''
+    audioUrl: '',
+    logoUrl: '',
+    description: '',
+    address: '',
   });
   const [openingHoursForm, setOpeningHoursForm] = useState<RestaurantOpeningHours>(
     () => createDefaultOpeningHours()
@@ -189,6 +195,7 @@ export default function Settings() {
   } | null>(null);
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [isSavingPersonalization, setIsSavingPersonalization] = useState(false);
+  const [whatsappDraft, setWhatsappDraft] = useState('');
   const [personalizationToast, setPersonalizationToast] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -259,6 +266,7 @@ export default function Settings() {
   const [partnershipRestaurant, setPartnershipRestaurant] = useState<Restaurant | null>(null);
   const [partnershipAccessChecked, setPartnershipAccessChecked] = useState(false);
   const [qrLockOpen, setQrLockOpen] = useState(false);
+  const [qrUpsellBusy, setQrUpsellBusy] = useState(false);
   
   // Formulário de produto
   const [productForm, setProductForm] = useState({
@@ -505,6 +513,13 @@ export default function Settings() {
           setStripeConnectDisabledReason(restaurant?.stripeConnectDisabledReason ?? null);
           setStripeConnectRequirementsSummary(restaurant?.stripeConnectRequirementsSummary ?? null);
           setOpeningHoursForm(restaurant?.openingHours ?? createDefaultOpeningHours());
+          setPersonalizationForm((prev) => ({
+            ...prev,
+            logoUrl: restaurant?.theme?.logo || '',
+            description: restaurant?.description || '',
+            address: restaurant?.address || '',
+          }));
+          setWhatsappDraft(restaurant?.phone || '');
           setMenuShifts(restaurant?.menuShifts ?? []);
           
           console.log('📖 Carregando configurações de delivery...');
@@ -930,13 +945,14 @@ export default function Settings() {
     if (lastSettingsSyncRef.current === syncKey) return;
 
     lastSettingsSyncRef.current = syncKey;
-    setPersonalizationForm({
+    setPersonalizationForm((prev) => ({
+      ...prev,
       restaurantName: settings.restaurantName,
       primaryColor: settings.primaryColor,
       secondaryColor: settings.secondaryColor,
       bannerUrl: settings.bannerUrl || '',
       audioUrl: settings.audioUrl || '',
-    });
+    }));
   }, [settings]);
 
   // Pré-visualização das cores enquanto edita a personalização
@@ -1113,40 +1129,49 @@ export default function Settings() {
     }
   };
 
-  const visualizarQRCode = async (numeroMesa: string) => {
-    try {
-      const url = generateTableUrl(restaurantId ?? '', numeroMesa);
-      const qrDataUrl = await qrcode.toDataURL(url, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
+  const toQrDataUrl = async (numeroMesa: string) => {
+    const url = generateTableUrl(restaurantId ?? '', numeroMesa);
+    const toDataURL =
+      typeof qrcode.toDataURL === 'function'
+        ? qrcode.toDataURL.bind(qrcode)
+        : (qrcode as { default?: { toDataURL: typeof qrcode.toDataURL } }).default?.toDataURL?.bind(
+            (qrcode as { default?: unknown }).default
+          );
+    if (!toDataURL) {
+      throw new Error('Biblioteca qrcode indisponível');
+    }
+    return toDataURL(url, {
+      width: 300,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+    });
+  };
 
+  const visualizarQRCode = async (numeroMesa: string) => {
+    if (!digitalMenuActive) {
+      setQrLockOpen(true);
+      return;
+    }
+    try {
+      const qrDataUrl = await toQrDataUrl(numeroMesa);
       setQrCodeModal({
         show: true,
         url: qrDataUrl,
-        numero: numeroMesa
+        numero: numeroMesa,
       });
     } catch (error) {
-      alert('Erro ao gerar QR Code. Verifique se a biblioteca qrcode está instalada.');
+      console.error('[QR]', error);
+      alert('Erro ao gerar QR Code. Tente de novo.');
     }
   };
 
   const baixarQRCode = async (numeroMesa: string) => {
+    if (!digitalMenuActive) {
+      setQrLockOpen(true);
+      return;
+    }
     try {
-      const url = generateTableUrl(restaurantId ?? '', numeroMesa);
-      const qrDataUrl = await qrcode.toDataURL(url, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
-
+      const qrDataUrl = await toQrDataUrl(numeroMesa);
       const link = document.createElement('a');
       link.href = qrDataUrl;
       link.download = `mesa-${numeroMesa}-qrcode.png`;
@@ -1154,7 +1179,54 @@ export default function Settings() {
       link.click();
       document.body.removeChild(link);
     } catch (error) {
-      alert('Erro ao baixar QR Code. Verifique se a biblioteca qrcode está instalada.');
+      console.error('[QR]', error);
+      alert('Erro ao baixar QR Code. Tente de novo.');
+    }
+  };
+
+  const handleQrUpsellAccept = async () => {
+    if (!restaurantId || qrUpsellBusy) return;
+    try {
+      setQrUpsellBusy(true);
+      const { url } = await startDigitalMenuCheckout(restaurantId);
+      if (isNativePlatform()) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      window.location.href = url;
+    } catch (error) {
+      console.error(error);
+      if (import.meta.env.DEV) {
+        try {
+          await activateDigitalMenuLocally(restaurantId);
+          setPartnershipRestaurant((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  digitalMenu: {
+                    status: 'active',
+                    purchasedAt: new Date(),
+                    updatedAt: new Date(),
+                  },
+                }
+              : prev
+          );
+          setQrLockOpen(false);
+          setMesaToast({
+            type: 'success',
+            message: 'Cardápio digital ativado neste computador. Clique de novo no QR.',
+          });
+          return;
+        } catch (localError) {
+          console.error(localError);
+        }
+      }
+      setMesaToast({
+        type: 'error',
+        message: 'Não foi possível abrir o pagamento do cardápio digital.',
+      });
+    } finally {
+      setQrUpsellBusy(false);
     }
   };
 
@@ -1375,9 +1447,7 @@ export default function Settings() {
 
   // Função para salvar personalização
   // Função para fazer upload do banner
-  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleBannerFile = async (file: File) => {
 
     try {
       // Validar tipo de arquivo
@@ -1457,10 +1527,48 @@ export default function Settings() {
     }
   };
 
+  const handleLogoFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, selecione apenas arquivos de imagem');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Arquivo muito grande. Máximo 5MB permitido.');
+      return;
+    }
+    const oldUrl = personalizationForm.logoUrl;
+    const result = await uploadImage(file, 'logos', 'restaurant-logo');
+    if (!result.success || !result.url) {
+      alert(`Erro ao enviar logo: ${result.error || 'falha no envio'}`);
+      return;
+    }
+    setPersonalizationForm((prev) => ({ ...prev, logoUrl: result.url }));
+    if (oldUrl) {
+      const imagePath = extractImagePathFromUrl(oldUrl);
+      if (imagePath) {
+        try {
+          await deleteImage(imagePath);
+        } catch (deleteError) {
+          console.warn('Erro ao deletar logo antiga:', deleteError);
+        }
+      }
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!personalizationForm.logoUrl) return;
+    try {
+      const imagePath = extractImagePathFromUrl(personalizationForm.logoUrl);
+      if (imagePath) await deleteImage(imagePath);
+      setPersonalizationForm((prev) => ({ ...prev, logoUrl: '' }));
+    } catch (error) {
+      console.error('Erro ao remover logo:', error);
+      alert('Erro ao remover logo. Tente novamente.');
+    }
+  };
+
   // Função para fazer upload do áudio
-  const handleAudioUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleAudioFile = async (file: File) => {
 
     try {
       // Validar tipo de arquivo
@@ -1790,8 +1898,7 @@ export default function Settings() {
         audioUrl: personalizationForm.audioUrl
       });
 
-      const { updateRestaurant, getRestaurantById } = await import('../services/restaurantService');
-      const currentRestaurant = await getRestaurantById(restaurantId);
+      const { updateRestaurant } = await import('../services/restaurantService');
 
       const theme: {
         primaryColor: string;
@@ -1802,15 +1909,27 @@ export default function Settings() {
         secondaryColor: personalizationForm.secondaryColor,
       };
 
-      if (currentRestaurant?.theme?.logo) {
-        theme.logo = currentRestaurant.theme.logo;
-      }
+      theme.logo = personalizationForm.logoUrl || '';
 
       await updateRestaurant(restaurantId, {
         name: personalizationForm.restaurantName.trim(),
+        description: personalizationForm.description.trim(),
+        address: personalizationForm.address.trim(),
         theme,
         openingHours: openingHoursForm,
       });
+      setPartnershipRestaurant((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: personalizationForm.restaurantName.trim(),
+              description: personalizationForm.description.trim(),
+              address: personalizationForm.address.trim(),
+              theme,
+              openingHours: openingHoursForm,
+            }
+          : prev
+      );
 
       const { applyCustomColors } = await import('../utils/colorUtils');
       applyCustomColors(
@@ -2021,7 +2140,7 @@ export default function Settings() {
     const tabParam = searchParams.get('tab');
     if (
       tabParam &&
-      ['mesas', 'cardapio', 'personalizacao', 'relatorios', 'cozinha', 'delivery', 'garcons'].includes(tabParam)
+      ['visao', 'mesas', 'cardapio', 'personalizacao', 'relatorios', 'cozinha', 'delivery', 'garcons', 'horarios', 'whatsapp'].includes(tabParam)
     ) {
       setActiveTab(tabParam);
     }
@@ -2425,46 +2544,54 @@ export default function Settings() {
   const digitalMenuActive =
     !partnershipAccessChecked || hasActiveDigitalMenu(partnershipRestaurant?.digitalMenu);
 
-  const closeSidebar = () => setSidebarOpen(false);
-  const openSidebar = () => setSidebarOpen(true);
+  const panelSteps: PanelChecklistStep[] = [
+    { id: 'conta', label: 'Criar conta', done: true, tab: 'visao' },
+    {
+      id: 'visual',
+      label: 'Personalizar restaurante',
+      done: Boolean(
+        personalizationForm.logoUrl || personalizationForm.bannerUrl || partnershipRestaurant?.theme?.logo
+      ),
+      tab: 'personalizacao',
+    },
+    {
+      id: 'produto',
+      label: 'Cadastrar primeiro produto',
+      done: products.length > 0,
+      tab: 'cardapio',
+    },
+    {
+      id: 'entrega',
+      label: 'Configurar entregas e horários',
+      done: Boolean(partnershipRestaurant?.openingHours) || Boolean(partnershipRestaurant?.deliverySettings?.fee),
+      tab: 'horarios',
+    },
+    {
+      id: 'publicar',
+      label: 'Publicar loja',
+      done:
+        Boolean(partnershipRestaurant?.active) &&
+        products.length > 0 &&
+        Boolean(personalizationForm.logoUrl || personalizationForm.bannerUrl || partnershipRestaurant?.theme?.logo),
+      tab: 'personalizacao',
+    },
+  ];
 
-  const navButton = (tab: string, icon: React.ReactNode, label: string, badge?: number) => (
-    <button
-      key={tab}
-      onClick={() => { setActiveTab(tab); closeSidebar(); }}
-      title={sidebarCollapsed ? label : undefined}
-      className={`w-full text-left p-3 rounded-lg flex items-center transition-colors duration-200 ${
-        sidebarCollapsed ? 'md:justify-center md:px-2' : 'space-x-3'
-      } ${
-        activeTab === tab
-          ? 'bg-blue-50 text-blue-700 border border-blue-100'
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
-      }`}
-    >
-      <span className="relative shrink-0">
-        {icon}
-        {badge !== undefined && badge > 0 && sidebarCollapsed && (
-          <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[1rem] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold">
-            {badge > 9 ? '9+' : badge}
-          </span>
-        )}
-      </span>
-      <span
-        className={`flex-1 overflow-hidden whitespace-nowrap transition-all duration-200 ${
-          sidebarCollapsed
-            ? 'md:max-w-0 md:opacity-0 md:delay-0'
-            : 'max-w-[12rem] opacity-100 delay-150'
-        }`}
-      >
-        {label}
-      </span>
-      {badge !== undefined && badge > 0 && !sidebarCollapsed && (
-        <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold shrink-0">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      )}
-    </button>
-  );
+  const panelNav: PanelNavItem[] = (
+    [
+      { id: 'visao', label: 'Visão geral' },
+      { id: 'cozinha', label: 'Pedidos', badge: deliveryPendingCount || undefined },
+      { id: 'cardapio', label: 'Gerenciar Cardápio' },
+      { id: 'personalizacao', label: 'Personalização' },
+      { id: 'delivery', label: 'Delivery e áreas' },
+      { id: 'cashback', label: 'Cashback' },
+      { id: 'horarios', label: 'Horários' },
+      { id: 'whatsapp', label: 'Conectar WhatsApp' },
+      { id: 'mesas', label: 'Gerenciar Mesas', badge: pendingWaiterCalls.length || undefined },
+      { id: 'relatorios', label: 'Relatórios' },
+      { id: 'garcons', label: 'Garçons' },
+    ] satisfies PanelNavItem[]
+  ).filter((item) => !isWaiter || item.id === 'mesas' || item.id === 'cozinha');
 
   const mesaPendentesCount = orders.filter((o) => o.orderType === 'mesa' && o.status === 'novo').length;
   const deliveryPendentesCount = deliveryOrders.filter(
@@ -2567,162 +2694,28 @@ export default function Settings() {
         </button>
       )}
 
-      {/* Header — safe-area para não ficar sob a barra de status (Capacitor/mobile) */}
-      <div
-        className="bg-white border-b border-gray-200 p-3 sm:px-6 sm:py-4 shrink-0 z-30"
-        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))' }}
+      <RestaurantPanelShell
+        restaurantName={restaurantDisplayName || personalizationForm.restaurantName || 'Sua loja'}
+        logoUrl={personalizationForm.logoUrl || partnershipRestaurant?.theme?.logo}
+        storeHref={restaurantId ? `/delivery/${restaurantId}` : '/delivery'}
+        activeId={activeTab}
+        items={panelNav}
+        onSelect={setActiveTab}
+        steps={panelSteps}
+        notificationCount={pendingWaiterCalls.length}
+        onNotificationClick={() => {
+          setActiveTab('mesas');
+          setMesasSubTab('salao');
+        }}
+        showAccountActions={!isWaiter}
+        onDeleteAccount={() => void handleDeleteRestaurantAccount()}
+        deletingAccount={deletingRestaurantAccount}
+        onLogout={() => {
+          logout();
+          navigate('/restaurant/auth', { replace: true });
+        }}
+        showBoris={!isWaiter}
       >
-        <div className="flex justify-between items-center gap-2 max-w-[1600px] mx-auto w-full">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={openSidebar}
-              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 shrink-0"
-              aria-label="Abrir menu"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <div className="hidden sm:flex p-2 rounded-xl bg-gray-100 text-gray-600 shrink-0">
-              <SettingsIcon className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight truncate">
-                {restaurantDisplayName || 'Gerenciamento'}
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">
-                {isWaiter ? 'Painel do garçom' : 'Painel de gerenciamento'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {!isWaiter && (
-            <PanelButton
-              variant="secondary"
-              onClick={testFirestoreConnection}
-              icon={<SettingsIcon className="w-4 h-4" />}
-              className="p-2 sm:px-4"
-              title="Testar Conexão"
-            >
-              <span className="hidden sm:inline">Testar Conexão</span>
-            </PanelButton>
-            )}
-            <Link
-              to="/settings?tab=cozinha"
-              className="inline-flex items-center gap-1.5 p-2 sm:px-4 sm:py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
-              title="Ir para Cozinha"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Ir para Cozinha</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Overlay mobile sidebar */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={closeSidebar}
-          aria-hidden="true"
-        />
-      )}
-
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar: drawer no mobile, altura fixa abaixo da navbar no desktop */}
-        <aside
-          className={`
-            fixed md:relative inset-y-0 left-0 z-50 shrink-0 bg-white border-r flex flex-col md:h-full
-            w-64 ${sidebarCollapsed ? 'md:w-[4.5rem]' : 'md:w-64'}
-            transform transition-[width,transform] duration-300 ease-in-out md:delay-75
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          `}
-        >
-          <div
-            className={`p-4 flex items-center border-b md:border-b-0 shrink-0 w-full ${
-              sidebarCollapsed ? 'md:justify-center md:px-2 md:py-3' : 'justify-between'
-            }`}
-          >
-            <h2
-              className={`text-lg font-semibold text-black overflow-hidden whitespace-nowrap transition-all duration-200 ${
-                sidebarCollapsed ? 'md:max-w-0 md:opacity-0 md:delay-0' : 'max-w-full opacity-100 delay-150'
-              }`}
-            >
-              Configurações
-            </h2>
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setSidebarCollapsed((prev) => !prev)}
-                className="hidden md:flex p-2 rounded-lg text-gray-500 hover:bg-gray-100"
-                aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
-              >
-                {sidebarCollapsed ? (
-                  <ChevronRight className="w-5 h-5" />
-                ) : (
-                  <ChevronLeft className="w-5 h-5" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={closeSidebar}
-                className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100"
-                aria-label="Fechar menu"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          <nav
-            className={`p-4 space-y-1 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-300 ease-in-out ${
-              sidebarCollapsed ? 'md:px-2' : ''
-            }`}
-          >
-            {navButton('mesas', <TableIcon className="w-5 h-5 shrink-0" />, 'Gerenciar Mesas', pendingWaiterCalls.length || undefined)}
-            {!isWaiter && navButton('cardapio', <Utensils className="w-5 h-5 shrink-0" />, 'Gerenciar Cardápio')}
-            {!isWaiter && navButton('personalizacao', <Palette className="w-5 h-5 shrink-0" />, 'Personalização')}
-            {!isWaiter && navButton('relatorios', <BarChart3 className="w-5 h-5 shrink-0" />, 'Relatórios')}
-            {navButton('cozinha', <ChefHat className="w-5 h-5 shrink-0" />, 'Cozinha', deliveryPendingCount)}
-            {!isWaiter && navButton('delivery', <Truck className="w-5 h-5 shrink-0" />, 'Delivery')}
-            {!isWaiter && navButton('garcons', <Users className="w-5 h-5 shrink-0" />, 'Garçons')}
-          </nav>
-          <div
-            className={`p-4 border-t border-gray-200 shrink-0 transition-[padding] duration-300 ease-in-out ${
-              sidebarCollapsed ? 'md:px-2' : ''
-            }`}
-          >
-            {!isWaiter && (
-              <button
-                type="button"
-                onClick={() => void handleDeleteRestaurantAccount()}
-                disabled={deletingRestaurantAccount}
-                className={`w-full mb-2 flex items-center rounded-lg border border-red-600 text-red-700 font-medium hover:bg-red-50 disabled:opacity-50 ${
-                  sidebarCollapsed ? 'justify-center p-3' : 'justify-center gap-2 px-4 py-3'
-                }`}
-                title="Excluir conta"
-              >
-                <Trash2 className="w-5 h-5 shrink-0" />
-                <span
-                  className={`overflow-hidden whitespace-nowrap transition-all duration-200 ${
-                    sidebarCollapsed ? 'max-w-0 opacity-0' : 'max-w-[10rem] opacity-100'
-                  }`}
-                >
-                  {deletingRestaurantAccount ? 'Excluindo…' : 'Excluir conta'}
-                </span>
-              </button>
-            )}
-            <SidebarLogoutButton
-              collapsed={sidebarCollapsed}
-              onConfirm={() => {
-                logout();
-                navigate('/restaurant/auth', { replace: true });
-              }}
-            />
-          </div>
-        </aside>
-
-        {/* Conteúdo Principal */}
-        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
-          <div className="max-w-[1600px] mx-auto w-full">
           {typeof trialDaysLeft === 'number' && <TrialDaysBanner daysLeft={trialDaysLeft} />}
           {pendingWaiterCalls.length > 0 && activeTab !== 'mesas' && (
             <button
@@ -2742,6 +2735,90 @@ export default function Settings() {
               </span>
             </button>
           )}
+          {activeTab === 'visao' && !isWaiter && (
+            <div className="pt-2">
+              <h1 className="text-3xl font-black tracking-tight text-gray-900">Visão geral</h1>
+              <p className="text-sm text-gray-500 mt-1 mb-5">
+                {products.length === 0
+                  ? 'Sua conta já existe. Falta a identidade, o cardápio e o horário para abrir as portas.'
+                  : 'A loja já tem itens. Use o checklist para ver o que ainda falta.'}
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {panelSteps.map((step) => (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => setActiveTab(step.tab)}
+                    className="text-left rounded-3xl bg-white border border-[#efe6dc] p-4 hover:border-[#e10600]"
+                  >
+                    <p className={`text-xs font-semibold ${step.done ? 'text-emerald-600' : 'text-[#e10600]'}`}>
+                      {step.done ? 'Concluído' : 'Pendente'}
+                    </p>
+                    <p className="font-bold text-gray-900 mt-1">{step.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'horarios' && !isWaiter && (
+            <div className="pt-2 max-w-3xl">
+              <div className="flex items-end justify-between gap-3 mb-4">
+                <div>
+                  <h1 className="text-3xl font-black tracking-tight text-gray-900">Horários</h1>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Dias e turnos em que a loja atende. O cliente vê Aberto ou Fechado a partir daqui.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void savePersonalization()}
+                  disabled={isSavingPersonalization}
+                  className="rounded-xl bg-[#e10600] text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-60"
+                >
+                  {isSavingPersonalization ? 'Salvando...' : 'Salvar horários'}
+                </button>
+              </div>
+              <div className="rounded-3xl bg-white border border-[#efe6dc] p-4">
+                <OpeningHoursEditor value={openingHoursForm} onChange={setOpeningHoursForm} />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'whatsapp' && !isWaiter && (
+            <div className="pt-2 max-w-xl">
+              <h1 className="text-3xl font-black tracking-tight text-gray-900">Conectar WhatsApp</h1>
+              <p className="text-sm text-gray-500 mt-1 mb-4">
+                Este é o número da loja, o mesmo do cadastro. Ele fica disponível para o cliente falar com você.
+              </p>
+              <div className="rounded-3xl bg-white border border-[#efe6dc] p-5 space-y-3">
+                <label className="block text-sm font-semibold text-gray-800">
+                  WhatsApp com DDD
+                  <input
+                    value={whatsappDraft}
+                    onChange={(event) => setWhatsappDraft(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#eadfd4] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#e10600]"
+                    placeholder="11 99999 9999"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="rounded-xl bg-[#e10600] text-white font-semibold px-4 py-2.5 text-sm"
+                  onClick={() => {
+                    if (!restaurantId) return;
+                    void import('../services/restaurantService').then(async ({ updateRestaurant }) => {
+                      await updateRestaurant(restaurantId, { phone: whatsappDraft.trim() });
+                      setPartnershipRestaurant((prev) => (prev ? { ...prev, phone: whatsappDraft.trim() } : prev));
+                      setPersonalizationToast({ type: 'success', message: 'WhatsApp da loja atualizado.' });
+                    });
+                  }}
+                >
+                  Salvar número
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'mesas' && (
             <PanelPage>
               <PanelPageHeader
@@ -2766,12 +2843,6 @@ export default function Settings() {
                 }
               />
 
-              {mesasSubTab === 'salao' && qrLockOpen && !digitalMenuActive && restaurantId && (
-                <div className="mb-4 max-w-lg">
-                  <DigitalMenuLockCard restaurantId={restaurantId} />
-                </div>
-              )}
-
               {mesasSubTab === 'salao' && (
                 <VisaoSalao
                   restaurantId={restaurantId ?? ''}
@@ -2785,8 +2856,8 @@ export default function Settings() {
                   onRemoveTable={removerMesa}
                   onAddArea={handleAddArea}
                   onRemoveArea={handleRemoveArea}
-                  visualizarQRCode={digitalMenuActive ? visualizarQRCode : () => setQrLockOpen(true)}
-                  baixarQRCode={digitalMenuActive ? baixarQRCode : () => setQrLockOpen(true)}
+                  visualizarQRCode={(numero) => void visualizarQRCode(numero)}
+                  baixarQRCode={(numero) => void baixarQRCode(numero)}
                   onMesaCreated={(mesa) => {
                     setMesaToast({
                       type: 'success',
@@ -2837,27 +2908,38 @@ export default function Settings() {
             <PanelPage>
               <PanelPageHeader
                 title="Gerenciar Cardápio"
-                description="Cadastre produtos e defina turnos: de manhã um cardápio, à noite outro — no delivery, nas mesas ou nos dois."
+                description="Cadastre produtos, organize por turnos e importe o cardápio quando precisar."
                 icon={<Utensils className="w-5 h-5" />}
                 actions={
+                  <PanelButton onClick={() => openProductModal()} icon={<Plus className="w-4 h-4" />}>
+                    Adicionar produto
+                  </PanelButton>
+                }
+                toolbar={
                   <>
+                    <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wide text-gray-400 mr-1 px-1">
+                      Ferramentas
+                    </span>
                     <PanelButton
-                      variant="secondary"
+                      variant="ghost"
+                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
                       onClick={() => setShowMenuShiftsModal(true)}
                       icon={<Clock className="w-4 h-4" />}
                       title="Definir horários em que cada grupo de pratos aparece no delivery e no QR Code das mesas"
                     >
-                      Definir turnos do cardápio
+                      Turnos
                     </PanelButton>
                     <PanelButton
-                      variant="secondary"
+                      variant="ghost"
+                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
                       onClick={() => setShowCSVModal(true)}
                       icon={<Upload className="w-4 h-4" />}
                     >
-                      Importar CSV
+                      CSV
                     </PanelButton>
                     <PanelButton
-                      variant="secondary"
+                      variant="ghost"
+                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
                       onClick={() => {
                         setShowPdfExtractModal(true);
                         setPdfExtractError(null);
@@ -2868,11 +2950,12 @@ export default function Settings() {
                       icon={<FileText className="w-4 h-4" />}
                       title="Envia o PDF para o servidor e extrai o texto (PDF com texto selecionável)"
                     >
-                      Extrair PDF
+                      PDF
                     </PanelButton>
                     <div className="relative group">
                       <PanelButton
-                        variant={hasImageMenuTransfer ? 'primary' : 'secondary'}
+                        variant="ghost"
+                        className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
                         onClick={() => hasImageMenuTransfer && setShowImageImportModal(true)}
                         disabled={!hasImageMenuTransfer}
                         icon={<Sparkles className="w-4 h-4" />}
@@ -2882,16 +2965,17 @@ export default function Settings() {
                             : 'Importar cardápio a partir de uma foto usando IA'
                         }
                       >
-                        Importar por Imagem
+                        Imagem
                       </PanelButton>
                       {!hasImageMenuTransfer && (
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                          Você não possui permissão para esta funcionalidade
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                          Sem permissão neste plano
                         </div>
                       )}
                     </div>
                     <PanelButton
-                      variant={hasAutomaticTranslation ? 'secondary' : 'secondary'}
+                      variant="ghost"
+                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
                       onClick={() => void handleTranslateFullMenu()}
                       disabled={!hasAutomaticTranslation || isTranslatingFullMenu}
                       icon={
@@ -2910,11 +2994,8 @@ export default function Settings() {
                       }
                     >
                       {isTranslatingFullMenu && fullMenuTranslateProgress
-                        ? `Traduzindo ${fullMenuTranslateProgress.done}/${fullMenuTranslateProgress.total}`
-                        : 'Traduzir cardápio inteiro'}
-                    </PanelButton>
-                    <PanelButton onClick={() => openProductModal()} icon={<Plus className="w-4 h-4" />}>
-                      Adicionar Produto
+                        ? `${fullMenuTranslateProgress.done}/${fullMenuTranslateProgress.total}`
+                        : 'Traduzir'}
                     </PanelButton>
                   </>
                 }
@@ -2922,11 +3003,11 @@ export default function Settings() {
 
               {/* Filtros */}
               <PanelCard>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <div className="sm:col-span-2 xl:col-span-1">
                     <label className={panelLabelClass}>Buscar</label>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                       <input
                         type="text"
                         value={searchTerm}
@@ -2944,7 +3025,7 @@ export default function Settings() {
                       onChange={(e) => setFilterCategory(e.target.value)}
                       className={panelSelectClass}
                     >
-                      <option value="all">Todas as categorias</option>
+                      <option value="all">Todas</option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.name}>{category.name}</option>
                       ))}
@@ -2958,23 +3039,23 @@ export default function Settings() {
                       onChange={(e) => setFilterPrice(e.target.value)}
                       className={panelSelectClass}
                     >
-                      <option value="all">Todos os preços</option>
-                      <option value="low">Até R$ 20,00</option>
-                      <option value="medium">R$ 20,00 - R$ 50,00</option>
-                      <option value="high">Acima de R$ 50,00</option>
+                      <option value="all">Todos</option>
+                      <option value="low">Até R$ 20</option>
+                      <option value="medium">R$ 20 a R$ 50</option>
+                      <option value="high">Acima de R$ 50</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className={panelLabelClass}>Tempo de Preparo</label>
+                    <label className={panelLabelClass}>Preparo</label>
                     <select
                       value={filterTime}
                       onChange={(e) => setFilterTime(e.target.value)}
                       className={panelSelectClass}
                     >
-                      <option value="all">Todos os tempos</option>
+                      <option value="all">Todos</option>
                       <option value="fast">Até 15 min</option>
-                      <option value="medium">15 - 30 min</option>
+                      <option value="medium">15 a 30 min</option>
                       <option value="slow">Acima de 30 min</option>
                     </select>
                   </div>
@@ -3162,237 +3243,41 @@ export default function Settings() {
             </PanelPage>
           )}
 
-          {activeTab === 'personalizacao' && !digitalMenuActive && restaurantId && (
-            <PanelPage>
-              <PanelPageHeader
-                title="Personalização"
-                description="O cardápio digital no celular, o QR da mesa e a IA no WhatsApp ficam neste plano."
-                icon={<Palette className="w-5 h-5" />}
-              />
-              <div className="max-w-lg">
-                <DigitalMenuLockCard restaurantId={restaurantId} />
-              </div>
-            </PanelPage>
-          )}
-
-          {activeTab === 'personalizacao' && digitalMenuActive && (
-            <PanelPage>
-              <PanelPageHeader
-                title="Personalização"
-                description="Configure a identidade visual e o conteúdo exibido no cardápio digital."
-                icon={<Palette className="w-5 h-5" />}
-                actions={
-                  <PanelButton
-                    onClick={savePersonalization}
-                    disabled={isSavingPersonalization}
-                    icon={<Save className="w-4 h-4" />}
-                  >
-                    {isSavingPersonalization ? 'Salvando...' : 'Salvar Configurações'}
-                  </PanelButton>
-                }
-              />
-
-              <PanelCard>
-                <PanelCardHeader
-                  title="Configurações do Restaurante"
-                  description="Nome, cores, banner e áudio exibidos aos clientes."
-                  bordered={false}
-                />
-
-                <div className="space-y-6">
-                  {/* Nome do Restaurante */}
-                  <div>
-                    <label className={panelLabelClass}>
-                      Nome do Restaurante
-                    </label>
-                    <input
-                      type="text"
-                      value={personalizationForm.restaurantName}
-                      onChange={(e) => setPersonalizationForm(prev => ({ ...prev, restaurantName: e.target.value }))}
-                      placeholder="Ex: Noctis"
-                      className={panelInputClass}
-                    />
-                    <p className="text-sm text-gray-500 mt-1.5">
-                      Este nome aparecerá no cabeçalho do cardápio
-                    </p>
-                  </div>
-
-                  {/* Horário de funcionamento */}
-                  <div>
-                    <label className={panelLabelClass}>
-                      Horário de funcionamento
-                    </label>
-                    <p className="text-sm text-gray-500 mb-3">
-                      Defina os dias e horários em que o restaurante atende. Dá para cadastrar dois períodos no mesmo dia (ex.: 09:00–14:00 e 17:00–23:00). Os clientes veem o status Aberto/Fechado na listagem e ao tocar em “Ver mais”.
-                    </p>
-                    <OpeningHoursEditor
-                      value={openingHoursForm}
-                      onChange={setOpeningHoursForm}
-                    />
-                  </div>
-
-                  {/* Cores */}
-                  <ThemeColorsPanel
-                    primaryColor={personalizationForm.primaryColor}
-                    secondaryColor={personalizationForm.secondaryColor}
-                    onPrimaryChange={(color) =>
-                      setPersonalizationForm((prev) => ({ ...prev, primaryColor: color }))
-                    }
-                    onSecondaryChange={(color) =>
-                      setPersonalizationForm((prev) => ({ ...prev, secondaryColor: color }))
-                    }
-                    extractedColors={extractedColors}
-                    bannerUrl={personalizationForm.bannerUrl}
-                    onExtractColors={handleExtractColors}
-                    isExtractingColors={isExtractingColors}
-                  />
-
-                  {/* Banner do Restaurante */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Banner do Restaurante
-                    </label>
-                    <div className="space-y-4">
-                      {/* Banner atual */}
-                      {personalizationForm.bannerUrl && (
-                        <div className="relative">
-                          <img
-                            src={personalizationForm.bannerUrl}
-                            alt="Banner atual"
-                            className="w-full h-32 object-cover rounded-lg border"
-                          />
-                          <button
-                            onClick={handleBannerRemove}
-                            className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
-                            title="Remover banner"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Upload de novo banner */}
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleBannerUpload}
-                          className="hidden"
-                          id="banner-upload"
-                        />
-                        <label
-                          htmlFor="banner-upload"
-                          className="cursor-pointer flex flex-col items-center space-y-2"
-                        >
-                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                            <Plus className="w-6 h-6 text-gray-400" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">
-                              {personalizationForm.bannerUrl ? 'Alterar Banner' : 'Adicionar Banner'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Clique para selecionar uma imagem (máx. 5MB)
-                            </p>
-                          </div>
-                        </label>
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        O banner aparecerá no topo do cardápio dos clientes
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Áudio do Restaurante */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Áudio de Boas-vindas
-                    </label>
-                    <div className="space-y-4">
-                      {/* Áudio atual */}
-                      {personalizationForm.audioUrl && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                <Music className="w-5 h-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">Áudio de Boas-vindas</p>
-                                <p className="text-xs text-gray-500">Arquivo MP3 carregado</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <audio controls className="h-8">
-                                <source src={personalizationForm.audioUrl} type="audio/mpeg" />
-                                Seu navegador não suporta o elemento de áudio.
-                              </audio>
-                              <button
-                                onClick={handleAudioRemove}
-                                className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
-                                title="Remover áudio"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Upload de novo áudio */}
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                        <input
-                          type="file"
-                          accept="audio/mpeg,audio/mp3"
-                          onChange={handleAudioUpload}
-                          className="hidden"
-                          id="audio-upload"
-                        />
-                        <label
-                          htmlFor="audio-upload"
-                          className="cursor-pointer flex flex-col items-center space-y-2"
-                        >
-                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                            <Volume2 className="w-6 h-6 text-gray-400" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">
-                              {personalizationForm.audioUrl ? 'Alterar Áudio' : 'Adicionar Áudio'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Clique para selecionar um arquivo MP3 (máx. 10MB)
-                            </p>
-                          </div>
-                        </label>
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        Este áudio será reproduzido automaticamente quando o cliente escanear o QR code
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Preview */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Exemplo de cardápio
-                    </label>
-                    <div className="max-h-[500px] overflow-y-auto bg-gray-100 p-4 rounded-lg">
-                      <MenuPreview
-                        key={`${personalizationForm.primaryColor}-${personalizationForm.secondaryColor}-${personalizationForm.bannerUrl}`}
-                        restaurantName={personalizationForm.restaurantName || 'Nome do Restaurante'}
-                        primaryColor={personalizationForm.primaryColor || '#4B0082'}
-                        secondaryColor={personalizationForm.secondaryColor || '#F7F4FC'}
-                        bannerUrl={personalizationForm.bannerUrl}
-                        className="shadow-xl"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      📱 Esta é uma prévia em tamanho mobile de como o cardápio aparecerá para os clientes. As personalizações de cor e banner são aplicadas em tempo real.
-                    </p>
-                  </div>
+          {activeTab === 'personalizacao' && !isWaiter && (
+            <>
+              {!digitalMenuActive && restaurantId && (
+                <div className="max-w-lg mb-4">
+                  <DigitalMenuLockCard restaurantId={restaurantId} />
                 </div>
-              </PanelCard>
-            </PanelPage>
+              )}
+            <PersonalizationStudio
+              restaurantName={personalizationForm.restaurantName}
+              description={personalizationForm.description}
+              address={personalizationForm.address}
+              logoUrl={personalizationForm.logoUrl}
+              bannerUrl={personalizationForm.bannerUrl}
+              audioUrl={personalizationForm.audioUrl}
+              primaryColor={personalizationForm.primaryColor}
+              secondaryColor={personalizationForm.secondaryColor}
+              saving={isSavingPersonalization}
+              storeOpen={Boolean(partnershipRestaurant?.openingHours)}
+              extractedColors={extractedColors}
+              extractingColors={isExtractingColors}
+              onName={(value) => setPersonalizationForm((prev) => ({ ...prev, restaurantName: value }))}
+              onDescription={(value) => setPersonalizationForm((prev) => ({ ...prev, description: value }))}
+              onAddress={(value) => setPersonalizationForm((prev) => ({ ...prev, address: value }))}
+              onPrimary={(value) => setPersonalizationForm((prev) => ({ ...prev, primaryColor: value }))}
+              onSecondary={(value) => setPersonalizationForm((prev) => ({ ...prev, secondaryColor: value }))}
+              onLogoFile={(file) => void handleLogoFile(file)}
+              onBannerFile={(file) => void handleBannerFile(file)}
+              onRemoveLogo={() => void handleLogoRemove()}
+              onRemoveBanner={() => void handleBannerRemove()}
+              onAudioFile={(file) => void handleAudioFile(file)}
+              onRemoveAudio={() => void handleAudioRemove()}
+              onExtractColors={() => void handleExtractColors()}
+              onSave={() => void savePersonalization()}
+            />
+            </>
           )}
 
           {activeTab === 'relatorios' && (
@@ -4082,6 +3967,26 @@ export default function Settings() {
             </PanelPage>
           )}
 
+          {activeTab === 'cashback' && restaurantId && !isWaiter && (
+            <PanelPage>
+              <PanelPageHeader
+                title="Cashback da loja"
+                description="Defina regras de cashback. O saldo do cliente só vale nesta loja."
+                icon={<Gift className="w-5 h-5" />}
+              />
+              <CashbackSettingsPanel
+                restaurantId={restaurantId}
+                initialSettings={partnershipRestaurant?.cashbackSettings}
+                products={products}
+                onSaved={(settings) => {
+                  setPartnershipRestaurant((prev) =>
+                    prev ? { ...prev, cashbackSettings: settings } : prev
+                  );
+                }}
+              />
+            </PanelPage>
+          )}
+
           {activeTab === 'delivery' && (
             <PanelPage>
               <PanelPageHeader
@@ -4598,9 +4503,7 @@ export default function Settings() {
             </PanelPage>
           )}
 
-          </div>
-        </div>
-      </div>
+      </RestaurantPanelShell>
 
       {/* Modal Stripe Connect — confirma senha do restaurante */}
       {stripeModalOpen && (
@@ -5113,30 +5016,45 @@ export default function Settings() {
         </div>
       )}
 
+      <DigitalMenuUpsellModal
+        open={qrLockOpen && !digitalMenuActive}
+        submitting={qrUpsellBusy}
+        onAccept={() => void handleQrUpsellAccept()}
+        onDismiss={() => setQrLockOpen(false)}
+      />
+
       {/* Modal do QR Code */}
       {qrCodeModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <ModalOverlay
+          zIndexClass="z-[200]"
+          onBackdropClick={() => setQrCodeModal({ show: false, url: '', numero: '' })}
+        >
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-gray-900">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">QR Code - Mesa {qrCodeModal.numero}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                QR Code · Mesa {qrCodeModal.numero}
+              </h3>
               <button
+                type="button"
                 onClick={() => setQrCodeModal({ show: false, url: '', numero: '' })}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-800 p-1"
+                aria-label="Fechar"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="text-center">
               <img
                 src={qrCodeModal.url}
                 alt={`QR Code Mesa ${qrCodeModal.numero}`}
-                className="mx-auto mb-4"
+                className="mx-auto mb-4 rounded-lg border border-gray-100"
               />
               <div className="flex items-center justify-center gap-2 mb-4">
-                <p className="text-sm text-gray-600 truncate max-w-xs">
+                <p className="text-sm text-gray-700 truncate max-w-xs">
                   {generateTableUrl(restaurantId ?? '', qrCodeModal.numero)}
                 </p>
                 <button
+                  type="button"
                   onClick={() => {
                     const url = generateTableUrl(restaurantId ?? '', qrCodeModal.numero);
                     void navigator.clipboard.writeText(url).then(() => {
@@ -5145,43 +5063,41 @@ export default function Settings() {
                     });
                   }}
                   title="Copiar URL"
-                  className="flex-shrink-0 flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-medium px-2 py-1 rounded transition"
+                  className="flex-shrink-0 flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-medium px-2 py-1 rounded transition"
                 >
-                  {urlCopied ? (
-                    <>
-                      <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-green-600">Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      <span>Copiar</span>
-                    </>
-                  )}
+                  {urlCopied ? 'Copiado!' : 'Copiar'}
                 </button>
               </div>
-              <div className="flex space-x-2 justify-center">
+              <div className="flex flex-wrap gap-2 justify-center">
                 <button
-                  onClick={() => baixarQRCode(qrCodeModal.numero)}
-                  className="bg-green-500 text-white px-4 py-2 rounded flex items-center space-x-2"
+                  type="button"
+                  onClick={() => {
+                    const url = generateTableUrl(restaurantId ?? '', qrCodeModal.numero);
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  }}
+                  className="bg-[#e10600] text-white px-4 py-2 rounded-lg text-sm font-semibold"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Baixar</span>
+                  Abrir cardápio
                 </button>
                 <button
+                  type="button"
+                  onClick={() => void baixarQRCode(qrCodeModal.numero)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold"
+                >
+                  <Download className="w-4 h-4" />
+                  Baixar
+                </button>
+                <button
+                  type="button"
                   onClick={() => setQrCodeModal({ show: false, url: '', numero: '' })}
-                  className="bg-gray-500 text-white px-4 py-2 rounded"
+                  className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm font-semibold"
                 >
                   Fechar
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Modal: extração de texto de PDF do cardápio */}

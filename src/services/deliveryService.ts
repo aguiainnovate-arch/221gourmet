@@ -63,6 +63,11 @@ function docToOrder(docId: string, data: Record<string, unknown>): DeliveryOrder
     pixStatus: data.pixStatus as string | undefined,
     observations: data.observations as string | undefined,
     cancellationReason: data.cancellationReason as string | undefined,
+    deliveryUserId: typeof data.deliveryUserId === 'string' ? data.deliveryUserId : undefined,
+    cashbackSpendCents:
+      typeof data.cashbackSpendCents === 'number' ? data.cashbackSpendCents : undefined,
+    cashbackEarnCents:
+      typeof data.cashbackEarnCents === 'number' ? data.cashbackEarnCents : undefined,
     createdAt: toOrderDate(data.createdAt),
     updatedAt: toOrderDate(data.updatedAt),
   };
@@ -204,11 +209,38 @@ export const updateDeliveryPixPayment = async (
 
 export const updateDeliveryOrderStatus = async (orderId: string, status: DeliveryOrder['status']): Promise<void> => {
   try {
+    const previous = await getDeliveryOrderById(orderId);
     const orderRef = doc(db, 'deliveries', orderId);
     await updateDoc(orderRef, {
       status,
       updatedAt: Timestamp.now()
     });
+
+    if (
+      status === 'delivered' &&
+      previous &&
+      previous.status !== 'delivered' &&
+      previous.deliveryUserId
+    ) {
+      try {
+        const { earnCashbackForDeliveredOrder } = await import('./cashbackService');
+        const earnCents = await earnCashbackForDeliveredOrder({
+          orderId,
+          deliveryUserId: previous.deliveryUserId,
+          restaurantId: previous.restaurantId,
+          items: previous.items,
+          cashbackSpendCents: previous.cashbackSpendCents,
+        });
+        if (earnCents > 0) {
+          await updateDoc(orderRef, {
+            cashbackEarnCents: earnCents,
+            updatedAt: Timestamp.now(),
+          });
+        }
+      } catch (cashbackError) {
+        console.error('Erro ao creditar cashback do pedido:', cashbackError);
+      }
+    }
   } catch (error) {
     console.error('Erro ao atualizar status do pedido:', error);
     throw new Error('Falha ao atualizar pedido');
@@ -236,6 +268,7 @@ export const assignMotoboyToDeliveryOrder = async (
 // Cancelar/recusar pedido de delivery (restaurante ou sistema)
 export const cancelDeliveryOrder = async (orderId: string, reason?: string): Promise<void> => {
   try {
+    const previous = await getDeliveryOrderById(orderId);
     const payload = {
       status: 'cancelled' as const,
       updatedAt: new Date(),
@@ -243,14 +276,33 @@ export const cancelDeliveryOrder = async (orderId: string, reason?: string): Pro
     };
     if (isCapacitorRuntime()) {
       await updateFirestoreDocument('deliveries', orderId, payload);
-      return;
+    } else {
+      const orderRef = doc(db, 'deliveries', orderId);
+      await updateDoc(orderRef, {
+        status: 'cancelled',
+        updatedAt: Timestamp.now(),
+        cancellationReason: reason || 'Pedido recusado pela cozinha'
+      });
     }
-    const orderRef = doc(db, 'deliveries', orderId);
-    await updateDoc(orderRef, {
-      status: 'cancelled',
-      updatedAt: Timestamp.now(),
-      cancellationReason: reason || 'Pedido recusado pela cozinha'
-    });
+
+    if (
+      previous &&
+      previous.status !== 'cancelled' &&
+      previous.deliveryUserId &&
+      (previous.cashbackSpendCents ?? 0) > 0
+    ) {
+      try {
+        const { refundCashbackSpend } = await import('./cashbackService');
+        await refundCashbackSpend({
+          orderId,
+          deliveryUserId: previous.deliveryUserId,
+          restaurantId: previous.restaurantId,
+          amountCents: previous.cashbackSpendCents ?? 0,
+        });
+      } catch (cashbackError) {
+        console.error('Erro ao estornar cashback do pedido cancelado:', cashbackError);
+      }
+    }
   } catch (error) {
     console.error('Erro ao cancelar pedido:', error);
     throw new Error('Falha ao cancelar pedido');
