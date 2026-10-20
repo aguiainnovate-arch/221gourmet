@@ -9,7 +9,7 @@ import {
   getRestaurantVisualIdentity,
   type CoverBadgeKind,
 } from '../../utils/restaurantVisualIdentity';
-import { resolveRestaurantOpenNow } from '../../utils/openingHours';
+import { isRestaurantOpenNow } from '../../utils/openingHours';
 
 interface Props {
   restaurant: Restaurant;
@@ -33,8 +33,10 @@ function DeliveryRestaurantCard({
   const feeLabel = formatFeePreview(getFeeSettings(restaurant.deliverySettings?.fee));
   const logoUrl = restaurant.theme?.logo?.trim();
   const LogoIcon = identity.logo.icon;
-  const openNow = resolveRestaurantOpenNow(restaurant);
-  const badgeKind: CoverBadgeKind = openNow ? 'open' : 'closed';
+  // Manual do painel vence o horário; sem horário configurado, mantém o selo decorativo.
+  const openNow = restaurant.storeOpenOverride ?? isRestaurantOpenNow(restaurant.openingHours);
+  const badgeKind: CoverBadgeKind =
+    openNow === true ? 'open' : openNow === false ? 'closed' : identity.coverBadge;
   const coverBadge = COVER_BADGE_STYLES[badgeKind];
   const CoverBadgeIcon = coverBadge.icon;
 
