@@ -269,6 +269,9 @@ export function normalizeOpeningHours(raw: unknown): RestaurantOpeningHours {
   return result;
 }
 
+/** Como os cards de produto aparecem na loja (Personalização). */
+export type RestaurantCardStyle = 'padrao' | 'compacto' | 'moderno';
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -286,6 +289,9 @@ export interface Restaurant {
   theme?: {
     primaryColor: string;
     secondaryColor: string;
+    /** Fundo da loja. Sem ele, usa secondaryColor (compatibilidade). */
+    backgroundColor?: string;
+    cardStyle?: RestaurantCardStyle;
     logo?: string;
   };
   settings?: {
@@ -315,6 +321,12 @@ export interface Restaurant {
   stripeConnectRequirementsSummary?: string | null;
   /** Cashback configurável pelo restaurante (por loja; saldo não transferível). */
   cashbackSettings?: RestaurantCashbackSettings;
+  /**
+   * Controle manual de loja aberta no painel.
+   * true = forçar aberta, false = forçar fechada,
+   * null/ausente = seguir o horário de funcionamento.
+   */
+  storeOpenOverride?: boolean | null;
 }
 
 export interface CreateRestaurantData {
@@ -328,6 +340,9 @@ export interface CreateRestaurantData {
   theme?: {
     primaryColor: string;
     secondaryColor: string;
+    /** Fundo da loja. Sem ele, usa secondaryColor (compatibilidade). */
+    backgroundColor?: string;
+    cardStyle?: RestaurantCardStyle;
     logo?: string;
   };
   permissions?: {
@@ -354,6 +369,9 @@ export interface UpdateRestaurantData {
   theme?: {
     primaryColor: string;
     secondaryColor: string;
+    /** Fundo da loja. Sem ele, usa secondaryColor (compatibilidade). */
+    backgroundColor?: string;
+    cardStyle?: RestaurantCardStyle;
     logo?: string;
   };
   active?: boolean;
@@ -367,4 +385,5 @@ export interface UpdateRestaurantData {
   partnershipSubscription?: PartnershipSubscription;
   digitalMenu?: DigitalMenuPurchase;
   cashbackSettings?: RestaurantCashbackSettings;
+  storeOpenOverride?: boolean | null;
 }

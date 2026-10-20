@@ -9,12 +9,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { getRestaurantById } from './restaurantService';
+import type { RestaurantCardStyle } from '../types/restaurant';
 
 export interface RestaurantSettings {
   id: string;
   restaurantName: string;
   primaryColor: string;
   secondaryColor: string;
+  backgroundColor?: string;
+  cardStyle?: RestaurantCardStyle;
   bannerUrl?: string;
   audioUrl?: string;
   updatedAt: Date;
@@ -42,6 +45,8 @@ function docToSettings(docSnap: DocumentSnapshot): RestaurantSettings | null {
     restaurantName: data.restaurantName ?? DEFAULT_SETTINGS.restaurantName,
     primaryColor: data.primaryColor ?? DEFAULT_SETTINGS.primaryColor,
     secondaryColor: data.secondaryColor ?? DEFAULT_SETTINGS.secondaryColor,
+    backgroundColor: data.backgroundColor || '',
+    cardStyle: data.cardStyle || undefined,
     bannerUrl: data.bannerUrl || '',
     audioUrl: data.audioUrl || '',
     updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
@@ -71,6 +76,8 @@ async function loadFromRestaurantTheme(restaurantId: string): Promise<Restaurant
       restaurantName: restaurant.name,
       primaryColor: restaurant.theme?.primaryColor ?? DEFAULT_SETTINGS.primaryColor,
       secondaryColor: restaurant.theme?.secondaryColor ?? DEFAULT_SETTINGS.secondaryColor,
+      backgroundColor: restaurant.theme?.backgroundColor || '',
+      cardStyle: restaurant.theme?.cardStyle,
       bannerUrl: '',
       audioUrl: '',
       updatedAt: restaurant.updatedAt ?? new Date(),

@@ -4,7 +4,7 @@ import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import RestaurantLoginModal from '../components/RestaurantLoginModal';
 import PasswordInput from '../components/PasswordInput';
 import { useSearchParams } from 'react-router-dom';
-import { Table as TableIcon, Plus, Trash2, Download, X, Utensils, Edit, Search, Save, Sparkles, Upload, FileText, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Printer, Bell, Gift } from 'lucide-react';
+import { Table as TableIcon, Plus, Trash2, Download, X, Utensils, Edit, Search, Save, Sparkles, Upload, FileText, BarChart3, TrendingUp, Users, Calendar, ChefHat, Clock, CheckCircle, AlertCircle, RefreshCw, Package, Timer, Truck, MapPin, Phone, CreditCard, Printer, Bell } from 'lucide-react';
 import { isIosNative } from '../utils/capacitorUtils';
 import {
   getTables,
@@ -62,7 +62,17 @@ import {
 } from '../services/restaurantStripeConnectService';
 import { playNotificationSound, getNotificationSoundEnabled, setNotificationSoundEnabled } from '../utils/notificationSound';
 import { printKitchenOrders } from '../utils/printKitchenOrders';
-import { getRestaurants, deleteRestaurantAccount } from '../services/restaurantService';
+import {
+  getRestaurants,
+  deleteRestaurantAccount,
+  updateRestaurantStoreOpenOverride,
+} from '../services/restaurantService';
+import {
+  resolveRestaurantOpenNow,
+  storeOpenModeFromOverride,
+  storeOpenOverrideFromMode,
+  type StoreOpenMode,
+} from '../utils/openingHours';
 import type { DeliveryOrder } from '../types/delivery';
 import { db } from '../../firebase';
 import qrcode from 'qrcode';
@@ -86,11 +96,12 @@ import {
   type DeliveryFeeMode,
   type NeighborhoodDeliveryZone,
   type Restaurant,
+  type RestaurantCardStyle,
   type RestaurantOpeningHours,
 } from '../types/restaurant';
 import { getPartnershipAccessState, hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { hasActiveDigitalMenu } from '../types/digitalMenuOffer';
-import { DigitalMenuLockCard, TrialDaysBanner } from '../components/TrialAndDigitalMenu';
+import { TrialDaysBanner } from '../components/TrialAndDigitalMenu';
 import DigitalMenuUpsellModal from '../components/DigitalMenuUpsellModal';
 import ModalOverlay from '../components/ModalOverlay';
 import { activateDigitalMenuLocally, startDigitalMenuCheckout } from '../services/digitalMenuService';
@@ -177,6 +188,8 @@ export default function Settings() {
     restaurantName: '',
     primaryColor: '',
     secondaryColor: '',
+    backgroundColor: '#fff6ed',
+    cardStyle: 'padrao' as RestaurantCardStyle,
     bannerUrl: '',
     audioUrl: '',
     logoUrl: '',
@@ -350,6 +363,36 @@ export default function Settings() {
     currentRestaurantId === restaurantId
   );
 
+  const handleStoreOpenModeChange = async (mode: StoreOpenMode) => {
+    if (!restaurantId) return;
+    const override = storeOpenOverrideFromMode(mode);
+    const previous = partnershipRestaurant?.storeOpenOverride ?? null;
+    setPartnershipRestaurant((prev) =>
+      prev ? { ...prev, storeOpenOverride: override } : prev
+    );
+    try {
+      await updateRestaurantStoreOpenOverride(restaurantId, override);
+      setMesaToast({
+        type: 'success',
+        message:
+          mode === 'open'
+            ? 'Loja aberta para os clientes.'
+            : mode === 'closed'
+              ? 'Loja fechada para os clientes.'
+              : 'Loja seguindo o horário de funcionamento.',
+      });
+    } catch (error) {
+      console.error('[Settings] loja aberta/fechada', error);
+      setPartnershipRestaurant((prev) =>
+        prev ? { ...prev, storeOpenOverride: previous } : prev
+      );
+      setMesaToast({
+        type: 'error',
+        message: 'Não foi possível mudar se a loja está aberta.',
+      });
+    }
+  };
+
   const handleDeleteRestaurantAccount = async () => {
     if (isWaiter || !restaurantId) return;
     if (
@@ -516,6 +559,8 @@ export default function Settings() {
           setPersonalizationForm((prev) => ({
             ...prev,
             logoUrl: restaurant?.theme?.logo || '',
+            backgroundColor: restaurant?.theme?.backgroundColor || '#fff6ed',
+            cardStyle: restaurant?.theme?.cardStyle || 'padrao',
             description: restaurant?.description || '',
             address: restaurant?.address || '',
           }));
@@ -1894,6 +1939,8 @@ export default function Settings() {
         restaurantName: personalizationForm.restaurantName.trim(),
         primaryColor: personalizationForm.primaryColor,
         secondaryColor: personalizationForm.secondaryColor,
+        backgroundColor: personalizationForm.backgroundColor,
+        cardStyle: personalizationForm.cardStyle,
         bannerUrl: personalizationForm.bannerUrl,
         audioUrl: personalizationForm.audioUrl
       });
@@ -1903,10 +1950,14 @@ export default function Settings() {
       const theme: {
         primaryColor: string;
         secondaryColor: string;
+        backgroundColor?: string;
+        cardStyle?: RestaurantCardStyle;
         logo?: string;
       } = {
         primaryColor: personalizationForm.primaryColor,
         secondaryColor: personalizationForm.secondaryColor,
+        backgroundColor: personalizationForm.backgroundColor,
+        cardStyle: personalizationForm.cardStyle,
       };
 
       theme.logo = personalizationForm.logoUrl || '';
@@ -2599,7 +2650,7 @@ export default function Settings() {
   ).length;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-50 text-gray-900">
       {/* Toast: mesa criada */}
       {mesaToast && (
         <div
@@ -2715,6 +2766,11 @@ export default function Settings() {
           navigate('/restaurant/auth', { replace: true });
         }}
         showBoris={!isWaiter}
+        storeOpenMode={storeOpenModeFromOverride(partnershipRestaurant?.storeOpenOverride)}
+        onStoreOpenModeChange={(mode) => void handleStoreOpenModeChange(mode)}
+        storeOpenNow={
+          partnershipRestaurant ? resolveRestaurantOpenNow(partnershipRestaurant) : undefined
+        }
       >
           {typeof trialDaysLeft === 'number' && <TrialDaysBanner daysLeft={trialDaysLeft} />}
           {pendingWaiterCalls.length > 0 && activeTab !== 'mesas' && (
@@ -2922,7 +2978,7 @@ export default function Settings() {
                     </span>
                     <PanelButton
                       variant="ghost"
-                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
+                      className="!border !border-white/10 !bg-white/[0.04] hover:!bg-white/[0.08] !text-white/75"
                       onClick={() => setShowMenuShiftsModal(true)}
                       icon={<Clock className="w-4 h-4" />}
                       title="Definir horários em que cada grupo de pratos aparece no delivery e no QR Code das mesas"
@@ -2931,7 +2987,7 @@ export default function Settings() {
                     </PanelButton>
                     <PanelButton
                       variant="ghost"
-                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
+                      className="!border !border-white/10 !bg-white/[0.04] hover:!bg-white/[0.08] !text-white/75"
                       onClick={() => setShowCSVModal(true)}
                       icon={<Upload className="w-4 h-4" />}
                     >
@@ -2939,7 +2995,7 @@ export default function Settings() {
                     </PanelButton>
                     <PanelButton
                       variant="ghost"
-                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
+                      className="!border !border-white/10 !bg-white/[0.04] hover:!bg-white/[0.08] !text-white/75"
                       onClick={() => {
                         setShowPdfExtractModal(true);
                         setPdfExtractError(null);
@@ -2955,7 +3011,7 @@ export default function Settings() {
                     <div className="relative group">
                       <PanelButton
                         variant="ghost"
-                        className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
+                        className="!border !border-white/10 !bg-white/[0.04] hover:!bg-white/[0.08] !text-white/75"
                         onClick={() => hasImageMenuTransfer && setShowImageImportModal(true)}
                         disabled={!hasImageMenuTransfer}
                         icon={<Sparkles className="w-4 h-4" />}
@@ -2975,7 +3031,7 @@ export default function Settings() {
                     </div>
                     <PanelButton
                       variant="ghost"
-                      className="!border !border-gray-200 !bg-gray-50 hover:!bg-white"
+                      className="!border !border-white/10 !bg-white/[0.04] hover:!bg-white/[0.08] !text-white/75"
                       onClick={() => void handleTranslateFullMenu()}
                       disabled={!hasAutomaticTranslation || isTranslatingFullMenu}
                       icon={
@@ -3245,11 +3301,6 @@ export default function Settings() {
 
           {activeTab === 'personalizacao' && !isWaiter && (
             <>
-              {!digitalMenuActive && restaurantId && (
-                <div className="max-w-lg mb-4">
-                  <DigitalMenuLockCard restaurantId={restaurantId} />
-                </div>
-              )}
             <PersonalizationStudio
               restaurantName={personalizationForm.restaurantName}
               description={personalizationForm.description}
@@ -3259,6 +3310,10 @@ export default function Settings() {
               audioUrl={personalizationForm.audioUrl}
               primaryColor={personalizationForm.primaryColor}
               secondaryColor={personalizationForm.secondaryColor}
+              backgroundColor={personalizationForm.backgroundColor}
+              cardStyle={personalizationForm.cardStyle}
+              storeHref={restaurantId ? `/delivery/${restaurantId}` : '/delivery'}
+              onNavigateTab={(tabId) => setActiveTab(tabId as typeof activeTab)}
               saving={isSavingPersonalization}
               storeOpen={Boolean(partnershipRestaurant?.openingHours)}
               extractedColors={extractedColors}
@@ -3268,6 +3323,8 @@ export default function Settings() {
               onAddress={(value) => setPersonalizationForm((prev) => ({ ...prev, address: value }))}
               onPrimary={(value) => setPersonalizationForm((prev) => ({ ...prev, primaryColor: value }))}
               onSecondary={(value) => setPersonalizationForm((prev) => ({ ...prev, secondaryColor: value }))}
+              onBackground={(value) => setPersonalizationForm((prev) => ({ ...prev, backgroundColor: value }))}
+              onCardStyle={(value) => setPersonalizationForm((prev) => ({ ...prev, cardStyle: value }))}
               onLogoFile={(file) => void handleLogoFile(file)}
               onBannerFile={(file) => void handleBannerFile(file)}
               onRemoveLogo={() => void handleLogoRemove()}
@@ -3969,11 +4026,6 @@ export default function Settings() {
 
           {activeTab === 'cashback' && restaurantId && !isWaiter && (
             <PanelPage>
-              <PanelPageHeader
-                title="Cashback da loja"
-                description="Defina regras de cashback. O saldo do cliente só vale nesta loja."
-                icon={<Gift className="w-5 h-5" />}
-              />
               <CashbackSettingsPanel
                 restaurantId={restaurantId}
                 initialSettings={partnershipRestaurant?.cashbackSettings}

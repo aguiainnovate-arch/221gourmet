@@ -7,7 +7,7 @@ import {
   WEEKDAY_SHORT_LABELS_PT,
   formatDayHoursLabel,
   hasConfiguredOpeningHours,
-  isRestaurantOpenNow,
+  resolveRestaurantOpenNow,
 } from '../../utils/openingHours';
 
 interface RestaurantInfoModalProps {
@@ -19,7 +19,8 @@ export default function RestaurantInfoModal({ restaurant, onClose }: RestaurantI
   const { t } = useTranslation();
   const hours = restaurant.openingHours;
   const configured = hasConfiguredOpeningHours(hours);
-  const openNow = isRestaurantOpenNow(hours);
+  const openNow = resolveRestaurantOpenNow(restaurant);
+  const showOpenStatus = configured || restaurant.storeOpenOverride != null;
 
   return (
     <ModalOverlay onBackdropClick={onClose} zIndexClass="z-[120]">
@@ -34,7 +35,7 @@ export default function RestaurantInfoModal({ restaurant, onClose }: RestaurantI
             <h2 id="restaurant-info-title" className="text-lg font-bold text-gray-900 truncate">
               {restaurant.name}
             </h2>
-            {configured && openNow !== null && (
+            {showOpenStatus && (
               <p className="mt-1 text-sm font-medium flex items-center gap-1.5">
                 <span
                   className={`inline-block w-2 h-2 rounded-full ${

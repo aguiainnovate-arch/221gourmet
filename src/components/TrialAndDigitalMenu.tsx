@@ -73,10 +73,6 @@ export function DigitalMenuLockCard({ restaurantId }: { restaurantId: string }) 
           </li>
         ))}
       </ul>
-      <div className="mt-5 flex items-end justify-between gap-3">
-        <span className="text-sm text-gray-500">Pagamento único</span>
-        <span className="text-2xl font-bold text-gray-900">{DIGITAL_MENU_OFFER.priceLabel}</span>
-      </div>
       <button
         type="button"
         onClick={() => void buy()}

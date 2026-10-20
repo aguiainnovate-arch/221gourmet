@@ -23,7 +23,7 @@ import FloatingCartBar from '../components/delivery/FloatingCartBar';
 import CheckoutFlow from '../components/delivery/CheckoutFlow';
 import RestaurantInfoModal from '../components/delivery/RestaurantInfoModal';
 import type { CartLine } from '../components/delivery/CheckoutFlow';
-import { isRestaurantOpenNow } from '../utils/openingHours';
+import { resolveRestaurantOpenNow } from '../utils/openingHours';
 import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { filterProductsByMenuShift } from '../utils/menuShifts';
 
@@ -76,7 +76,7 @@ export default function DeliveryMenu() {
 
   const feeSettings = getFeeSettings(restaurant?.deliverySettings?.fee);
   const deliveryFee = previewDeliveryFee(feeSettings);
-  const openNowStatus = isRestaurantOpenNow(restaurant?.openingHours);
+  const openNowStatus = restaurant ? resolveRestaurantOpenNow(restaurant) : true;
 
   const { products: translatedProducts, categories: displayCategories, loading: _loadingTranslations } = useLiveTranslations(
     products,
@@ -395,10 +395,14 @@ export default function DeliveryMenu() {
     );
   }
 
+  const cardStyle = restaurant.theme?.cardStyle || 'padrao';
+  const storeBackground = restaurant.theme?.backgroundColor || '#f9fafb';
+  const storePrimary = restaurant.theme?.primaryColor || '#E91120';
+
   return (
     <div
-      className="flex flex-col bg-gray-50 h-screen max-h-[100dvh] overflow-hidden"
-      style={{ minHeight: 0 }}
+      className="flex flex-col h-screen max-h-[100dvh] overflow-hidden"
+      style={{ minHeight: 0, backgroundColor: storeBackground }}
     >
       {/* Único container de scroll: ao rolar, o header sobe; a barra (busca + categorias) sobe até o topo e fica sticky; só os cards rolam por baixo */}
       <div
@@ -524,7 +528,7 @@ export default function DeliveryMenu() {
       </div>
 
       {/* Search + Categorias: fixos no topo ao rolar (fora do header para sticky funcionar) */}
-      <div className="sticky top-0 z-30 bg-gray-50 pb-2 -mt-px shadow-[0_4px_6px_-2px_rgba(0,0,0,0.08)]">
+      <div className="sticky top-0 z-30 pb-2 -mt-px shadow-[0_4px_6px_-2px_rgba(0,0,0,0.08)]" style={{ backgroundColor: storeBackground }}>
         <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-2">
           <div className="relative">
             <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
@@ -543,9 +547,10 @@ export default function DeliveryMenu() {
             <button
               onClick={() => { setSelectedCategory('todos'); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === 'todos'
-                ? 'bg-amber-600 text-white shadow-md'
+                ? 'text-white shadow-md'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
                 }`}
+              style={selectedCategory === 'todos' ? { backgroundColor: storePrimary } : undefined}
             >
               {t('menu.allCategories')}
             </button>
@@ -559,9 +564,10 @@ export default function DeliveryMenu() {
                     sectionRefs.current[categoryName]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                   className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${selectedCategory === categoryName
-                    ? 'bg-amber-600 text-white shadow-md'
+                    ? 'text-white shadow-md'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
                     }`}
+                  style={selectedCategory === categoryName ? { backgroundColor: storePrimary } : undefined}
                 >
                   {displayName}
                 </button>
@@ -586,25 +592,27 @@ export default function DeliveryMenu() {
                     data-section-category={categoryName}
                     className="scroll-mt-32"
                   >
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 pb-2 border-b-2 border-amber-200">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 pb-2 border-b-2" style={{ borderColor: `${storePrimary}55` }}>
                       {displayName}
                     </h2>
                     <div className="space-y-3 sm:space-y-4">
                       {sectionProducts.map((product) => {
                         const itemInCart = selectedItems.find(item => item.product.id === product.id);
+                        const isCompact = cardStyle === 'compacto';
+                        const isModern = cardStyle === 'moderno';
                         return (
-                          <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden">
+                          <div key={product.id} className={`bg-white shadow-md overflow-hidden ${isModern ? 'rounded-[22px]' : 'rounded-xl'}`}>
                             <div
                               role="button"
                               tabIndex={0}
                               onClick={() => openProductModal(product)}
                               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(product); } }}
-                              className="p-3 sm:p-4 cursor-pointer active:scale-[0.99] transition-transform touch-manipulation select-none"
+                              className={`${isCompact ? 'p-2.5 sm:p-3' : isModern ? 'p-2.5' : 'p-3 sm:p-4'} cursor-pointer active:scale-[0.99] transition-transform touch-manipulation select-none`}
                               aria-label={`Ver detalhes de ${product.name}`}
                             >
-                              <div className="flex items-start gap-3 sm:gap-4">
+                              <div className={isModern ? 'flex flex-col gap-3' : 'flex items-start gap-3 sm:gap-4'}>
                                 {/* Imagem */}
-                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg flex-shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <div className={`${isModern ? 'w-full h-40 sm:h-48 rounded-[18px]' : isCompact ? 'w-14 h-14 sm:w-16 sm:h-16 rounded-lg' : 'w-20 h-20 sm:w-24 sm:h-24 rounded-lg'} flex-shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden`}>
                                   {product.image ? (
                                     <ProductImage
                                       src={product.image}
@@ -631,18 +639,20 @@ export default function DeliveryMenu() {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2 line-clamp-2 leading-snug">
+                                  <p className={`text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2 leading-snug ${isCompact ? 'line-clamp-1' : 'line-clamp-2'}`}>
                                     {product.description}
                                   </p>
-                                  <p className="text-lg sm:text-xl font-bold text-amber-600 tabular-nums">
+                                  <p className={`${isCompact ? 'text-base' : 'text-lg sm:text-xl'} font-bold tabular-nums`} style={{ color: storePrimary }}>
                                     R$ {product.price.toFixed(2)}
                                   </p>
                                 </div>
 
                                 {/* Indicador de toque: seta ou chevron */}
-                                <div className="shrink-0 flex items-center text-gray-400">
-                                  <ChevronDown className="w-5 h-5 rotate-[-90deg]" aria-hidden />
-                                </div>
+                                {!isModern && (
+                                  <div className="shrink-0 flex items-center text-gray-400">
+                                    <ChevronDown className="w-5 h-5 rotate-[-90deg]" aria-hidden />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

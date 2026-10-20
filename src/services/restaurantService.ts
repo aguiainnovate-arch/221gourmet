@@ -100,6 +100,8 @@ function mapRestaurantDoc(id: string, data: Record<string, unknown>): Restaurant
         ? data.stripeConnectRequirementsSummary
         : null,
     cashbackSettings: normalizeCashbackSettings(data.cashbackSettings),
+    storeOpenOverride:
+      typeof data.storeOpenOverride === 'boolean' ? data.storeOpenOverride : null,
   };
 }
 
@@ -473,6 +475,22 @@ export const updateRestaurantCashbackSettings = async (
   } catch (error) {
     console.error('Erro ao atualizar cashback:', error);
     throw new Error('Falha ao atualizar configurações de cashback');
+  }
+};
+
+export const updateRestaurantStoreOpenOverride = async (
+  restaurantId: string,
+  storeOpenOverride: boolean | null
+): Promise<void> => {
+  try {
+    const restaurantRef = doc(db, 'restaurants', restaurantId);
+    await updateDoc(restaurantRef, {
+      storeOpenOverride,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar loja aberta/fechada:', error);
+    throw new Error('Falha ao atualizar se a loja está aberta');
   }
 };
 

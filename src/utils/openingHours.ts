@@ -113,6 +113,36 @@ export function isRestaurantOpenNow(
   );
 }
 
+export type StoreOpenMode = 'open' | 'closed' | 'auto';
+
+export function storeOpenModeFromOverride(
+  override?: boolean | null
+): StoreOpenMode {
+  if (override === true) return 'open';
+  if (override === false) return 'closed';
+  return 'auto';
+}
+
+export function storeOpenOverrideFromMode(mode: StoreOpenMode): boolean | null {
+  if (mode === 'open') return true;
+  if (mode === 'closed') return false;
+  return null;
+}
+
+/**
+ * Estado efetivo da loja para o cliente.
+ * Controle manual do painel vence o horário; sem manual e sem horário
+ * configurado, a loja aparece aberta (comportamento atual).
+ */
+export function resolveRestaurantOpenNow(restaurant: {
+  openingHours?: RestaurantOpeningHours | null;
+  storeOpenOverride?: boolean | null;
+}): boolean {
+  if (restaurant.storeOpenOverride === true) return true;
+  if (restaurant.storeOpenOverride === false) return false;
+  return isRestaurantOpenNow(restaurant.openingHours) ?? true;
+}
+
 export function getTodayHoursLabel(
   hours?: RestaurantOpeningHours | null,
   closedLabel = 'Fechado'

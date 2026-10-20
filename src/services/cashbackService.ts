@@ -9,7 +9,7 @@ import {
   Timestamp,
   where,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db } from '../../firebase';
 import type { RestaurantCashbackSettings } from '../types/cashback';
 import {
   maxSpendableCents,
@@ -55,6 +55,57 @@ export async function getCashbackSettings(
 ): Promise<RestaurantCashbackSettings> {
   const restaurant = await getRestaurantById(restaurantId);
   return normalizeCashbackSettings(restaurant?.cashbackSettings);
+}
+
+export interface CashbackRestaurantStats {
+  clientsWithBalance: number;
+  openBalanceCents: number;
+  earnedThisMonthCents: number;
+}
+
+/** Números reais da loja para o painel: saldos abertos e o que foi gerado no mês. */
+export async function getCashbackRestaurantStats(
+  restaurantId: string
+): Promise<CashbackRestaurantStats> {
+  if (!restaurantId) {
+    return { clientsWithBalance: 0, openBalanceCents: 0, earnedThisMonthCents: 0 };
+  }
+
+  const balancesQuery = query(
+    collection(db, 'cashbackBalances'),
+    where('restaurantId', '==', restaurantId)
+  );
+  const balancesSnap = await getDocs(balancesQuery);
+
+  let clientsWithBalance = 0;
+  let openBalanceCents = 0;
+  for (const docSnap of balancesSnap.docs) {
+    const balance = Number(docSnap.data().balanceCents ?? 0);
+    if (Number.isFinite(balance) && balance > 0) {
+      clientsWithBalance += 1;
+      openBalanceCents += balance;
+    }
+  }
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const ledgerQuery = query(
+    collection(db, 'cashbackLedger'),
+    where('restaurantId', '==', restaurantId)
+  );
+  const ledgerSnap = await getDocs(ledgerQuery);
+
+  let earnedThisMonthCents = 0;
+  for (const docSnap of ledgerSnap.docs) {
+    const data = docSnap.data();
+    if (data.type !== 'earn') continue;
+    const createdAt: Date | null = data.createdAt?.toDate?.() ?? null;
+    if (!createdAt || createdAt < monthStart) continue;
+    const amount = Number(data.amountCents ?? 0);
+    if (Number.isFinite(amount) && amount > 0) earnedThisMonthCents += amount;
+  }
+
+  return { clientsWithBalance, openBalanceCents, earnedThisMonthCents };
 }
 
 export async function getCashbackBalance(

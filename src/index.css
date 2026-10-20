@@ -64,12 +64,14 @@ body.landing-bora-comer * {
 
 /*
   O body usa texto claro (tema noturno). Campos em fundo branco herdam essa cor
-  e o texto some. Força contraste nos controles de formulário.
+  e o texto some. Força contraste nos controles de formulário, incluindo
+  áreas editáveis (div contenteditable, que não é input nem textarea).
   Classes Tailwind (text-white, placeholder:text-*) continuam vencendo.
 */
 input,
 textarea,
-select {
+select,
+[contenteditable] {
   color: #111827;
   caret-color: #111827;
 }
@@ -87,6 +89,564 @@ select option {
 
 label {
   color: #1f2937;
+}
+
+/*
+  Superfícies claras ganham texto escuro por padrão (herança).
+  :where tem especificidade zero, então qualquer classe text-* explícita
+  (text-white, text-gray-500 etc.) continua vencendo. Só muda quem não
+  definiu cor nenhuma e herdaria o branco do body.
+*/
+:where(
+  .bg-white,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-\[\#f7f3ee\],
+  .bg-\[\#fff8f2\],
+  .bg-\[\#fffdfb\],
+  .bg-\[\#faf7f4\]
+) {
+  color: #111827;
+}
+
+/* ============================================================
+   PAINEL DO RESTAURANTE: tema escuro profissional (mesmo padrão da sidebar)
+   As telas do painel foram escritas com utilitários claros (bg-white,
+   text-gray-900, border-[#eadfd4]...). Dentro de .panel-theme esses
+   utilitários são remapeados para a paleta escura, sem precisar
+   reescrever cada tela. Cores de marca e de status explícitas
+   (bg-[#e10600], text-emerald-400 etc.) não entram no remapeamento
+   de fundo/texto neutro e continuam vencendo quando mais específicas.
+   ============================================================ */
+.panel-theme {
+  color: #ececf1;
+  color-scheme: dark;
+}
+
+:where(.panel-theme) :where(*, *::before, *::after) {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+/* Superfícies */
+.panel-theme .bg-white,
+.panel-theme .bg-\[\#fff8f2\],
+.panel-theme .bg-\[\#FFF8F2\],
+.panel-theme .bg-\[\#fffdfb\],
+.panel-theme .bg-\[\#fff8ec\],
+.panel-theme .bg-\[\#fff8f3\],
+.panel-theme .bg-\[\#FAF0DB\],
+.panel-theme .bg-\[\#EFE9E2\],
+.panel-theme .bg-\[\#EDE3DA\],
+.panel-theme .bg-\[\#F5EFE7\] {
+  background-color: #12141a;
+}
+.panel-theme .bg-gray-50,
+.panel-theme .bg-\[\#f7f3ee\],
+.panel-theme .bg-\[\#faf7f4\],
+.panel-theme .bg-\[\#f6efea\],
+.panel-theme .bg-\[\#f3e7e4\],
+.panel-theme .bg-\[\#efe6dc\] {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.panel-theme .bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.panel-theme .bg-gray-200 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.panel-theme .bg-gray-300 {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Superfícies de status (tons claros viram tintos translúcidos) */
+.panel-theme .bg-red-50,
+.panel-theme .bg-rose-50,
+.panel-theme .bg-\[\#fff1f2\],
+.panel-theme .bg-\[\#fff5f5\] {
+  background-color: rgba(225, 6, 0, 0.1);
+}
+.panel-theme .bg-emerald-50,
+.panel-theme .bg-green-50 {
+  background-color: rgba(34, 163, 90, 0.12);
+}
+.panel-theme .bg-amber-50,
+.panel-theme .bg-yellow-50,
+.panel-theme .bg-\[\#fff8e8\] {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+.panel-theme .bg-blue-50,
+.panel-theme .bg-sky-50 {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+.panel-theme .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.12);
+}
+.panel-theme .bg-purple-50,
+.panel-theme .bg-violet-50 {
+  background-color: rgba(139, 92, 246, 0.12);
+}
+.panel-theme .bg-red-100,
+.panel-theme .bg-rose-100 {
+  background-color: rgba(225, 6, 0, 0.18);
+}
+.panel-theme .bg-emerald-100,
+.panel-theme .bg-green-100 {
+  background-color: rgba(34, 163, 90, 0.2);
+}
+.panel-theme .bg-amber-100,
+.panel-theme .bg-yellow-100 {
+  background-color: rgba(245, 158, 11, 0.2);
+}
+.panel-theme .bg-blue-100,
+.panel-theme .bg-sky-100 {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+.panel-theme .bg-orange-100 {
+  background-color: rgba(249, 115, 22, 0.2);
+}
+.panel-theme .bg-purple-100,
+.panel-theme .bg-violet-100 {
+  background-color: rgba(139, 92, 246, 0.2);
+}
+.panel-theme .bg-gray-800,
+.panel-theme .bg-gray-900,
+.panel-theme .bg-\[\#2a211c\] {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.panel-theme .bg-white\/60,
+.panel-theme .bg-white\/70,
+.panel-theme .bg-white\/80,
+.panel-theme .bg-white\/85,
+.panel-theme .bg-white\/90,
+.panel-theme .bg-white\/95,
+.panel-theme .bg-gray-50\/80 {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Gradientes claros de destaque viram tintos escuros da mesma cor */
+.panel-theme .bg-gradient-to-br.from-rose-50 {
+  background-image: linear-gradient(
+    to bottom right,
+    rgba(225, 6, 0, 0.16),
+    rgba(225, 6, 0, 0.05),
+    rgba(255, 255, 255, 0.03)
+  );
+}
+.panel-theme .bg-gradient-to-br.from-emerald-50\/80 {
+  background-image: linear-gradient(
+    to bottom right,
+    rgba(34, 163, 90, 0.16),
+    rgba(34, 163, 90, 0.05),
+    rgba(255, 255, 255, 0.03)
+  );
+}
+.panel-theme .border-rose-200 {
+  border-color: rgba(225, 6, 0, 0.28);
+}
+
+/* Texto neutro */
+.panel-theme .text-gray-950,
+.panel-theme .text-gray-900,
+.panel-theme .text-gray-800,
+.panel-theme .text-black,
+.panel-theme .text-\[\#2a211c\] {
+  color: #f4f4f6;
+}
+.panel-theme .text-gray-700,
+.panel-theme .text-gray-600 {
+  color: rgba(255, 255, 255, 0.72);
+}
+.panel-theme .text-gray-500 {
+  color: rgba(255, 255, 255, 0.52);
+}
+.panel-theme .text-gray-400 {
+  color: rgba(255, 255, 255, 0.38);
+}
+.panel-theme .text-gray-300 {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* Texto de status escuro ganha a versão clara da mesma cor */
+.panel-theme .text-red-600,
+.panel-theme .text-red-700,
+.panel-theme .text-red-800,
+.panel-theme .text-rose-600,
+.panel-theme .text-rose-700 {
+  color: #fda4af;
+}
+.panel-theme .text-emerald-600,
+.panel-theme .text-emerald-700,
+.panel-theme .text-emerald-800,
+.panel-theme .text-green-600,
+.panel-theme .text-green-700 {
+  color: #6ee7b7;
+}
+.panel-theme .text-amber-600,
+.panel-theme .text-amber-700,
+.panel-theme .text-amber-800,
+.panel-theme .text-amber-900,
+.panel-theme .text-amber-950,
+.panel-theme .text-yellow-700 {
+  color: #fcd34d;
+}
+.panel-theme .text-blue-600,
+.panel-theme .text-blue-700,
+.panel-theme .text-sky-700 {
+  color: #93c5fd;
+}
+.panel-theme .text-orange-600,
+.panel-theme .text-orange-700 {
+  color: #fdba74;
+}
+.panel-theme .text-purple-600,
+.panel-theme .text-purple-700,
+.panel-theme .text-violet-700 {
+  color: #c4b5fd;
+}
+
+/*
+  A prévia de celular em Personalização representa a loja do cliente.
+  Ela deve manter o contraste próprio e não receber a inversão de cores
+  aplicada ao painel administrativo no modo escuro.
+*/
+.panel-theme .preview-phone-static {
+  color-scheme: light;
+}
+.panel-theme .preview-phone-static .bg-white {
+  background-color: #ffffff;
+}
+.panel-theme .preview-phone-static .bg-emerald-100 {
+  background-color: #d1fae5;
+}
+.panel-theme .preview-phone-static .text-white {
+  color: #ffffff;
+}
+.panel-theme .preview-phone-static .text-gray-900,
+.panel-theme .preview-phone-static .text-gray-800,
+.panel-theme .preview-phone-static .text-gray-700 {
+  color: #111827;
+}
+.panel-theme .preview-phone-static .text-gray-600 {
+  color: #4b5563;
+}
+.panel-theme .preview-phone-static .text-gray-500 {
+  color: #6b7280;
+}
+.panel-theme .preview-phone-static .text-gray-400 {
+  color: #9ca3af;
+}
+.panel-theme .preview-phone-static .text-emerald-700 {
+  color: #047857;
+}
+.panel-theme .preview-phone-static .border-white {
+  border-color: #ffffff;
+}
+/* Mesmo isolamento no modo branco do painel, onde .text-white viraria preto. */
+.panel-light .preview-phone-static {
+  color-scheme: light;
+}
+.panel-light .preview-phone-static .text-white {
+  color: #ffffff;
+}
+.panel-light .preview-phone-static .bg-white {
+  background-color: #ffffff;
+}
+.panel-light .preview-phone-static .bg-emerald-100 {
+  background-color: #d1fae5;
+}
+.panel-light .preview-phone-static .text-emerald-700 {
+  color: #047857;
+}
+.panel-light .preview-phone-static .border-white {
+  border-color: #ffffff;
+}
+
+/* Bordas claras */
+.panel-theme .border-gray-100,
+.panel-theme .border-gray-200,
+.panel-theme .border-\[\#eadfd4\],
+.panel-theme .border-\[\#efe6dc\],
+.panel-theme .border-\[\#e7ddd0\],
+.panel-theme .border-\[\#f0e7df\],
+.panel-theme .border-\[\#d8c9b8\],
+.panel-theme .border-\[\#ffd6d8\] {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.panel-theme .border-\[\#f3e4c4\] {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+.panel-theme .border-gray-300 {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.panel-theme .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.panel-theme .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Sombras claras viram sombra profunda */
+.panel-theme .shadow-sm {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* Hovers claros: sem esta regra o fundo clareia no hover e o texto
+   (já remapeado para branco) some. Fundo vira brilho translúcido
+   e texto escuro de hover vira branco. */
+.panel-theme .hover\:bg-gray-50:hover,
+.panel-theme .hover\:bg-gray-100:hover,
+.panel-theme .hover\:bg-gray-200:hover,
+.panel-theme .hover\:bg-\[\#faf7f4\]:hover,
+.panel-theme .hover\:bg-\[\#efe6dc\]:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.panel-theme .hover\:bg-white:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.panel-theme .hover\:bg-red-50:hover {
+  background-color: rgba(225, 6, 0, 0.14);
+}
+.panel-theme .hover\:bg-red-100:hover {
+  background-color: rgba(225, 6, 0, 0.2);
+}
+.panel-theme .hover\:bg-purple-100:hover {
+  background-color: rgba(139, 92, 246, 0.2);
+}
+.panel-theme .hover\:bg-blue-200:hover {
+  background-color: rgba(59, 130, 246, 0.25);
+}
+.panel-theme .hover\:text-gray-600:hover,
+.panel-theme .hover\:text-gray-700:hover,
+.panel-theme .hover\:text-gray-800:hover,
+.panel-theme .hover\:text-gray-900:hover,
+.panel-theme .hover\:text-black:hover {
+  color: #ffffff;
+}
+.panel-theme .hover\:text-red-800:hover {
+  color: #fda4af;
+}
+.panel-theme .hover\:text-blue-800:hover {
+  color: #93c5fd;
+}
+.panel-theme .hover\:border-gray-300:hover,
+.panel-theme .hover\:border-gray-400:hover,
+.panel-theme .hover\:border-\[\#d8c9b8\]:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Formulários dentro do painel */
+.panel-theme input,
+.panel-theme textarea,
+.panel-theme select,
+.panel-theme [contenteditable] {
+  color: #f4f4f6;
+  caret-color: #ffffff;
+}
+.panel-theme input::placeholder,
+.panel-theme textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  opacity: 1;
+}
+.panel-theme select option {
+  color: #111827;
+  background-color: #ffffff;
+}
+.panel-theme label {
+  color: rgba(255, 255, 255, 0.78);
+}
+.panel-theme input[type='color'] {
+  background-color: transparent;
+}
+
+/* Tabelas */
+.panel-theme thead {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* ============================================================
+   PAINEL: modo branco (alternativa clara do tema escuro)
+   Sem .panel-theme as telas voltam às cores claras originais.
+   .panel-light só desfaz as cores escuras fixas dos componentes
+   base do painel (cards, inputs, abas) escritos para o tema escuro.
+   ============================================================ */
+.panel-light {
+  color: #1f2430;
+  color-scheme: light;
+}
+.panel-light .bg-\[\#12141a\],
+.panel-light .bg-\[\#111318\] {
+  background-color: #ffffff;
+}
+.panel-light .bg-white\/\[0\.04\],
+.panel-light .bg-white\/\[0\.06\] {
+  background-color: #ffffff;
+}
+.panel-light .\!bg-white\/\[0\.04\] {
+  background-color: #ffffff !important;
+}
+.panel-light .border-white\/10,
+.panel-light .border-white\/15,
+.panel-light .border-white\/20 {
+  border-color: rgba(17, 24, 39, 0.12);
+}
+.panel-light .\!border-white\/10 {
+  border-color: rgba(17, 24, 39, 0.12) !important;
+}
+.panel-light .text-white {
+  color: #111827;
+}
+.panel-light .text-white\/80 {
+  color: rgba(17, 24, 39, 0.82);
+}
+.panel-light .text-white\/75,
+.panel-light .\!text-white\/75 {
+  color: rgba(31, 41, 55, 0.85) !important;
+}
+.panel-light .text-white\/55 {
+  color: #4b5563;
+}
+.panel-light .text-white\/50 {
+  color: #6b7280;
+}
+.panel-light .placeholder\:text-white\/35::placeholder {
+  color: rgba(17, 24, 39, 0.35);
+}
+/* Botões e selos vermelhos mantêm o texto branco no modo claro */
+.panel-light .bg-\[\#e10600\],
+.panel-light .bg-\[\#E91120\],
+.panel-light .bg-red-600 {
+  color: #ffffff;
+}
+/* Botões de fundo escuro mantêm o texto branco no modo claro */
+.panel-light .bg-gray-900,
+.panel-light .bg-gray-800,
+.panel-light .bg-black,
+.panel-light .bg-\[\#111111\] {
+  color: #ffffff;
+}
+
+/* ============================================================
+   Contêineres escuros próprios (Personalização e Cashback)
+   Essas duas telas são escuras por design, com o cartão de edição
+   claro dentro. No modo branco do painel as regras globais acima
+   apagariam seus textos brancos, então dentro de .studio-dark as
+   cores claras originais são restauradas. Cartões claros internos
+   (bg-white, bg-[#fff8ec], text-gray-*) não são tocados.
+   ============================================================ */
+.panel-light .studio-dark,
+.panel-light .studio-dark.text-white {
+  color: #f4f4f6;
+  color-scheme: dark;
+}
+.panel-light .studio-dark .text-white {
+  color: #ffffff;
+}
+.panel-light .studio-dark .text-white\/85 {
+  color: rgba(255, 255, 255, 0.85);
+}
+.panel-light .studio-dark .text-white\/80 {
+  color: rgba(255, 255, 255, 0.8);
+}
+.panel-light .studio-dark .text-white\/75 {
+  color: rgba(255, 255, 255, 0.75);
+}
+.panel-light .studio-dark .text-white\/70 {
+  color: rgba(255, 255, 255, 0.7);
+}
+.panel-light .studio-dark .text-white\/60 {
+  color: rgba(255, 255, 255, 0.6);
+}
+.panel-light .studio-dark .text-white\/55 {
+  color: rgba(255, 255, 255, 0.55);
+}
+.panel-light .studio-dark .text-white\/50 {
+  color: rgba(255, 255, 255, 0.5);
+}
+.panel-light .studio-dark .text-white\/45 {
+  color: rgba(255, 255, 255, 0.45);
+}
+.panel-light .studio-dark .text-white\/40 {
+  color: rgba(255, 255, 255, 0.4);
+}
+.panel-light .studio-dark .text-white\/35 {
+  color: rgba(255, 255, 255, 0.35);
+}
+.panel-light .studio-dark .text-white\/30 {
+  color: rgba(255, 255, 255, 0.3);
+}
+.panel-light .studio-dark .bg-white\/\[0\.03\] {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+.panel-light .studio-dark .bg-white\/\[0\.04\] {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.panel-light .studio-dark .bg-white\/\[0\.06\] {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.panel-light .studio-dark .bg-white\/\[0\.07\] {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.panel-light .studio-dark .bg-white\/15 {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+.panel-light .studio-dark .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.panel-light .studio-dark .border-white\/15 {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.panel-light .studio-dark .border-white\/20 {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.panel-light .studio-dark .ring-white\/10 {
+  --tw-ring-color: rgba(255, 255, 255, 0.1);
+}
+.panel-light .studio-dark .placeholder\:text-white\/30::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+.panel-light .studio-dark .hover\:text-white:hover {
+  color: #ffffff;
+}
+.panel-light .studio-dark .hover\:text-white\/70:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+.panel-light .studio-dark .hover\:bg-white\/10:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.panel-light .studio-dark .hover\:bg-white\/\[0\.06\]:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.panel-light .studio-dark .hover\:bg-white\/\[0\.04\]:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Onda de troca de tema: a nova versão cresce em círculo a partir do botão */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2147483646;
+}
+
+/* Rolagem discreta combinando com a sidebar */
+.panel-theme * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.panel-theme *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  display: block;
+}
+.panel-theme *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+.panel-theme *::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Esconder barra de rolagem em todo o app (scroll continua funcionando) */

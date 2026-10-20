@@ -8,7 +8,7 @@ interface PanelTabGroupProps {
 export function PanelTabGroup({ children, className = '' }: PanelTabGroupProps) {
   return (
     <div
-      className={`inline-flex flex-wrap gap-1 p-1 bg-gray-100 rounded-lg border border-gray-200 ${className}`}
+      className={`inline-flex flex-wrap gap-1 p-1 bg-white/[0.04] rounded-lg border border-white/10 ${className}`}
       role="tablist"
     >
       {children}
@@ -32,8 +32,8 @@ export function PanelTab({ active, onClick, children, badge }: PanelTabProps) {
       onClick={onClick}
       className={`px-4 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2 whitespace-nowrap ${
         active
-          ? 'bg-white text-blue-700 shadow-sm'
-          : 'text-gray-600 hover:text-gray-900'
+          ? 'bg-[#e10600] text-white shadow-[0_0_18px_rgba(225,6,0,0.35)]'
+          : 'text-white/55 hover:text-white hover:bg-white/[0.06]'
       }`}
     >
       {children}

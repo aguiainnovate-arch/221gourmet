@@ -311,13 +311,19 @@ export default function Menu() {
   // Aplicar cores personalizadas do restaurante no cardápio
   const menuThemeStyle = useMemo(() => {
     if (!menuSettings?.primaryColor || !menuSettings?.secondaryColor) return undefined;
-    return buildMenuThemeVars(menuSettings.primaryColor, menuSettings.secondaryColor) as CSSProperties;
-  }, [menuSettings?.primaryColor, menuSettings?.secondaryColor]);
+    return buildMenuThemeVars(
+      menuSettings.primaryColor,
+      menuSettings.backgroundColor || menuSettings.secondaryColor
+    ) as CSSProperties;
+  }, [menuSettings?.primaryColor, menuSettings?.secondaryColor, menuSettings?.backgroundColor]);
 
   useEffect(() => {
     if (!menuSettings?.primaryColor || !menuSettings?.secondaryColor) return;
-    applyCustomColors(menuSettings.primaryColor, menuSettings.secondaryColor);
-  }, [menuSettings?.primaryColor, menuSettings?.secondaryColor]);
+    applyCustomColors(
+      menuSettings.primaryColor,
+      menuSettings.backgroundColor || menuSettings.secondaryColor
+    );
+  }, [menuSettings?.primaryColor, menuSettings?.secondaryColor, menuSettings?.backgroundColor]);
 
   // Reproduzir áudio de boas-vindas e controlar animação
   // Depende de mesaInfo.id (estável), não do objeto inteiro — senão cada snapshot reinicia o timer e a animação fica em loop.
