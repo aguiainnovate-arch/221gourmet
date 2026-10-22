@@ -10,16 +10,18 @@ const firebaseAdmin_1 = require("./firebaseAdmin");
 const stripeClient_1 = require("./stripeClient");
 const stripeUtils_1 = require("./stripeUtils");
 const stripeRestaurantConnect_1 = require("./stripeRestaurantConnect");
-const MONTHLY_FEE_CENTS = 8990;
 const WAIVER_THRESHOLD = 1500;
 const PLAN_META = {
     store_delivery: {
         label: 'Delivery com entrega pela loja',
         platformFeePercent: 12,
+        // TEMP TESTE: 50 = mínimo do Stripe para cartão em BRL (R$ 0,50). Reverter para 8990 após o teste.
+        monthlyFeeCents: 50,
     },
     platform_delivery: {
         label: 'Delivery + entrega Bora Comer!',
         platformFeePercent: 19.99,
+        monthlyFeeCents: 8990,
     },
 };
 exports.createPartnershipSubscriptionCheckout = (0, https_1.onCall)({
@@ -62,7 +64,7 @@ exports.createPartnershipSubscriptionCheckout = (0, https_1.onCall)({
                     quantity: 1,
                     price_data: {
                         currency: 'brl',
-                        unit_amount: MONTHLY_FEE_CENTS,
+                        unit_amount: plan.monthlyFeeCents,
                         recurring: { interval: 'month' },
                         product_data: {
                             name: `Bora Comer! — ${plan.label}`,
@@ -93,7 +95,7 @@ exports.createPartnershipSubscriptionCheckout = (0, https_1.onCall)({
         await ref.update({
             'partnershipSubscription.deliveryMode': deliveryMode,
             'partnershipSubscription.platformFeePercent': plan.platformFeePercent,
-            'partnershipSubscription.monthlyFee': MONTHLY_FEE_CENTS / 100,
+            'partnershipSubscription.monthlyFee': plan.monthlyFeeCents / 100,
             'partnershipSubscription.monthlyFeeWaiverThreshold': WAIVER_THRESHOLD,
             'partnershipSubscription.updatedAt': firestore_1.FieldValue.serverTimestamp(),
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
@@ -158,7 +160,7 @@ exports.confirmPartnershipSubscriptionCheckout = (0, https_1.onCall)({
                 trialEndsAt: (_h = existing.trialEndsAt) !== null && _h !== void 0 ? _h : firestore_1.FieldValue.serverTimestamp(),
                 deliveryMode,
                 platformFeePercent: plan.platformFeePercent,
-                monthlyFee: MONTHLY_FEE_CENTS / 100,
+                monthlyFee: plan.monthlyFeeCents / 100,
                 monthlyFeeWaiverThreshold: WAIVER_THRESHOLD,
                 stripeCustomerId: (_j = customerId !== null && customerId !== void 0 ? customerId : existing.stripeCustomerId) !== null && _j !== void 0 ? _j : null,
                 stripeSubscriptionId: (_k = subscriptionId !== null && subscriptionId !== void 0 ? subscriptionId : existing.stripeSubscriptionId) !== null && _k !== void 0 ? _k : null,

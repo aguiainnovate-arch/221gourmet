@@ -19,7 +19,6 @@ import {
   Share2,
   Star,
   Store,
-  Truck,
   Upload,
   Volume2,
 } from 'lucide-react';
@@ -41,7 +40,6 @@ interface PersonalizationStudioProps {
   backgroundColor: string;
   cardStyle: RestaurantCardStyle;
   storeHref?: string;
-  onNavigateTab?: (tabId: string) => void;
   saving: boolean;
   storeOpen?: boolean;
   extractedColors: { primaryColor: string; secondaryColor: string; palette: string[] } | null;
@@ -63,12 +61,10 @@ interface PersonalizationStudioProps {
   onSave: () => void;
 }
 
-const TABS: { id: StudioTab | 'horarios' | 'taxas'; label: string; icon: typeof Store }[] = [
+const TABS: { id: StudioTab; label: string; icon: typeof Store }[] = [
   { id: 'aparencia', label: 'Aparência', icon: Palette },
   { id: 'informacoes', label: 'Informações', icon: Info },
   { id: 'banners', label: 'Banners', icon: ImagePlus },
-  { id: 'horarios', label: 'Horários', icon: Clock },
-  { id: 'taxas', label: 'Taxas e entrega', icon: Truck },
 ];
 
 const CARD_STYLES: {
@@ -554,18 +550,6 @@ export default function PersonalizationStudio(props: PersonalizationStudioProps)
   const name = props.restaurantName.trim() || 'Seu restaurante';
   const primary = normalizeHexColor(props.primaryColor) || '#e10600';
 
-  function handleTab(id: StudioTab | 'horarios' | 'taxas') {
-    if (id === 'horarios') {
-      props.onNavigateTab?.('horarios');
-      return;
-    }
-    if (id === 'taxas') {
-      props.onNavigateTab?.('delivery');
-      return;
-    }
-    setTab(id);
-  }
-
   return (
     <div className="studio-dark rounded-[28px] bg-[#0b0b0e] px-3 py-5 sm:px-5 sm:py-6 text-white shadow-xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -606,7 +590,7 @@ export default function PersonalizationStudio(props: PersonalizationStudioProps)
             <button
               key={item.id}
               type="button"
-              onClick={() => handleTab(item.id)}
+              onClick={() => setTab(item.id)}
               className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] transition ${
                 active
                   ? 'bg-[#e10600] text-white font-semibold shadow-[0_6px_18px_rgba(225,6,0,0.35)]'

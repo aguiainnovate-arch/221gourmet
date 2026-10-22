@@ -14,6 +14,8 @@ export interface PartnershipPlanOption {
 
 export const PARTNERSHIP_TRIAL_DAYS = 7;
 export const PARTNERSHIP_MONTHLY_FEE = 89.9;
+/** TEMP TESTE: preço mínimo do Stripe para cartão em BRL (R$ 0,50). Reverter para PARTNERSHIP_MONTHLY_FEE após o teste. */
+export const PARTNERSHIP_STORE_DELIVERY_TEST_MONTHLY_FEE = 0.5;
 export const PARTNERSHIP_FEE_WAIVER_THRESHOLD = 1500;
 
 export const PARTNERSHIP_PLANS: Record<PartnershipDeliveryMode, PartnershipPlanOption> = {
@@ -22,7 +24,7 @@ export const PARTNERSHIP_PLANS: Record<PartnershipDeliveryMode, PartnershipPlanO
     title: 'Delivery com entrega feita pela loja',
     subtitle: 'Você recebe os pedidos na Bora Comer! e faz a entrega com sua própria equipe.',
     platformFeePercent: 12,
-    monthlyFee: PARTNERSHIP_MONTHLY_FEE,
+    monthlyFee: PARTNERSHIP_STORE_DELIVERY_TEST_MONTHLY_FEE,
   },
   platform_delivery: {
     id: 'platform_delivery',

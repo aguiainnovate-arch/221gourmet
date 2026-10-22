@@ -3313,7 +3313,6 @@ export default function Settings() {
               backgroundColor={personalizationForm.backgroundColor}
               cardStyle={personalizationForm.cardStyle}
               storeHref={restaurantId ? `/delivery/${restaurantId}` : '/delivery'}
-              onNavigateTab={(tabId) => setActiveTab(tabId as typeof activeTab)}
               saving={isSavingPersonalization}
               storeOpen={Boolean(partnershipRestaurant?.openingHours)}
               extractedColors={extractedColors}

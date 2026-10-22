@@ -22,7 +22,6 @@ import DigitalMenuUpsellModal from '../components/DigitalMenuUpsellModal';
 import type { Restaurant } from '../types/restaurant';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
-  PARTNERSHIP_MONTHLY_FEE,
   PARTNERSHIP_PLANS,
   PARTNERSHIP_TRIAL_DAYS,
   type PartnershipDeliveryMode,
@@ -546,7 +545,7 @@ export default function PartnershipPlans() {
                   <div
                     className="mt-2 inline-flex items-center justify-center rounded-2xl px-8 py-3 text-2xl font-black text-white tabular-nums border-2 border-white/80"
                   >
-                    {formatBRL(PARTNERSHIP_MONTHLY_FEE)}
+                    {formatBRL(plan.monthlyFee)}
                   </div>
                 </div>
 
@@ -586,7 +585,7 @@ export default function PartnershipPlans() {
                   comercial local.
                 </p>
                 <p>
-                  **A mensalidade de {formatBRL(PARTNERSHIP_MONTHLY_FEE)} é isenta enquanto o
+                  **A mensalidade de {formatBRL(plan.monthlyFee)} é isenta enquanto o
                   faturamento mensal na Bora Comer! for de até{' '}
                   {formatBRL(PARTNERSHIP_FEE_WAIVER_THRESHOLD)}.
                 </p>

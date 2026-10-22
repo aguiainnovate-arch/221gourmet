@@ -37,7 +37,11 @@ export default function OpeningHoursEditor({ value, onChange }: OpeningHoursEdit
         return (
           <div
             key={day}
-            className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-3 py-2.5"
+            className={`flex flex-col gap-2 rounded-xl border px-4 py-3 ${
+              entry.closed
+                ? 'border-dashed border-gray-200 bg-transparent'
+                : 'border-gray-200 bg-gray-50'
+            }`}
           >
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="sm:w-36 shrink-0">
@@ -51,7 +55,7 @@ export default function OpeningHoursEditor({ value, onChange }: OpeningHoursEdit
                   onChange={(e) =>
                     onChange(updateDay(value, day, { closed: e.target.checked }))
                   }
-                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                  className="h-4 w-4 shrink-0 accent-[#e10600]"
                 />
                 Fechado
               </label>
@@ -118,7 +122,7 @@ export default function OpeningHoursEditor({ value, onChange }: OpeningHoursEdit
                         })
                       )
                     }
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:text-amber-800"
+                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#e10600] transition hover:text-[#ff443b]"
                   >
                     <Plus className="w-4 h-4" />
                     Adicionar 2º horário (pausa)

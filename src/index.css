@@ -222,6 +222,12 @@ label {
 .panel-theme .bg-gray-50\/80 {
   background-color: rgba(255, 255, 255, 0.05);
 }
+.panel-theme .bg-gray-50\/70,
+.panel-theme .bg-gray-50\/60,
+.panel-theme .bg-gray-100\/70,
+.panel-theme .bg-gray-100\/60 {
+  background-color: rgba(255, 255, 255, 0.04);
+}
 
 /* Gradientes claros de destaque viram tintos escuros da mesma cor */
 .panel-theme .bg-gradient-to-br.from-rose-50 {
@@ -454,6 +460,12 @@ label {
 }
 .panel-theme input[type='color'] {
   background-color: transparent;
+}
+.panel-theme input[type='time']::-webkit-calendar-picker-indicator,
+.panel-theme input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.55;
+  cursor: pointer;
 }
 
 /* Tabelas */

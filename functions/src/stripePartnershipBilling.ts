@@ -10,22 +10,24 @@ import { getStripe, stripeSecretKey } from './stripeClient';
 import { translateStripeError } from './stripeUtils';
 import { connectAppOrigin, publicAppUrl } from './stripeRestaurantConnect';
 
-const MONTHLY_FEE_CENTS = 8990;
 const WAIVER_THRESHOLD = 1500;
 
 type DeliveryMode = 'store_delivery' | 'platform_delivery';
 
 const PLAN_META: Record<
   DeliveryMode,
-  { label: string; platformFeePercent: number }
+  { label: string; platformFeePercent: number; monthlyFeeCents: number }
 > = {
   store_delivery: {
     label: 'Delivery com entrega pela loja',
     platformFeePercent: 12,
+    // TEMP TESTE: 50 = mínimo do Stripe para cartão em BRL (R$ 0,50). Reverter para 8990 após o teste.
+    monthlyFeeCents: 50,
   },
   platform_delivery: {
     label: 'Delivery + entrega Bora Comer!',
     platformFeePercent: 19.99,
+    monthlyFeeCents: 8990,
   },
 };
 
@@ -77,7 +79,7 @@ export const createPartnershipSubscriptionCheckout = onCall(
             quantity: 1,
             price_data: {
               currency: 'brl',
-              unit_amount: MONTHLY_FEE_CENTS,
+              unit_amount: plan.monthlyFeeCents,
               recurring: { interval: 'month' },
               product_data: {
                 name: `Bora Comer! — ${plan.label}`,
@@ -110,7 +112,7 @@ export const createPartnershipSubscriptionCheckout = onCall(
       await ref.update({
         'partnershipSubscription.deliveryMode': deliveryMode,
         'partnershipSubscription.platformFeePercent': plan.platformFeePercent,
-        'partnershipSubscription.monthlyFee': MONTHLY_FEE_CENTS / 100,
+        'partnershipSubscription.monthlyFee': plan.monthlyFeeCents / 100,
         'partnershipSubscription.monthlyFeeWaiverThreshold': WAIVER_THRESHOLD,
         'partnershipSubscription.updatedAt': FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -194,7 +196,7 @@ export const confirmPartnershipSubscriptionCheckout = onCall(
           trialEndsAt: existing.trialEndsAt ?? FieldValue.serverTimestamp(),
           deliveryMode,
           platformFeePercent: plan.platformFeePercent,
-          monthlyFee: MONTHLY_FEE_CENTS / 100,
+          monthlyFee: plan.monthlyFeeCents / 100,
           monthlyFeeWaiverThreshold: WAIVER_THRESHOLD,
           stripeCustomerId: customerId ?? existing.stripeCustomerId ?? null,
           stripeSubscriptionId: subscriptionId ?? existing.stripeSubscriptionId ?? null,

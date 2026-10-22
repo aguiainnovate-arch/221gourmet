@@ -3,7 +3,6 @@ import { functions } from '../../firebase';
 import type { PartnershipDeliveryMode } from '../types/partnership';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
-  PARTNERSHIP_MONTHLY_FEE,
   PARTNERSHIP_PLANS,
   createTrialPartnershipSubscription,
 } from '../types/partnership';
@@ -61,7 +60,7 @@ export async function activatePartnershipLocally(args: {
       status: 'active',
       deliveryMode: args.deliveryMode,
       platformFeePercent: plan.platformFeePercent,
-      monthlyFee: PARTNERSHIP_MONTHLY_FEE,
+      monthlyFee: plan.monthlyFee,
       monthlyFeeWaiverThreshold: PARTNERSHIP_FEE_WAIVER_THRESHOLD,
       updatedAt: new Date(),
     },
