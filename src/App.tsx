@@ -11,6 +11,7 @@ import DeliveryAuth from './pages/DeliveryAuth';
 import Orders from './pages/Orders';
 import RestaurantAuth from './pages/RestaurantAuth';
 import BoraComerLanding from './pages/BoraComerLanding';
+import ProfitCalculatorLanding from './pages/ProfitCalculatorLanding';
 import CaptarHub from './pages/captar/CaptarHub';
 import CaptarRestaurant from './pages/captar/CaptarRestaurant';
 import CaptarMotoboy from './pages/captar/CaptarMotoboy';
@@ -57,6 +58,7 @@ function App() {
                 {/* Rota de cadastro de restaurante (pública) */}
                 <Route path="/register/:token" element={<Register />} />
                 <Route path="/parceiros" element={<BoraComerLanding />} />
+                <Route path="/calculadora" element={<ProfitCalculatorLanding />} />
                 <Route path="/captar" element={<CaptarHub />} />
                 <Route path="/captar/restaurante" element={<CaptarRestaurant />} />
                 <Route path="/captar/motoboy" element={<CaptarMotoboy />} />
