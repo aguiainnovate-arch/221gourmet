@@ -35,6 +35,17 @@ export const PARTNERSHIP_PLANS: Record<PartnershipDeliveryMode, PartnershipPlanO
   },
 };
 
+/** Formata taxa % para UI: 12 → "12%", 19.99 → "19,99%". */
+export function formatFeePercent(percent: number): string {
+  if (!Number.isFinite(percent)) return '0%';
+  const rounded = Math.round(percent * 100) / 100;
+  if (Number.isInteger(rounded)) return `${rounded}%`;
+  return `${rounded.toLocaleString('pt-BR', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  })}%`;
+}
+
 export interface PartnershipSubscription {
   status: PartnershipSubscriptionStatus;
   trialStartedAt: Date;

@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, Check, ClipboardList, Eye, EyeOff, Link2, MessageCircle, Share2, X } from 'lucide-react';
+import { ArrowRight, Check, ClipboardList, Eye, EyeOff, Link2, MessageCircle, Share2, Sparkles, X } from 'lucide-react';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
   PARTNERSHIP_MONTHLY_FEE,
   PARTNERSHIP_PLANS,
   PARTNERSHIP_TRIAL_DAYS,
+  formatFeePercent,
 } from '../../types/partnership';
 import {
   submitRestaurantLead,
@@ -21,6 +22,7 @@ import {
   CaptarSheet,
   formatPhone,
 } from './CaptarShared';
+import CaptarProfitCalculator from '../../components/captar/CaptarProfitCalculator';
 import { pushCaptarRestaurantSubmit } from '../../utils/gtm';
 import {
   persistRestaurantSession,
@@ -45,8 +47,8 @@ const initial: RestaurantLeadPayload = {
 
 const FAQ = [
   {
-    q: 'Como funciona o período de teste da mensalidade?',
-    a: `Novos restaurantes entram com ${PARTNERSHIP_TRIAL_DAYS} dias de trial. Depois vale a mensalidade de R$ ${PARTNERSHIP_MONTHLY_FEE.toFixed(2).replace('.', ',')} se o faturamento no mês passar de R$ ${PARTNERSHIP_FEE_WAIVER_THRESHOLD.toLocaleString('pt-BR')}.`,
+    q: 'Como funcionam os 7 dias grátis da mensalidade?',
+    a: `Novos restaurantes começam com ${PARTNERSHIP_TRIAL_DAYS} dias grátis. Depois vale a mensalidade de R$ ${PARTNERSHIP_MONTHLY_FEE.toFixed(2).replace('.', ',')} se o faturamento no mês passar de R$ ${PARTNERSHIP_FEE_WAIVER_THRESHOLD.toLocaleString('pt-BR')}.`,
   },
   {
     q: 'Quem pode se cadastrar?',
@@ -54,7 +56,7 @@ const FAQ = [
   },
   {
     q: 'Quais taxas são cobradas?',
-    a: `Entrega pela loja: ${PARTNERSHIP_PLANS.store_delivery.platformFeePercent}% por pedido. Entrega pela Bora Comer!: ${PARTNERSHIP_PLANS.platform_delivery.platformFeePercent}%. A mensalidade segue a regra de isenção por faturamento.`,
+    a: `Entrega pela loja: ${formatFeePercent(PARTNERSHIP_PLANS.store_delivery.platformFeePercent)} por pedido. Entrega pela Bora Comer!: ${formatFeePercent(PARTNERSHIP_PLANS.platform_delivery.platformFeePercent)}. A mensalidade segue a regra de isenção por faturamento.`,
   },
   {
     q: 'Do que preciso para me cadastrar?',
@@ -125,8 +127,13 @@ export default function CaptarRestaurant() {
   }, []);
 
   useLayoutEffect(() => {
-    if (location.hash !== '#cadastro') return;
-    document.getElementById('cadastro')?.scrollIntoView({ block: 'center' });
+    if (location.hash === '#cadastro') {
+      document.getElementById('cadastro')?.scrollIntoView({ block: 'center' });
+      return;
+    }
+    if (location.hash === '#calculadora') {
+      document.getElementById('calculadora')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [location.hash]);
 
   function setField<K extends keyof RestaurantLeadPayload>(key: K, value: string) {
@@ -218,16 +225,37 @@ export default function CaptarRestaurant() {
         )
       }
     >
-      <section className="captar-hero-rest">
-        <div className="captar-hero-mosaic" aria-hidden>
-          <img src="/heroLadingPage.png" alt="" />
-          <img src="/Beneficios.png" alt="" />
-          <img src="/passo 3.png" alt="" />
+      <section className="captar-hero-rest captar-hero-rest--compact">
+        <div className="captar-hero-banner" aria-hidden>
+          <img src="/captar/hero-calculadora.jpg" alt="" />
         </div>
         <div className="captar-hero-rest-inner">
           <div className="captar-hero-copy">
-            <h1>Conecte sua loja a quem está com fome agora</h1>
-            <p>De comida a gente entende. Entra na Bora Comer! e vende no app com taxa clara.</p>
+            <p className="captar-hero-eyebrow">
+              <span className="captar-hero-eyebrow__glow" aria-hidden />
+              <span className="captar-hero-eyebrow__icon" aria-hidden>
+                <Sparkles size={13} strokeWidth={2.4} />
+              </span>
+              <span className="captar-hero-eyebrow__text">{PARTNERSHIP_TRIAL_DAYS} DIAS GRÁTIS</span>
+            </p>
+            <h1>Simule o lucro da sua loja na Bora Comer!</h1>
+            <p>
+              Ajuste pedidos, ticket e custo do prato. Veja o mês na ponta do lápis e cadastre a loja
+              quando os números fizerem sentido.
+            </p>
+            <div className="captar-hero-actions">
+              <a className="captar-btn-solid captar-btn-lg" href="#calculadora">
+                Abrir calculadora
+                <ArrowRight size={18} />
+              </a>
+              <button
+                type="button"
+                className="captar-btn-ghost-light"
+                onClick={() => openWizard()}
+              >
+                Criar conta grátis
+              </button>
+            </div>
           </div>
           <div id="cadastro" className="captar-form-card captar-pitch">
             <h2>
@@ -236,7 +264,7 @@ export default function CaptarRestaurant() {
               Mais tempo vendendo.
             </h2>
             <p className="hint">
-              Crie sua conta em poucos passos. Seu cardápio e os demais detalhes você configura depois.
+              Conta em poucos passos. Cardápio e detalhes você configura depois no painel.
             </p>
             <button
               className="captar-btn-solid captar-btn-lg captar-pitch-cta"
@@ -250,97 +278,24 @@ export default function CaptarRestaurant() {
         </div>
       </section>
 
-      <section className="captar-promo">
-        <div className="captar-promo-badge">
-          {PARTNERSHIP_TRIAL_DAYS} DIAS
-          <br />
-          DE TRIAL
-        </div>
-        <div>
-          <h2 style={{ textAlign: 'left', marginBottom: 8 }}>Sua loja no app que o cliente já usa</h2>
-          <p style={{ color: '#555', margin: '0 0 16px' }}>
-            Quem está na Bora Comer! aparece no delivery, recebe pedido no painel e escolhe se a
-            entrega é da casa ou da plataforma. Trial da mensalidade para CNPJ novo.
-          </p>
-          <button type="button" className="captar-btn-solid" onClick={() => openWizard()}>
-            Quero aproveitar!
-          </button>
-        </div>
-      </section>
-
-      <section className="captar-stats">
-        <div className="captar-stat">
-          <strong>
-            {PARTNERSHIP_PLANS.store_delivery.platformFeePercent
-              .toFixed(2)
-              .replace('.', ',')}
-            %
-          </strong>
-          <span>taxa a partir de, no plano com entrega da loja</span>
-        </div>
-        <div className="captar-stat">
-          <strong>R$ {PARTNERSHIP_MONTHLY_FEE.toFixed(2).replace('.', ',')}</strong>
-          <span>mensalidade após o trial, com isenção por faturamento</span>
-        </div>
-        <div className="captar-stat">
-          <strong>2</strong>
-          <span>modos: sua equipe ou motoboys da Bora Comer!</span>
-        </div>
-      </section>
-
-      <section className="captar-band" id="vantagens">
-        <div className="captar-band-inner">
-          <h2>Vantagens de ser uma loja parceira</h2>
-          <div className="captar-adv-grid four">
-            <button type="button" className="captar-adv-card" onClick={() => openWizard()}>
-              <h3>Entrega do seu jeito</h3>
-              <p>
-                Pedidos do app com a sua equipe, ou com motoboys da rede. WhatsApp da casa continua
-                no seu fluxo.
-              </p>
-              <span className="go">
-                Quero ser parceiro <ArrowRight size={16} />
-              </span>
-            </button>
-            <button type="button" className="captar-adv-card" onClick={() => openWizard()}>
-              <h3>Gestão no celular</h3>
-              <p>Cardápio, pedidos e Stripe Connect no painel. Sem depender de um PDV extra.</p>
-              <span className="go">
-                Quero ser parceiro <ArrowRight size={16} />
-              </span>
-            </button>
-            <button type="button" className="captar-adv-card" onClick={() => openWizard()}>
-              <h3>Boris indica a casa</h3>
-              <p>O assistente do delivery recomenda restaurantes da região — sua loja entra nessa lista.</p>
-              <span className="go">
-                Quero ser parceiro <ArrowRight size={16} />
-              </span>
-            </button>
-            <button type="button" className="captar-adv-card" onClick={() => openWizard()}>
-              <h3>Recebimento Stripe</h3>
-              <p>Subconta Connect da loja. O cliente paga no app; o dinheiro vai para a sua conta.</p>
-              <span className="go">
-                Quero ser parceiro <ArrowRight size={16} />
-              </span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <div style={{ textAlign: 'center', padding: '8px 20px 40px' }}>
-        <button type="button" className="captar-btn-solid" onClick={() => openWizard()}>
-          Cadastrar minha loja
-        </button>
+      <div className="captar-calc-stage">
+        <CaptarProfitCalculator onAssinar={openWizard} featured />
       </div>
 
-      <section className="captar-section" id="planos">
-        <h2>Conheça nossos planos</h2>
+      <section className="captar-section captar-planos-block" id="planos">
+        <div className="captar-planos-block__head">
+          <h2>Planos</h2>
+          <p className="captar-planos-block__lead">
+            Escolha como entregar. Mensalidade com {PARTNERSHIP_TRIAL_DAYS} dias grátis e isenção por
+            faturamento.
+          </p>
+        </div>
         <div className="captar-plans">
           {Object.values(PARTNERSHIP_PLANS).map((plan) => (
             <article className="captar-plan" key={plan.id}>
               <h3>{plan.id === 'store_delivery' ? 'Entrega da loja' : 'Entrega Bora Comer!'}</h3>
               <div className="rate">
-                {plan.platformFeePercent.toString().replace('.', ',')}%
+                {formatFeePercent(plan.platformFeePercent)}
                 <small>comissão sobre pedidos delivery</small>
               </div>
               <p style={{ margin: '12px 0 0', color: '#555', fontSize: 14 }}>{plan.subtitle}</p>
@@ -371,6 +326,58 @@ export default function CaptarRestaurant() {
               )}
             </article>
           ))}
+        </div>
+        <div className="captar-mid-cta captar-planos-block__cta">
+          <Link to="/planos" className="captar-btn-ghost">
+            Ver página completa de planos
+          </Link>
+          <button type="button" className="captar-btn-solid" onClick={() => openWizard()}>
+            Cadastrar minha loja
+          </button>
+        </div>
+      </section>
+
+      <section className="captar-stats captar-stats--slim">
+        <div className="captar-stat">
+          <strong>
+            {formatFeePercent(PARTNERSHIP_PLANS.store_delivery.platformFeePercent)}
+          </strong>
+          <span>taxa a partir de, com entrega da loja</span>
+        </div>
+        <div className="captar-stat">
+          <strong>{PARTNERSHIP_TRIAL_DAYS} dias</strong>
+          <span>grátis para testar a mensalidade</span>
+        </div>
+        <div className="captar-stat">
+          <strong>2</strong>
+          <span>modos: sua equipe ou motoboys da Bora Comer!</span>
+        </div>
+      </section>
+
+      <section className="captar-section captar-vantagens-slim" id="vantagens">
+        <h2>Por que entrar na Bora Comer!</h2>
+        <div className="captar-adv-grid three">
+          <button type="button" className="captar-adv-card captar-adv-card--light" onClick={() => openWizard()}>
+            <h3>Entrega do seu jeito</h3>
+            <p>Sua equipe ou motoboys da rede. WhatsApp da casa continua no seu fluxo.</p>
+            <span className="go">
+              Quero ser parceiro <ArrowRight size={16} />
+            </span>
+          </button>
+          <button type="button" className="captar-adv-card captar-adv-card--light" onClick={() => openWizard()}>
+            <h3>Gestão no celular</h3>
+            <p>Cardápio, pedidos e Stripe Connect no painel. Sem PDV extra.</p>
+            <span className="go">
+              Quero ser parceiro <ArrowRight size={16} />
+            </span>
+          </button>
+          <button type="button" className="captar-adv-card captar-adv-card--light" onClick={() => openWizard()}>
+            <h3>Recebimento Stripe</h3>
+            <p>O cliente paga no app. O dinheiro vai para a conta da loja.</p>
+            <span className="go">
+              Quero ser parceiro <ArrowRight size={16} />
+            </span>
+          </button>
         </div>
       </section>
 

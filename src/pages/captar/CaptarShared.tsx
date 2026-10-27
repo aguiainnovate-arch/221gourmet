@@ -1,13 +1,103 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, Moon, Sun, X } from 'lucide-react';
 import './captar.css';
+
+const CAPTAR_THEME_KEY = 'captar-theme';
+
+type CaptarTheme = 'light' | 'dark';
+
+function readCaptarTheme(): CaptarTheme {
+  try {
+    return window.localStorage.getItem(CAPTAR_THEME_KEY) === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function runCaptarThemeTransition(
+  event: ReactMouseEvent<HTMLButtonElement>,
+  apply: () => void,
+  next: CaptarTheme,
+) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const radius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y),
+  );
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (reducedMotion) {
+    apply();
+    return;
+  }
+
+  const doc = document as Document & {
+    startViewTransition?: (callback: () => void) => {
+      ready: Promise<void>;
+      finished: Promise<void>;
+    };
+  };
+
+  if (doc.startViewTransition) {
+    const transition = doc.startViewTransition(() => {
+      flushSync(apply);
+    });
+    transition.ready
+      .then(() => {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${radius}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 750,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            pseudoElement: '::view-transition-new(root)',
+          },
+        );
+      })
+      .catch(() => undefined);
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;z-index:9999;pointer-events:none;background:${
+    next === 'light' ? '#fff5f7' : '#0c0a0b'
+  };clip-path:circle(0px at ${x}px ${y}px);transition:clip-path 650ms cubic-bezier(0.22,1,0.36,1),opacity 220ms ease;`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => {
+    overlay.style.clipPath = `circle(${radius}px at ${x}px ${y}px)`;
+  });
+  window.setTimeout(() => {
+    apply();
+    overlay.style.opacity = '0';
+    window.setTimeout(() => overlay.remove(), 240);
+  }, 320);
+}
 
 export function useCaptarBodyClass() {
   useEffect(() => {
     document.body.classList.add('captar-bora-comer', 'landing-bora-comer');
     return () => {
-      document.body.classList.remove('captar-bora-comer', 'landing-bora-comer');
+      document.body.classList.remove(
+        'captar-bora-comer',
+        'landing-bora-comer',
+        'captar-theme-dark',
+      );
     };
   }, []);
 }
@@ -125,11 +215,18 @@ function Dropdown({
 export function CaptarHeader({
   onCadastrar,
   variant,
+  theme,
+  onToggleTheme,
 }: {
   onCadastrar: () => void;
   variant: 'hub' | 'restaurante' | 'motoboy';
+  theme?: CaptarTheme;
+  onToggleTheme?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   const navigate = useNavigate();
+  const isDark = theme === 'dark';
+  const showThemeToggle = Boolean(onToggleTheme && theme);
+
   return (
     <header className="captar-header">
       <div className="captar-header-inner">
@@ -146,6 +243,11 @@ export function CaptarHeader({
               {variant === 'restaurante' ? 'Cadastrar motoboy' : 'Cadastrar restaurante'}
             </Link>
           )}
+          {variant === 'restaurante' && (
+            <a className="captar-nav-btn" href="#planos">
+              Planos
+            </a>
+          )}
           <Dropdown label="Como funciona">
             <Link className="captar-menu-item" to="/captar#como" onClick={() => navigate('/captar')}>
               <span>
@@ -155,8 +257,8 @@ export function CaptarHeader({
             </Link>
             <a className="captar-menu-item" href="#planos">
               <span>
-                <strong>Pagamento</strong>
-                <span>Repasse via Stripe Connect na conta da loja.</span>
+                <strong>Planos</strong>
+                <span>Taxas, mensalidade e modos de entrega.</span>
               </span>
             </a>
             <a className="captar-menu-item" href="#passos">
@@ -169,6 +271,12 @@ export function CaptarHeader({
               <span>
                 <strong>Planos</strong>
                 <span>Compare taxas e mensalidade da parceria.</span>
+              </span>
+            </Link>
+            <Link className="captar-menu-item" to="/captar/restaurante#calculadora">
+              <span>
+                <strong>Calculadora de lucro</strong>
+                <span>Simule quanto sua loja ganha por mês.</span>
               </span>
             </Link>
             <a className="captar-menu-item" href="#vantagens">
@@ -194,6 +302,17 @@ export function CaptarHeader({
           </Dropdown>
         </nav>
         <div className="captar-header-actions">
+          {showThemeToggle && (
+            <button
+              type="button"
+              className="captar-theme-btn"
+              onClick={onToggleTheme}
+              aria-label={isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+              title={isDark ? 'Modo claro' : 'Modo escuro'}
+            >
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          )}
           <Link className="captar-btn-ghost" to={variant === 'motoboy' ? '/delivery/auth' : '/restaurant/auth'}>
             Entrar no portal
           </Link>
@@ -219,6 +338,7 @@ export function CaptarFooter() {
         <div>
           <h3>Descubra</h3>
           <Link to="/captar/restaurante">Cadastre seu restaurante</Link>
+          <Link to="/captar/restaurante#calculadora">Calculadora de lucro</Link>
           <Link to="/captar/motoboy">Cadastre-se como motoboy</Link>
           <Link to="/planos">Planos de parceria</Link>
         </div>
@@ -303,9 +423,38 @@ export function CaptarLayout({
   sheet?: ReactNode;
 }) {
   useCaptarBodyClass();
+  const enableTheme = variant === 'restaurante';
+  const [theme, setTheme] = useState<CaptarTheme>(() =>
+    enableTheme ? readCaptarTheme() : 'light',
+  );
+  const isDark = enableTheme && theme === 'dark';
+
+  useEffect(() => {
+    if (!enableTheme) return;
+    try {
+      window.localStorage.setItem(CAPTAR_THEME_KEY, theme);
+    } catch {
+      /* armazenamento indisponível */
+    }
+    document.body.classList.toggle('captar-theme-dark', theme === 'dark');
+    return () => {
+      document.body.classList.remove('captar-theme-dark');
+    };
+  }, [enableTheme, theme]);
+
+  function toggleTheme(event: ReactMouseEvent<HTMLButtonElement>) {
+    const next: CaptarTheme = theme === 'dark' ? 'light' : 'dark';
+    runCaptarThemeTransition(event, () => setTheme(next), next);
+  }
+
   return (
-    <div className="captar-root">
-      <CaptarHeader variant={variant} onCadastrar={onCadastrar} />
+    <div className={`captar-root${isDark ? ' captar-theme-dark' : ''}`}>
+      <CaptarHeader
+        variant={variant}
+        onCadastrar={onCadastrar}
+        theme={enableTheme ? theme : undefined}
+        onToggleTheme={enableTheme ? toggleTheme : undefined}
+      />
       {children}
       <CaptarFooter />
       {sheet}

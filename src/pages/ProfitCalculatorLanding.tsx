@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Calculator, CalendarClock, CircleDollarSign } from 'lucide-react';
+import {
+  ArrowRight,
+  Calculator,
+  CalendarClock,
+  CircleDollarSign,
+  Moon,
+  Sun,
+} from 'lucide-react';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
   PARTNERSHIP_MONTHLY_FEE,
   PARTNERSHIP_PLANS,
+  formatFeePercent,
   type PartnershipDeliveryMode,
 } from '../types/partnership';
 import {
@@ -16,6 +25,8 @@ import {
 
 const FONT_HREF =
   'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap';
+
+const THEME_KEY = 'calc-theme';
 
 const tokens = {
   bg: '#0C0A09',
@@ -77,6 +88,14 @@ export default function ProfitCalculatorLanding() {
   const [foodCostPercent, setFoodCostPercent] = useState(35);
   const [deliveryMode, setDeliveryMode] = useState<PartnershipDeliveryMode>('store_delivery');
   const [reveal, setReveal] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return window.localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -89,6 +108,76 @@ export default function ProfitCalculatorLanding() {
       link.remove();
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* armazenamento indisponível */
+    }
+  }, [theme]);
+
+  function toggleTheme(event: React.MouseEvent<HTMLButtonElement>) {
+    const next = isDark ? 'light' : 'dark';
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const radius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reducedMotion) {
+      setTheme(next);
+      return;
+    }
+
+    const doc = document as Document & {
+      startViewTransition?: (callback: () => void) => {
+        ready: Promise<void>;
+        finished: Promise<void>;
+      };
+    };
+
+    if (doc.startViewTransition) {
+      const transition = doc.startViewTransition(() => {
+        flushSync(() => setTheme(next));
+      });
+      transition.ready
+        .then(() => {
+          document.documentElement.animate(
+            {
+              clipPath: [
+                `circle(0px at ${x}px ${y}px)`,
+                `circle(${radius}px at ${x}px ${y}px)`,
+              ],
+            },
+            {
+              duration: 750,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+              pseudoElement: '::view-transition-new(root)',
+            }
+          );
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `position:fixed;inset:0;z-index:9999;pointer-events:none;background:${
+      next === 'light' ? '#F7F1EA' : '#0C0A09'
+    };clip-path:circle(0px at ${x}px ${y}px);transition:clip-path 650ms cubic-bezier(0.22,1,0.36,1),opacity 220ms ease;`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => {
+      overlay.style.clipPath = `circle(${radius}px at ${x}px ${y}px)`;
+    });
+    window.setTimeout(() => {
+      setTheme(next);
+      overlay.style.opacity = '0';
+      window.setTimeout(() => overlay.remove(), 240);
+    }, 320);
+  }
 
   const input: ProfitCalculatorInput = useMemo(
     () => ({ ordersPerDay, ticketAverage, foodCostPercent, deliveryMode }),
@@ -107,7 +196,7 @@ export default function ProfitCalculatorLanding() {
   );
 
   return (
-    <div className={`calc-page${reveal ? ' is-ready' : ''}`}>
+    <div className={`calc-page${reveal ? ' is-ready' : ''}${isDark ? '' : ' is-light'}`}>
       <style>{`
         .calc-page {
           --calc-bg: ${tokens.bg};
@@ -121,22 +210,52 @@ export default function ProfitCalculatorLanding() {
           --calc-amber: ${tokens.amber};
           --calc-display: "Bricolage Grotesque", "Arial Black", sans-serif;
           --calc-body: "IBM Plex Sans", "Segoe UI", sans-serif;
-          min-height: 100vh;
-          background:
+          --calc-hero-metric-bg: linear-gradient(135deg, rgba(233, 17, 32, 0.28), rgba(233, 17, 32, 0.05) 55%), #1a1010;
+          --calc-hero-metric-border: rgba(233, 17, 32, 0.35);
+          --calc-hero-metric-label: rgba(247, 241, 234, 0.78);
+          --calc-hero-metric-hint: rgba(247, 241, 234, 0.7);
+          --calc-hero-loss-bg: linear-gradient(135deg, rgba(245, 185, 66, 0.2), rgba(245, 185, 66, 0.04) 55%), #1a1510;
+          --calc-hero-loss-border: rgba(245, 185, 66, 0.35);
+          --calc-page-bg:
             radial-gradient(ellipse 90% 55% at 12% -10%, rgba(233, 17, 32, 0.22), transparent 55%),
             radial-gradient(ellipse 70% 45% at 100% 0%, rgba(245, 185, 66, 0.08), transparent 50%),
             linear-gradient(180deg, #120e0c 0%, var(--calc-bg) 40%, #070605 100%);
+          min-height: 100vh;
+          background: var(--calc-page-bg);
           color: var(--calc-ink);
           font-family: var(--calc-body);
           opacity: 0;
           transform: translateY(8px);
           transition: opacity 0.55s ease, transform 0.55s ease;
         }
+        .calc-page.is-light {
+          --calc-bg: #F7F1EA;
+          --calc-elev: #FFFFFF;
+          --calc-ink: #1C1410;
+          --calc-muted: #6B5A54;
+          --calc-line: rgba(28, 20, 16, 0.12);
+          --calc-red-soft: rgba(233, 17, 32, 0.1);
+          --calc-hero-metric-bg: linear-gradient(135deg, rgba(233, 17, 32, 0.14), rgba(233, 17, 32, 0.04) 55%), #fff5f5;
+          --calc-hero-metric-border: rgba(233, 17, 32, 0.28);
+          --calc-hero-metric-label: rgba(28, 20, 16, 0.72);
+          --calc-hero-metric-hint: rgba(28, 20, 16, 0.62);
+          --calc-hero-loss-bg: linear-gradient(135deg, rgba(245, 185, 66, 0.22), rgba(245, 185, 66, 0.06) 55%), #fff8eb;
+          --calc-hero-loss-border: rgba(180, 120, 20, 0.35);
+          --calc-page-bg:
+            radial-gradient(ellipse 90% 55% at 12% -10%, rgba(233, 17, 32, 0.1), transparent 55%),
+            radial-gradient(ellipse 70% 45% at 100% 0%, rgba(245, 185, 66, 0.12), transparent 50%),
+            linear-gradient(180deg, #FFF9F3 0%, var(--calc-bg) 42%, #F0E6DA 100%);
+        }
         .calc-page.is-ready {
           opacity: 1;
           transform: none;
         }
         .calc-page * { box-sizing: border-box; }
+        /* Vence o label { color: #1f2937 } global do app */
+        .calc-page label,
+        .calc-page label.calc-field {
+          color: inherit;
+        }
         .calc-shell {
           width: min(1120px, calc(100% - 2rem));
           margin: 0 auto;
@@ -176,6 +295,11 @@ export default function ProfitCalculatorLanding() {
           text-transform: uppercase;
           color: var(--calc-muted);
         }
+        .calc-nav__actions {
+          display: flex;
+          align-items: center;
+          gap: 0.55rem;
+        }
         .calc-nav__link {
           color: var(--calc-ink);
           text-decoration: none;
@@ -189,6 +313,33 @@ export default function ProfitCalculatorLanding() {
         .calc-nav__link:hover {
           background: rgba(255,255,255,0.04);
           border-color: rgba(247, 241, 234, 0.28);
+        }
+        .calc-page.is-light .calc-nav__link:hover {
+          background: rgba(28, 20, 16, 0.04);
+          border-color: rgba(28, 20, 16, 0.22);
+        }
+        .calc-theme-btn {
+          width: 2.5rem;
+          height: 2.5rem;
+          border-radius: 999px;
+          border: 1px solid var(--calc-line);
+          background: transparent;
+          color: var(--calc-amber);
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+        .calc-page.is-light .calc-theme-btn {
+          color: #5C4A42;
+        }
+        .calc-theme-btn:hover {
+          background: rgba(255,255,255,0.06);
+          border-color: rgba(247, 241, 234, 0.28);
+        }
+        .calc-page.is-light .calc-theme-btn:hover {
+          background: rgba(28, 20, 16, 0.05);
+          border-color: rgba(28, 20, 16, 0.2);
         }
         .calc-hero {
           display: grid;
@@ -240,6 +391,10 @@ export default function ProfitCalculatorLanding() {
           border-radius: 1.35rem;
           padding: 1.35rem;
           box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+        }
+        .calc-page.is-light .calc-panel {
+          box-shadow: 0 16px 40px rgba(42, 30, 26, 0.08);
+          background: var(--calc-elev);
         }
         .calc-panel__head {
           display: flex;
@@ -310,6 +465,7 @@ export default function ProfitCalculatorLanding() {
           font-weight: 700;
           font-size: 1.05rem;
           letter-spacing: -0.02em;
+          color: var(--calc-ink);
         }
         .calc-field__suffix {
           margin-left: 0.2rem;
@@ -322,6 +478,7 @@ export default function ProfitCalculatorLanding() {
           accent-color: var(--calc-red);
           height: 0.35rem;
           cursor: pointer;
+          color: var(--calc-ink);
         }
         .calc-note {
           margin: 0.35rem 0 0;
@@ -338,17 +495,14 @@ export default function ProfitCalculatorLanding() {
           overflow: hidden;
           border-radius: 1.2rem;
           padding: 1.25rem 1.2rem 1.15rem;
-          background:
-            linear-gradient(135deg, rgba(233, 17, 32, 0.28), rgba(233, 17, 32, 0.05) 55%),
-            #1a1010;
-          border: 1px solid rgba(233, 17, 32, 0.35);
+          background: var(--calc-hero-metric-bg);
+          border: 1px solid var(--calc-hero-metric-border);
           animation: calcPulse 0.45s ease;
+          color: var(--calc-ink);
         }
         .calc-hero-metric.is-loss {
-          background:
-            linear-gradient(135deg, rgba(245, 185, 66, 0.2), rgba(245, 185, 66, 0.04) 55%),
-            #1a1510;
-          border-color: rgba(245, 185, 66, 0.35);
+          background: var(--calc-hero-loss-bg);
+          border-color: var(--calc-hero-loss-border);
         }
         @keyframes calcPulse {
           from { transform: scale(0.985); opacity: 0.7; }
@@ -358,7 +512,7 @@ export default function ProfitCalculatorLanding() {
           display: flex;
           align-items: center;
           gap: 0.45rem;
-          color: rgba(247, 241, 234, 0.78);
+          color: var(--calc-hero-metric-label);
           font-size: 0.82rem;
           font-weight: 500;
           margin-bottom: 0.35rem;
@@ -369,10 +523,11 @@ export default function ProfitCalculatorLanding() {
           font-size: clamp(2rem, 5vw, 2.75rem);
           letter-spacing: -0.04em;
           line-height: 1;
+          color: var(--calc-ink);
         }
         .calc-hero-metric__hint {
           margin: 0.55rem 0 0;
-          color: rgba(247, 241, 234, 0.7);
+          color: var(--calc-hero-metric-hint);
           font-size: 0.82rem;
           line-height: 1.4;
         }
@@ -390,6 +545,9 @@ export default function ProfitCalculatorLanding() {
           padding: 0.95rem 0.9rem;
           background: rgba(255,255,255,0.02);
         }
+        .calc-page.is-light .calc-metric {
+          background: rgba(28, 20, 16, 0.03);
+        }
         .calc-metric__label {
           display: flex;
           align-items: center;
@@ -403,6 +561,10 @@ export default function ProfitCalculatorLanding() {
           font-weight: 700;
           font-size: 1.35rem;
           letter-spacing: -0.03em;
+          color: var(--calc-ink);
+        }
+        .calc-page.is-light .calc-compare {
+          background: rgba(28, 20, 16, 0.03);
         }
         .calc-breakdown {
           list-style: none;
@@ -436,30 +598,96 @@ export default function ProfitCalculatorLanding() {
         .calc-compare strong { color: var(--calc-ink); }
         .calc-cta {
           display: flex;
-          flex-wrap: wrap;
-          gap: 0.65rem;
-          margin-top: 1rem;
+          flex-direction: column;
+          gap: 0.7rem;
+          margin-top: 1.15rem;
+          padding-top: 1.15rem;
+          border-top: 1px solid var(--calc-line);
+        }
+        .calc-cta__pitch {
+          margin: 0;
+          font-size: 0.82rem;
+          color: var(--calc-muted);
+          line-height: 1.4;
+        }
+        .calc-cta__pitch strong {
+          color: var(--calc-ink);
+          font-weight: 600;
         }
         .calc-btn {
           display: inline-flex;
           align-items: center;
-          gap: 0.45rem;
+          justify-content: center;
+          gap: 0.55rem;
           text-decoration: none;
           border-radius: 999px;
-          padding: 0.8rem 1.15rem;
-          font-weight: 600;
-          font-size: 0.92rem;
-          transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+          padding: 0.95rem 1.25rem;
+          font-weight: 700;
+          font-size: 1rem;
+          letter-spacing: -0.01em;
+          transition: transform 0.18s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
         }
-        .calc-btn:hover { transform: translateY(-1px); }
+        .calc-btn:hover { transform: translateY(-2px); }
+        .calc-btn:active { transform: translateY(0); }
         .calc-btn--primary {
-          background: var(--calc-red);
-          color: white;
+          width: 100%;
+          background: linear-gradient(180deg, #ff2a38 0%, var(--calc-red) 55%, #c40e1a 100%);
+          color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          box-shadow:
+            0 0 0 1px rgba(233, 17, 32, 0.35),
+            0 10px 28px rgba(233, 17, 32, 0.45),
+            0 2px 0 rgba(255, 255, 255, 0.18) inset;
+          animation: calcCtaPulse 2.4s ease-in-out infinite;
+        }
+        .calc-btn--primary:hover {
+          filter: brightness(1.06);
+          box-shadow:
+            0 0 0 1px rgba(233, 17, 32, 0.5),
+            0 14px 36px rgba(233, 17, 32, 0.55),
+            0 2px 0 rgba(255, 255, 255, 0.22) inset;
+        }
+        .calc-btn--primary svg {
+          transition: transform 0.18s ease;
+        }
+        .calc-btn--primary:hover svg {
+          transform: translateX(3px);
+        }
+        @keyframes calcCtaPulse {
+          0%, 100% {
+            box-shadow:
+              0 0 0 1px rgba(233, 17, 32, 0.35),
+              0 10px 28px rgba(233, 17, 32, 0.45),
+              0 2px 0 rgba(255, 255, 255, 0.18) inset;
+          }
+          50% {
+            box-shadow:
+              0 0 0 1px rgba(233, 17, 32, 0.55),
+              0 12px 34px rgba(233, 17, 32, 0.62),
+              0 2px 0 rgba(255, 255, 255, 0.18) inset;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .calc-btn--primary { animation: none; }
         }
         .calc-btn--ghost {
+          width: 100%;
           color: var(--calc-ink);
-          border: 1px solid var(--calc-line);
-          background: transparent;
+          border: 1.5px solid rgba(247, 241, 234, 0.28);
+          background: rgba(255, 255, 255, 0.06);
+          font-weight: 600;
+        }
+        .calc-page.is-light .calc-btn--ghost {
+          border-color: rgba(28, 20, 16, 0.18);
+          background: rgba(28, 20, 16, 0.04);
+        }
+        .calc-btn--ghost:hover {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(247, 241, 234, 0.45);
+        }
+        .calc-page.is-light .calc-btn--ghost:hover {
+          background: rgba(28, 20, 16, 0.07);
+          border-color: rgba(28, 20, 16, 0.28);
         }
         .calc-foot {
           margin-top: 2rem;
@@ -479,9 +707,20 @@ export default function ProfitCalculatorLanding() {
               <span className="calc-brand__tag">Calculadora</span>
             </span>
           </Link>
-          <Link to="/planos" className="calc-nav__link">
-            Ver planos
-          </Link>
+          <div className="calc-nav__actions">
+            <Link to="/planos" className="calc-nav__link">
+              Ver planos
+            </Link>
+            <button
+              type="button"
+              className="calc-theme-btn"
+              onClick={toggleTheme}
+              aria-label={isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+              title={isDark ? 'Modo claro' : 'Modo escuro'}
+            >
+              {isDark ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
+            </button>
+          </div>
         </header>
 
         <section className="calc-hero">
@@ -510,11 +749,15 @@ export default function ProfitCalculatorLanding() {
             <div className="calc-modes" role="group" aria-label="Tipo de entrega">
               {(
                 [
-                  ['store_delivery', 'Entrega pela loja', `${PARTNERSHIP_PLANS.store_delivery.platformFeePercent}%`],
+                  [
+                    'store_delivery',
+                    'Entrega pela loja',
+                    formatFeePercent(PARTNERSHIP_PLANS.store_delivery.platformFeePercent),
+                  ],
                   [
                     'platform_delivery',
                     'Entrega pela Bora Comer',
-                    `${PARTNERSHIP_PLANS.platform_delivery.platformFeePercent}%`,
+                    formatFeePercent(PARTNERSHIP_PLANS.platform_delivery.platformFeePercent),
                   ],
                 ] as const
               ).map(([id, title, fee]) => (
@@ -613,7 +856,7 @@ export default function ProfitCalculatorLanding() {
 
               <ul className="calc-breakdown">
                 <li>
-                  <span>Taxa da plataforma ({result.feePercent}%)</span>
+                  <span>Taxa da plataforma ({formatFeePercent(result.feePercent)})</span>
                   <strong>{formatBRL(result.platformFee)}</strong>
                 </li>
                 <li>
@@ -650,9 +893,13 @@ export default function ProfitCalculatorLanding() {
               </p>
 
               <div className="calc-cta">
-                <Link to="/planos" className="calc-btn calc-btn--primary">
+                <p className="calc-cta__pitch">
+                  Pronto para colocar esses números pra rodar?{' '}
+                  <strong>7 dias grátis</strong> para testar.
+                </p>
+                <Link to="/captar/restaurante" className="calc-btn calc-btn--primary">
                   Quero assinar
-                  <ArrowRight size={16} aria-hidden />
+                  <ArrowRight size={18} aria-hidden />
                 </Link>
                 <Link to="/parceiros" className="calc-btn calc-btn--ghost">
                   Conhecer a Bora Comer
