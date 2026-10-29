@@ -1,4 +1,5 @@
 import { DIGITAL_MENU_OFFER } from '../../types/digitalMenuOffer';
+import { PARTNERSHIP_TRIAL_DAYS } from '../../types/partnership';
 
 export const CARDAPIO_DIGITAL_PATH = '/delivery/cardapio-digital';
 
@@ -10,6 +11,73 @@ export const offer = {
   included: [...DIGITAL_MENU_OFFER.bullets],
   guarantee: '[Garantia a definir]',
 } as const;
+
+export type LandingPlanId = 'start' | 'pro' | 'max';
+
+export const partnershipPlans = [
+  {
+    id: 'start' as const,
+    name: 'Start',
+    tagline: 'Sua loja no app com o essencial para vender.',
+    monthly: 69.9,
+    annualMonthly: 49.9,
+    savePercent: 29,
+    visual: '/planos/start.jpg',
+    cta: 'Começar no Start',
+    features: [
+      'Cardápio e pedidos no painel',
+      'Entrega feita pela sua loja',
+      'Taxa a partir de 12% por pedido',
+      'Pagamentos online via Stripe',
+      `${PARTNERSHIP_TRIAL_DAYS} dias de teste grátis`,
+      'Isenção de mensalidade até R$ 1.500',
+      'QR Code de mesa (básico)',
+      'Suporte por chat',
+    ],
+  },
+  {
+    id: 'pro' as const,
+    name: 'Pro',
+    tagline: 'Automação, Boris e crescimento sem fricção.',
+    monthly: 149.9,
+    annualMonthly: 129.9,
+    savePercent: 13,
+    featured: true,
+    visual: '/planos/pro.jpg',
+    cta: 'Quero o plano Pro',
+    featuresIntro: 'Tudo do Start, mais:',
+    features: [
+      'Boris — IA para WhatsApp',
+      'Automação de pedidos no WhatsApp',
+      'Cashback inteligente por loja',
+      'Tradução do cardápio (PT/EN/FR)',
+      'CRM leve de clientes',
+      'Relatórios de desempenho',
+      'Prioridade no suporte',
+      'Upsell do Bora Comer Automatic',
+    ],
+  },
+  {
+    id: 'max' as const,
+    name: 'Max',
+    tagline: 'Operação completa: mesas, estoque e escala.',
+    monthly: 269.9,
+    annualMonthly: 229.9,
+    savePercent: 15,
+    visual: '/planos/max.jpg',
+    cta: 'Quero o plano Max',
+    featuresIntro: 'Tudo do Pro, mais:',
+    features: [
+      'Gestão de mesas e QR avançado',
+      'Controle de estoque',
+      'Gestão Inteligente',
+      'Entrega com motoboys Bora Comer!',
+      'Dashboard analítico',
+      'Multi-lojas (em breve)',
+      'Onboarding dedicado',
+    ],
+  },
+];
 
 export type MenuScene = 'home' | 'categories' | 'product' | 'brand' | 'flow';
 

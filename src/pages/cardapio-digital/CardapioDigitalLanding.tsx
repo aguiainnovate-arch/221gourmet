@@ -1,5 +1,15 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Link } from 'react-router-dom';
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Check, X } from 'lucide-react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './cardapio-digital.css';
@@ -7,6 +17,7 @@ import {
   benefits,
   journey,
   offer,
+  partnershipPlans,
   resultsNote,
   storySteps,
   testimonials,
@@ -14,6 +25,110 @@ import {
   type MenuScene,
 } from './content';
 import { BuyButton, CheckoutProvider, PhoneFrame, QrMark, StackedPhone, useCheckout } from './ui';
+import {
+  persistRestaurantSession,
+  readPersistedRestaurantId,
+  useRestaurantAuth,
+} from '../../contexts/RestaurantAuthContext';
+
+function formatPlanPrice(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+type MarketplaceSkipApi = {
+  openConfirm: () => void;
+};
+
+const MarketplaceSkipContext = createContext<MarketplaceSkipApi | null>(null);
+
+function useMarketplaceSkip(): MarketplaceSkipApi {
+  const value = useContext(MarketplaceSkipContext);
+  if (!value) {
+    throw new Error('useMarketplaceSkip deve ficar dentro de MarketplaceSkipProvider');
+  }
+  return value;
+}
+
+function MarketplaceSkipProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const { currentRestaurantId } = useRestaurantAuth();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const api = useMemo(
+    () => ({
+      openConfirm: () => setConfirmOpen(true),
+    }),
+    []
+  );
+
+  const confirmSkip = () => {
+    const id = currentRestaurantId || readPersistedRestaurantId();
+    if (id) {
+      persistRestaurantSession(id);
+      navigate(`/${id}/settings`, { replace: true });
+      return;
+    }
+    navigate('/restaurant/auth', { replace: true });
+  };
+
+  return (
+    <MarketplaceSkipContext.Provider value={api}>
+      {children}
+      <MarketplaceSkipModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={confirmSkip}
+      />
+    </MarketplaceSkipContext.Provider>
+  );
+}
+
+function MarketplaceSkipModal({
+  open,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="cd-skip-overlay" role="dialog" aria-modal="true" aria-labelledby="cd-skip-title">
+      <button type="button" className="cd-skip-backdrop" aria-label="Fechar" onClick={onClose} />
+      <div className="cd-skip-modal">
+        <button type="button" className="cd-skip-close" onClick={onClose} aria-label="Fechar">
+          <X size={18} />
+        </button>
+        <p className="cd-kicker">Marketplace</p>
+        <h2 id="cd-skip-title" className="cd-display">
+          Tem certeza que não quer assinar o Automatic agora?
+        </h2>
+        <p className="cd-skip-copy">
+          Você pode ir direto para o painel do marketplace já logado. O Bora Comer Automatic
+          (QR no salão + Boris no WhatsApp) fica disponível depois, quando quiser.
+        </p>
+        <div className="cd-skip-actions">
+          <button type="button" className="cd-btn" onClick={onClose}>
+            Continuar olhando o Automatic
+          </button>
+          <button type="button" className="cd-btn cd-btn-ghost" onClick={onConfirm}>
+            Sim, ir para o marketplace
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MarketplaceSkipLink({ className = '' }: { className?: string }) {
+  const { openConfirm } = useMarketplaceSkip();
+  return (
+    <button type="button" className={`cd-skip-link ${className}`.trim()} onClick={openConfirm}>
+      Continuar no marketplace
+    </button>
+  );
+}
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -35,6 +150,14 @@ function scrollYOf(scroller: HTMLElement) {
     return window.scrollY || scroller.scrollTop;
   }
   return scroller.scrollTop;
+}
+
+function MarketplaceSkipFromHero() {
+  return (
+    <p className="cd-hero-skip">
+      Só quer o marketplace? <MarketplaceSkipLink />
+    </p>
+  );
 }
 
 function Hero() {
@@ -107,6 +230,7 @@ function Hero() {
             Ver como funciona
           </a>
         </div>
+        <MarketplaceSkipFromHero />
       </div>
       <div className="cd-hero-stage">
         <div className="cd-hero-cluster" ref={stageRef} onPointerMove={onPointerMove}>
@@ -508,13 +632,94 @@ function SocialSection() {
   );
 }
 
+function PlansSection() {
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
+
+  return (
+    <section className="cd-section cd-plans" id="planos">
+      <div className="cd-plans-head">
+        <p className="cd-kicker">Planos de parceria</p>
+        <h2 className="cd-display">Escolha como o Bora Comer cresce com a sua loja.</h2>
+        <p className="cd-plans-lead">
+          Do essencial no marketplace até o Boris no WhatsApp e a operação completa. O Automatic de
+          QR + IA encaixa no plano Pro e Max.
+        </p>
+        <div className="cd-plans-billing" role="group" aria-label="Ciclo de cobrança">
+          <button
+            type="button"
+            className={billing === 'monthly' ? 'is-on' : ''}
+            onClick={() => setBilling('monthly')}
+          >
+            Mensal
+          </button>
+          <button
+            type="button"
+            className={billing === 'annual' ? 'is-on' : ''}
+            onClick={() => setBilling('annual')}
+          >
+            Anual
+            <span>Economize</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="cd-plans-grid">
+        {partnershipPlans.map((plan) => {
+          const price = billing === 'annual' ? plan.annualMonthly : plan.monthly;
+          return (
+            <article
+              key={plan.id}
+              className={`cd-plan-card${plan.featured ? ' is-featured' : ''}`}
+            >
+              {plan.featured ? <p className="cd-plan-badge">Mais escolhido</p> : null}
+              <header className="cd-plan-top">
+                <h3>{plan.name}</h3>
+                <p>{plan.tagline}</p>
+              </header>
+              <p className="cd-plan-price">
+                {formatPlanPrice(price)}
+                <span>/mês</span>
+              </p>
+              <p className="cd-plan-save">
+                {billing === 'annual'
+                  ? `no plano anual · economize ${plan.savePercent}%`
+                  : `ou ${formatPlanPrice(plan.annualMonthly)}/mês no anual`}
+              </p>
+              <div className="cd-plan-visual">
+                <img src={plan.visual} alt="" />
+              </div>
+              {plan.featuresIntro ? (
+                <p className="cd-plan-intro">{plan.featuresIntro}</p>
+              ) : null}
+              <ul>
+                {plan.features.map((feature) => (
+                  <li key={feature}>
+                    <Check size={14} strokeWidth={2.5} aria-hidden />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                className={`cd-btn ${plan.featured ? '' : 'cd-btn-ghost'}`}
+                to={`/planos?plano=${plan.id}&ciclo=${billing}`}
+              >
+                {plan.cta}
+              </Link>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function OfferSection() {
   const { note } = useCheckout();
   return (
     <section className="cd-section" id="oferta">
       <div className="cd-offer">
         <div>
-          <p className="cd-kicker">Oferta</p>
+          <p className="cd-kicker">Oferta Automatic</p>
           <h2 className="cd-display">Pronto para colocar o Bora Comer Automatic no salão?</h2>
         </div>
         <div className="cd-offer-card">
@@ -580,34 +785,71 @@ function Finale() {
   );
 }
 
+function MarketplaceEscapeBand() {
+  return (
+    <section className="cd-section cd-escape" aria-label="Ir para o marketplace">
+      <div className="cd-escape-card">
+        <div>
+          <p className="cd-kicker">Só o marketplace</p>
+          <h2 className="cd-display">Olhou o Automatic e prefere só o app de delivery?</h2>
+          <p>
+            Sem problema. Você pode seguir para o painel do marketplace já logado, como no fim do
+            cadastro. O Automatic continua disponível quando fizer sentido.
+          </p>
+        </div>
+        <div className="cd-escape-actions">
+          <MarketplaceSkipLink className="cd-escape-btn" />
+          <a className="cd-btn" href="#planos">
+            Ver planos primeiro
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Shell() {
   const { note } = useCheckout();
+
   return (
-    <div className="cd-root">
-      <div className="cd-grain" aria-hidden="true" />
-      <header className="cd-header">
-        <span className="cd-mark">Bora Comer Automatic</span>
-        <BuyButton>Quero o Bora Comer Automatic</BuyButton>
-      </header>
-      <main>
-        <Hero />
-        <QrSection />
-        <StorySection />
-        <DesireSection />
-        <BenefitsSection />
-        <CompareSection />
-        <JourneySection />
-        <SocialSection />
-        <OfferSection />
-        <Finale />
-      </main>
-      <footer className="cd-footer">
-        <Link to="/delivery" className="cd-footer-logo" aria-label="Bora Comer!">
-          <img src="/BoraComerlogo.png" alt="Bora Comer!" />
-        </Link>
-        <span>{note ?? 'Mensal ou plano anual'}</span>
-      </footer>
-    </div>
+    <MarketplaceSkipProvider>
+      <div className="cd-root">
+        <div className="cd-grain" aria-hidden="true" />
+        <header className="cd-header">
+          <span className="cd-mark">Bora Comer Automatic</span>
+          <div className="cd-header-actions">
+            <a className="cd-header-link" href="#planos">
+              Planos
+            </a>
+            <MarketplaceSkipLink />
+            <BuyButton>Quero o Bora Comer Automatic</BuyButton>
+          </div>
+        </header>
+        <main>
+          <Hero />
+          <QrSection />
+          <StorySection />
+          <DesireSection />
+          <BenefitsSection />
+          <CompareSection />
+          <MarketplaceEscapeBand />
+          <JourneySection />
+          <SocialSection />
+          <PlansSection />
+          <OfferSection />
+          <Finale />
+        </main>
+        <footer className="cd-footer">
+          <Link to="/delivery" className="cd-footer-logo" aria-label="Bora Comer!">
+            <img src="/BoraComerlogo.png" alt="Bora Comer!" />
+          </Link>
+          <div className="cd-footer-meta">
+            <span>{note ?? 'Mensal ou plano anual'}</span>
+            <MarketplaceSkipLink />
+          </div>
+        </footer>
+      </div>
+    </MarketplaceSkipProvider>
   );
 }
 

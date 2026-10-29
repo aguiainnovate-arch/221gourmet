@@ -1,6 +1,19 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, Check, ClipboardList, Eye, EyeOff, Link2, MessageCircle, Share2, Sparkles, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  Link2,
+  MessageCircle,
+  Share2,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import {
   PARTNERSHIP_FEE_WAIVER_THRESHOLD,
   PARTNERSHIP_MONTHLY_FEE,
@@ -97,6 +110,191 @@ function Field({
     <div className="captar-field">
       <label>{label}</label>
       {children}
+    </div>
+  );
+}
+
+const BORIS_AVATAR = '/boris-avatar.jpg';
+
+function OfferDevicesCarousel({ restaurantName }: { restaurantName: string }) {
+  const slides = [
+    { id: 'menu', caption: 'Cardápio no celular do cliente' },
+    { id: 'whatsapp', caption: 'Boris responde no WhatsApp' },
+    { id: 'qr', caption: 'QR na mesa abre na hora' },
+  ] as const;
+  const [index, setIndex] = useState(0);
+  const touchX = useRef<number | null>(null);
+
+  const go = (next: number) => {
+    const len = slides.length;
+    setIndex(((next % len) + len) % len);
+  };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % slides.length);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, [slides.length]);
+
+  return (
+    <div className="captar-offer-stage">
+      <div
+        className="captar-offer-carousel"
+        onTouchStart={(event) => {
+          touchX.current = event.changedTouches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          const start = touchX.current;
+          const end = event.changedTouches[0]?.clientX;
+          touchX.current = null;
+          if (start == null || end == null) return;
+          const delta = end - start;
+          if (Math.abs(delta) < 40) return;
+          go(index + (delta < 0 ? 1 : -1));
+        }}
+      >
+        <button
+          type="button"
+          className="captar-offer-nav captar-offer-nav-prev"
+          aria-label="Celular anterior"
+          onClick={() => go(index - 1)}
+        >
+          <ChevronLeft size={18} />
+        </button>
+
+        <div className="captar-offer-viewport">
+          <div
+            className="captar-offer-track"
+            style={{ transform: `translateX(-${index * 100}%)` }}
+          >
+            <div className="captar-offer-slide">
+              <div className="captar-offer-phone">
+                <div className="captar-offer-status">
+                  <span>9:41</span>
+                  <span className="captar-offer-dots" />
+                </div>
+                <img src="/cardapio-digital/burger.jpg" alt="" />
+                <div className="captar-offer-sheet">
+                  <div className="captar-offer-shop">
+                    <img src="/cardapio-digital/burger.jpg" alt="" />
+                    <div>
+                      <strong>{restaurantName || 'Seu restaurante'}</strong>
+                      <span>Bora Comer Automatic</span>
+                    </div>
+                  </div>
+                  <div className="captar-offer-tabs">
+                    <span className="on">Destaques</span>
+                    <span>Combos</span>
+                    <span>Bebidas</span>
+                  </div>
+                  <div className="captar-offer-grid">
+                    <article>
+                      <img src="/cardapio-digital/burger.jpg" alt="" />
+                      <b>Burger da casa</b>
+                    </article>
+                    <article>
+                      <img src="/cardapio-digital/pizza.jpg" alt="" />
+                      <b>Combo especial</b>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="captar-offer-slide">
+              <div className="captar-offer-wa" role="img" aria-label="Boris respondendo no WhatsApp">
+                <div className="captar-offer-wa-bezel">
+                  <div className="captar-offer-wa-status">
+                    <span>9:41</span>
+                    <span className="captar-offer-dots" />
+                  </div>
+                  <div className="captar-offer-wa-head">
+                    <span className="captar-offer-wa-back" />
+                    <img src={BORIS_AVATAR} alt="" className="captar-offer-wa-avatar" />
+                    <div className="captar-offer-wa-who">
+                      <strong>Boris</strong>
+                      <span>online · WhatsApp</span>
+                    </div>
+                    <MessageCircle size={14} className="captar-offer-wa-badge" />
+                  </div>
+                  <div className="captar-offer-wa-thread">
+                    <div className="captar-offer-wa-bubble is-out">
+                      Oi, ainda estão abertos?
+                      <time>9:41</time>
+                    </div>
+                    <div className="captar-offer-wa-row">
+                      <img src={BORIS_AVATAR} alt="" />
+                      <div className="captar-offer-wa-bubble is-in">
+                        Oi! Sim, estamos abertos até 22h
+                        <time>9:41</time>
+                      </div>
+                    </div>
+                    <div className="captar-offer-wa-row">
+                      <img src={BORIS_AVATAR} alt="" />
+                      <div className="captar-offer-wa-bubble is-in">
+                        Quer que eu envie o cardápio?
+                        <time>9:41</time>
+                      </div>
+                    </div>
+                    <div className="captar-offer-wa-typing">
+                      <img src={BORIS_AVATAR} alt="" />
+                      <span>
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="captar-offer-wa-tag">
+                  <MessageCircle size={14} />
+                  Boris responde no WhatsApp
+                </p>
+              </div>
+            </div>
+
+            <div className="captar-offer-slide">
+              <div className="captar-offer-qrphone">
+                <div className="captar-offer-status">
+                  <span>9:41</span>
+                  <span className="captar-offer-dots" />
+                </div>
+                <img src="/cardapio-digital/mesa-qr.jpg" alt="" className="captar-offer-qrphone-bg" />
+                <div className="captar-offer-qrphone-card">
+                  <img src={BORIS_AVATAR} alt="" />
+                  <strong>Escaneie e peça</strong>
+                  <span>QR na mesa · Automatic</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="captar-offer-nav captar-offer-nav-next"
+          aria-label="Próximo celular"
+          onClick={() => go(index + 1)}
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      <div className="captar-offer-dots-nav" role="tablist" aria-label="Telas do celular">
+        {slides.map((slide, i) => (
+          <button
+            key={slide.id}
+            type="button"
+            role="tab"
+            aria-selected={i === index}
+            className={i === index ? 'is-on' : ''}
+            onClick={() => setIndex(i)}
+            aria-label={slide.caption}
+          />
+        ))}
+      </div>
+      <p className="captar-offer-caption">{slides[index].caption}</p>
     </div>
   );
 }
@@ -615,51 +813,7 @@ export default function CaptarRestaurant() {
                     </Link>
                     <p className="captar-offer-later">Você pode conhecer agora ou deixar para depois.</p>
                   </div>
-                  <div className="captar-offer-stage" aria-hidden>
-                    <div className="captar-offer-phone">
-                      <div className="captar-offer-status">
-                        <span>9:41</span>
-                        <span className="captar-offer-dots" />
-                      </div>
-                      <img src="/cardapio-digital/burger.jpg" alt="" />
-                      <div className="captar-offer-sheet">
-                        <div className="captar-offer-shop">
-                          <img src="/cardapio-digital/burger.jpg" alt="" />
-                          <div>
-                            <strong>{form.restaurantName.trim() || 'Seu restaurante'}</strong>
-                            <span>Bora Comer Automatic</span>
-                          </div>
-                        </div>
-                        <div className="captar-offer-tabs">
-                          <span className="on">Destaques</span>
-                          <span>Combos</span>
-                          <span>Bebidas</span>
-                        </div>
-                        <div className="captar-offer-grid">
-                          <article>
-                            <img src="/cardapio-digital/burger.jpg" alt="" />
-                            <b>Burger da casa</b>
-                          </article>
-                          <article>
-                            <img src="/cardapio-digital/pizza.jpg" alt="" />
-                            <b>Combo especial</b>
-                          </article>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="captar-offer-chip captar-offer-chip-link">
-                      <Link2 size={16} />
-                      <span>
-                        Seu link,
-                        <br />
-                        sua marca
-                      </span>
-                    </div>
-                    <div className="captar-offer-chip captar-offer-chip-wa">
-                      <MessageCircle size={22} />
-                    </div>
-                    <p className="captar-offer-caption">Uma nova forma de receber seus clientes.</p>
-                  </div>
+                  <OfferDevicesCarousel restaurantName={form.restaurantName.trim()} />
                 </div>
               </div>
             )}

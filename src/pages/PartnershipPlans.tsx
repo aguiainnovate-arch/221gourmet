@@ -150,29 +150,13 @@ function PlanIcon({ kind }: { kind: PlanDef['icon'] }) {
 }
 
 function PlanVisual({ kind }: { kind: PlanDef['visual'] }) {
-  if (kind === 'phone') {
-    return (
-      <div className="pp-visual pp-visual--phone" aria-hidden>
-        <img src="/captar/sat-phone.png" alt="" className="pp-visual__phone" />
-        <img src="/cardapio-digital/burger.jpg" alt="" className="pp-visual__food" />
-        <span className="pp-visual__cart">1</span>
-      </div>
-    );
-  }
-  if (kind === 'boris') {
-    return (
-      <div className="pp-visual pp-visual--boris" aria-hidden>
-        <img src="/boris-mascot.png" alt="" className="pp-visual__boris" />
-        <span className="pp-visual__wa">WhatsApp</span>
-        <span className="pp-visual__bubble">Olá! Seu pedido já foi recebido!</span>
-      </div>
-    );
-  }
+  const src =
+    kind === 'phone' ? '/planos/start.jpg' : kind === 'boris' ? '/planos/pro.jpg' : '/planos/max.jpg';
+  const label = kind === 'phone' ? 'Start' : kind === 'boris' ? 'Pro' : 'Max';
   return (
-    <div className="pp-visual pp-visual--dash" aria-hidden>
-      <img src="/Beneficios.png" alt="" className="pp-visual__dash" />
-      <span className="pp-visual__chip">Mesas</span>
-      <span className="pp-visual__chip pp-visual__chip--2">Estoque</span>
+    <div className={`pp-visual pp-visual--${kind}`} aria-hidden>
+      <img src={src} alt="" className="pp-visual__shot" />
+      <span className="pp-visual__label">{label}</span>
     </div>
   );
 }
@@ -787,105 +771,41 @@ export default function PartnershipPlans() {
         }
         .pp-visual {
           position: relative;
-          height: 7.5rem;
+          height: 8.25rem;
           border-radius: 1rem;
-          margin: 0.35rem 0 1rem;
+          margin: 0.45rem 0 1rem;
           overflow: hidden;
-          background: linear-gradient(135deg, rgba(255,90,31,0.12), rgba(255,255,255,0.03));
+          background: #0e0e10;
           border: 1px solid var(--pp-line);
         }
-        .pp-visual__phone {
+        .pp-visual__shot {
           position: absolute;
-          right: 8%;
-          bottom: -18%;
-          height: 120%;
-          object-fit: contain;
-          filter: drop-shadow(0 12px 20px rgba(0,0,0,0.35));
-        }
-        .pp-visual__food {
-          position: absolute;
-          left: 10%;
-          top: 18%;
-          width: 4.2rem;
-          height: 4.2rem;
+          inset: 0;
+          width: 100%;
+          height: 100%;
           object-fit: cover;
-          border-radius: 1rem;
-          box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-          transform: rotate(-8deg);
+          object-position: center;
+          display: block;
         }
-        .pp-visual__cart {
+        .pp-visual__label {
           position: absolute;
-          right: 18%;
-          top: 14%;
-          width: 1.6rem;
-          height: 1.6rem;
-          border-radius: 999px;
-          background: var(--pp-orange);
+          left: 0.7rem;
+          bottom: 0.65rem;
+          z-index: 1;
+          background: rgba(12, 12, 14, 0.72);
           color: #fff;
-          font-size: 0.7rem;
-          font-weight: 800;
-          display: grid;
-          place-items: center;
-        }
-        .pp-visual__boris {
-          position: absolute;
-          left: 8%;
-          bottom: -8%;
-          height: 110%;
-          object-fit: contain;
-          filter: drop-shadow(0 12px 20px rgba(0,0,0,0.35));
-        }
-        .pp-visual__wa {
-          position: absolute;
-          right: 10%;
-          top: 18%;
-          background: #25D366;
-          color: #053b1d;
           font-size: 0.68rem;
           font-weight: 800;
-          padding: 0.35rem 0.55rem;
-          border-radius: 0.55rem;
-        }
-        .pp-visual__bubble {
-          position: absolute;
-          right: 6%;
-          bottom: 14%;
-          max-width: 9.5rem;
-          background: #fff;
-          color: #1c1410;
-          font-size: 0.68rem;
-          font-weight: 600;
-          line-height: 1.25;
-          padding: 0.45rem 0.55rem;
-          border-radius: 0.75rem 0.75rem 0.75rem 0.2rem;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-        }
-        .pp-visual__dash {
-          position: absolute;
-          inset: 8% 8% auto 8%;
-          width: 84%;
-          height: 78%;
-          object-fit: cover;
-          border-radius: 0.75rem;
-          opacity: 0.92;
-        }
-        .pp-visual__chip {
-          position: absolute;
-          left: 10%;
-          bottom: 12%;
-          background: var(--pp-orange);
-          color: #111;
-          font-size: 0.68rem;
-          font-weight: 800;
-          padding: 0.28rem 0.5rem;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          padding: 0.28rem 0.55rem;
           border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          backdrop-filter: blur(6px);
         }
-        .pp-visual__chip--2 {
-          left: auto;
-          right: 10%;
-          bottom: 28%;
-          background: #fff;
-          color: #1c1410;
+        .pp-visual--boris .pp-visual__label {
+          background: rgba(225, 6, 0, 0.88);
+          border-color: transparent;
         }
         .pp-features-intro {
           margin: 0 0 0.45rem;

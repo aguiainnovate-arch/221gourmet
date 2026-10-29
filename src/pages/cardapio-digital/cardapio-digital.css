@@ -66,6 +66,179 @@ body.landing-cardapio * {
   color: var(--ink);
 }
 
+.cd-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cd-header-link {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cd-header-link:hover {
+  color: var(--ink);
+}
+
+.cd-skip-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cd-skip-link:hover {
+  color: var(--ink);
+}
+
+.cd-hero-skip {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.cd-hero-skip .cd-skip-link {
+  color: var(--ink);
+}
+
+.cd-escape-card {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 28px;
+  align-items: center;
+  background: var(--bg-2);
+  border-radius: 28px;
+  padding: 28px 30px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.cd-escape-card .cd-display {
+  margin: 10px 0 12px;
+  font-size: clamp(32px, 4vw, 52px);
+  max-width: 14ch;
+}
+
+.cd-escape-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+.cd-escape-actions {
+  display: grid;
+  gap: 12px;
+  justify-items: stretch;
+}
+
+.cd-escape-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.cd-escape-btn:hover {
+  color: #fff;
+  background: rgba(244, 237, 228, 0.08);
+}
+
+.cd-skip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.cd-skip-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.62);
+  cursor: pointer;
+}
+
+.cd-skip-modal {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 480px);
+  background: #151210;
+  color: var(--ink);
+  border-radius: 24px;
+  padding: 28px 24px 24px;
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.cd-skip-modal .cd-display {
+  margin: 8px 0 12px;
+  font-size: clamp(28px, 5vw, 40px);
+}
+
+.cd-skip-copy {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.cd-skip-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.cd-skip-actions .cd-btn {
+  width: 100%;
+}
+
+.cd-skip-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.cd-footer-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+
 .cd-header .cd-btn {
   padding: 12px 18px;
   font-size: 13px;
@@ -83,6 +256,10 @@ body.landing-cardapio * {
   border-radius: 999px;
   padding: 16px 22px;
   font-size: 15px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.35s ease, background 0.35s ease;
 }
 
@@ -899,6 +1076,198 @@ body.landing-cardapio * {
   font-size: 13px;
 }
 
+.cd-plans-head {
+  max-width: 760px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+
+.cd-plans-head .cd-display {
+  margin: 12px auto 0;
+  font-size: clamp(36px, 5vw, 68px);
+  max-width: 16ch;
+}
+
+.cd-plans-lead {
+  margin: 16px auto 0;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.cd-plans-billing {
+  margin: 28px auto 0;
+  display: inline-flex;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(244, 237, 228, 0.06);
+  border: 1px solid var(--line);
+  gap: 4px;
+}
+
+.cd-plans-billing button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cd-plans-billing button.is-on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cd-plans-billing button span {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.cd-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.cd-plan-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-2);
+  border-radius: 24px;
+  padding: 22px 20px 20px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  min-height: 100%;
+}
+
+.cd-plan-card.is-featured {
+  box-shadow:
+    inset 0 0 0 1px rgba(233, 17, 32, 0.55),
+    0 0 0 1px rgba(233, 17, 32, 0.25),
+    0 18px 40px rgba(233, 17, 32, 0.12);
+}
+
+.cd-plan-badge {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.cd-plan-top h3 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+
+.cd-plan-top p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+
+.cd-plan-price {
+  margin: 18px 0 0;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 42px;
+  line-height: 0.95;
+  color: #ff6a3d;
+}
+
+.cd-plan-price span {
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.cd-plan-save {
+  margin: 6px 0 0;
+  color: #7dcea0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cd-plan-visual {
+  margin: 16px 0 14px;
+  height: 132px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0a0908;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.cd-plan-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.cd-plan-intro {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cd-plan-card ul {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  flex: 1;
+}
+
+.cd-plan-card li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.cd-plan-card li svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.cd-plan-card .cd-btn {
+  width: 100%;
+  margin-top: auto;
+}
+
 .cd-offer {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
@@ -1094,8 +1463,18 @@ body.landing-cardapio * {
   .cd-offer,
   .cd-story-sticky,
   .cd-quotes,
-  .cd-journey-grid {
+  .cd-journey-grid,
+  .cd-plans-grid,
+  .cd-escape-card {
     grid-template-columns: 1fr;
+  }
+
+  .cd-plans-grid {
+    gap: 22px;
+  }
+
+  .cd-plan-visual {
+    height: 148px;
   }
 
   .cd-benefits h2 {
