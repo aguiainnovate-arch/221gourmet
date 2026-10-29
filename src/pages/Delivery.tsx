@@ -38,7 +38,7 @@ import {
   getFavoriteRestaurantIds,
   toggleFavoriteRestaurantId,
 } from '../utils/deliveryFavoritesStorage';
-import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { canAppearOnMarketplace } from '../utils/partnershipAccess';
 import { restaurantMatchesRegion } from '../utils/restaurantRegion';
 import { enrichDeliveryLocationCoords } from '../services/geocodingService';
 import { withTimeout } from '../utils/withTimeout';
@@ -153,7 +153,7 @@ export default function Delivery() {
       }
 
       const allowedRestaurants = data.filter((restaurant) => {
-        if (!restaurant.active || !hasRestaurantPlatformAccess(restaurant)) return false;
+        if (!restaurant.active || !canAppearOnMarketplace(restaurant)) return false;
         const permissions = resolveRestaurantPermissions(
           restaurant.id,
           permissionsByRestaurant

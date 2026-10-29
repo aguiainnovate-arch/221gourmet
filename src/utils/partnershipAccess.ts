@@ -55,6 +55,21 @@ export function hasRestaurantPlatformAccess(
   return getPartnershipAccessState(restaurant, now).access;
 }
 
+/**
+ * Aparece no app de delivery / marketplace.
+ * Trial = Start por 7 dias: também aparece (mesmos direitos do Start).
+ */
+export function canAppearOnMarketplace(
+  restaurant: Pick<Restaurant, 'partnershipSubscription'>,
+  now?: Date
+): boolean {
+  const state = getPartnershipAccessState(restaurant, now);
+  return (
+    state.access &&
+    (state.reason === 'active' || state.reason === 'trial' || state.reason === 'legacy')
+  );
+}
+
 export function resolveEffectiveSubscriptionStatus(
   sub: PartnershipSubscription | undefined,
   now: Date = new Date()

@@ -4,7 +4,6 @@ import { X, Mail, Lock, IdCard } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import PasswordInput from './PasswordInput';
 import { getRestaurants } from '../services/restaurantService';
-import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { formatCpf, looksLikeCpf } from '../utils/cpf';
 
 interface RestaurantLoginModalProps {
@@ -70,10 +69,6 @@ export default function RestaurantLoginModal({ isOpen, onClose, onSuccess }: Res
         );
         resetForm();
         onClose();
-        if (restaurant && !hasRestaurantPlatformAccess(restaurant)) {
-          navigate('/planos', { replace: true });
-          return;
-        }
         if (onSuccess) onSuccess();
       } else {
         setError('Email ou senha incorretos');

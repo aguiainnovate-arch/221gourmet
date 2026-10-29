@@ -4,7 +4,6 @@ import { Mail, Lock, Utensils, ArrowLeft, IdCard } from 'lucide-react';
 import { useRestaurantAuth } from '../contexts/RestaurantAuthContext';
 import { getRestaurants } from '../services/restaurantService';
 import PasswordInput from '../components/PasswordInput';
-import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
 import { formatCpf, looksLikeCpf } from '../utils/cpf';
 import { isIosNative } from '../utils/capacitorUtils';
 
@@ -65,11 +64,6 @@ export default function RestaurantAuth() {
       if (success) {
         const restaurants = await getRestaurants();
         const restaurant = restaurants.find((r) => r.email.toLowerCase() === email.toLowerCase());
-
-        if (restaurant && !hasRestaurantPlatformAccess(restaurant)) {
-          navigate('/planos', { replace: true });
-          return;
-        }
 
         if (returnUrl) {
           navigate(returnUrl, { replace: true });

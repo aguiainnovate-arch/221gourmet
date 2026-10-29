@@ -24,7 +24,7 @@ import CheckoutFlow from '../components/delivery/CheckoutFlow';
 import RestaurantInfoModal from '../components/delivery/RestaurantInfoModal';
 import type { CartLine } from '../components/delivery/CheckoutFlow';
 import { resolveRestaurantOpenNow } from '../utils/openingHours';
-import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { canAppearOnMarketplace } from '../utils/partnershipAccess';
 import { filterProductsByMenuShift } from '../utils/menuShifts';
 
 export default function DeliveryMenu() {
@@ -172,7 +172,7 @@ export default function DeliveryMenu() {
       ]);
 
       const currentRestaurant = restaurantsData.find(r => r.id === restaurantId);
-      if (currentRestaurant && !hasRestaurantPlatformAccess(currentRestaurant)) {
+      if (currentRestaurant && !canAppearOnMarketplace(currentRestaurant)) {
         setRestaurant(null);
       } else {
         setRestaurant(currentRestaurant || null);

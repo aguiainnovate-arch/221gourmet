@@ -2,6 +2,8 @@
 
 export type PartnershipDeliveryMode = 'store_delivery' | 'platform_delivery';
 
+export type PartnershipPlanId = 'start' | 'pro' | 'max';
+
 export type PartnershipSubscriptionStatus = 'trial' | 'active' | 'expired' | 'past_due';
 
 export interface PartnershipPlanOption {
@@ -50,6 +52,8 @@ export interface PartnershipSubscription {
   status: PartnershipSubscriptionStatus;
   trialStartedAt: Date;
   trialEndsAt: Date;
+  /** Plano comercial. Trial sempre é Start. */
+  planId?: PartnershipPlanId;
   deliveryMode?: PartnershipDeliveryMode;
   platformFeePercent?: number;
   monthlyFee: number;
@@ -67,8 +71,10 @@ export function createTrialPartnershipSubscription(
   const trialEndsAt = new Date(from.getTime() + PARTNERSHIP_TRIAL_DAYS * 24 * 60 * 60 * 1000);
   return {
     status: 'trial',
+    planId: 'start',
     trialStartedAt,
     trialEndsAt,
+    deliveryMode: 'store_delivery',
     monthlyFee: PARTNERSHIP_MONTHLY_FEE,
     monthlyFeeWaiverThreshold: PARTNERSHIP_FEE_WAIVER_THRESHOLD,
     updatedAt: from,
@@ -113,12 +119,21 @@ export function normalizePartnershipSubscription(
       ? data.deliveryMode
       : undefined;
 
+  const planIdRaw = data.planId;
+  const planId: PartnershipPlanId | undefined =
+    planIdRaw === 'start' || planIdRaw === 'pro' || planIdRaw === 'max'
+      ? planIdRaw
+      : status === 'trial'
+        ? 'start'
+        : undefined;
+
   const platformFeePercent = Number(data.platformFeePercent);
   const monthlyFee = Number(data.monthlyFee);
   const waiver = Number(data.monthlyFeeWaiverThreshold);
 
   return {
     status,
+    planId,
     trialStartedAt,
     trialEndsAt,
     deliveryMode,
@@ -142,6 +157,7 @@ export function partnershipSubscriptionToFirestore(
 ): Record<string, unknown> {
   return {
     status: sub.status,
+    planId: sub.planId ?? (sub.status === 'trial' ? 'start' : null),
     trialStartedAt: sub.trialStartedAt,
     trialEndsAt: sub.trialEndsAt,
     deliveryMode: sub.deliveryMode ?? null,

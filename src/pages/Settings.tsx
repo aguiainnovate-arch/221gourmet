@@ -84,6 +84,7 @@ import RestaurantPanelShell from '../components/panel/RestaurantPanelShell';
 import PersonalizationStudio from '../components/panel/PersonalizationStudio';
 import CashbackSettingsPanel from '../components/panel/CashbackSettingsPanel';
 import type { PanelChecklistStep, PanelNavItem } from '../components/panel/panelChecklist';
+import { isPanelTabLocked } from '../components/panel/panelChecklist';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import type { Product } from '../types/product';
 import type { Category } from '../services/categoryService';
@@ -99,9 +100,13 @@ import {
   type RestaurantCardStyle,
   type RestaurantOpeningHours,
 } from '../types/restaurant';
-import { getPartnershipAccessState, hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { getPartnershipAccessState } from '../utils/partnershipAccess';
 import { hasActiveDigitalMenu } from '../types/digitalMenuOffer';
-import { TrialDaysBanner } from '../components/TrialAndDigitalMenu';
+import {
+  TrialDaysBanner,
+  ExpiredSubscriptionBanner,
+  PartnershipFeatureLock,
+} from '../components/TrialAndDigitalMenu';
 import DigitalMenuUpsellModal from '../components/DigitalMenuUpsellModal';
 import ModalOverlay from '../components/ModalOverlay';
 import { activateDigitalMenuLocally, startDigitalMenuCheckout } from '../services/digitalMenuService';
@@ -446,14 +451,6 @@ export default function Settings() {
       });
     return () => { cancelled = true; };
   }, [restaurantId]);
-
-  // Sem assinatura / trial expirado → só /planos
-  useEffect(() => {
-    if (!hasAccess || !partnershipAccessChecked || !partnershipRestaurant) return;
-    if (!hasRestaurantPlatformAccess(partnershipRestaurant)) {
-      navigate('/planos', { replace: true });
-    }
-  }, [hasAccess, partnershipAccessChecked, partnershipRestaurant, navigate]);
 
   // Atualizar título da aba do navegador
   useEffect(() => {
@@ -2570,30 +2567,34 @@ export default function Settings() {
     );
   }
 
-  if (
-    partnershipAccessChecked &&
-    partnershipRestaurant &&
-    !hasRestaurantPlatformAccess(partnershipRestaurant)
-  ) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-        <div className="text-center max-w-sm">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#E91120] mx-auto mb-4" />
-          <p className="text-gray-700 font-medium">Redirecionando para os planos de parceria...</p>
-        </div>
-      </div>
-    );
-  }
-
   const partnershipAccess = partnershipRestaurant
     ? getPartnershipAccessState(partnershipRestaurant)
+    : null;
+  const panelAccessForLocks =
+    partnershipAccessChecked && partnershipAccess ? partnershipAccess : null;
+  const isTrialRestricted = panelAccessForLocks?.reason === 'trial';
+  const isExpiredRestricted =
+    panelAccessForLocks?.reason === 'expired' || panelAccessForLocks?.reason === 'past_due';
+  /** Expirado: loja some do ar. Trial = Start, pode operar. */
+  const storeOpsLocked = isExpiredRestricted;
+  const panelLocksAccess = panelAccessForLocks
+    ? {
+        ...panelAccessForLocks,
+        planId:
+          panelAccessForLocks.reason === 'trial'
+            ? ('start' as const)
+            : (partnershipRestaurant?.partnershipSubscription?.planId ?? null),
+      }
     : null;
   const trialDaysLeft =
     partnershipAccess?.access && partnershipAccess.reason === 'trial'
       ? partnershipAccess.daysLeft
       : undefined;
+  const expiredReason =
+    partnershipAccess && !partnershipAccess.access ? partnershipAccess.reason : undefined;
   const digitalMenuActive =
     !partnershipAccessChecked || hasActiveDigitalMenu(partnershipRestaurant?.digitalMenu);
+  const activeTabLocked = isPanelTabLocked(activeTab, panelLocksAccess);
 
   const panelSteps: PanelChecklistStep[] = [
     { id: 'conta', label: 'Criar conta', done: true, tab: 'visao' },
@@ -2638,11 +2639,24 @@ export default function Settings() {
       { id: 'cashback', label: 'Cashback' },
       { id: 'horarios', label: 'Horários' },
       { id: 'whatsapp', label: 'Conectar WhatsApp' },
-      { id: 'mesas', label: 'Gerenciar Mesas', badge: pendingWaiterCalls.length || undefined },
+      {
+        id: 'mesas',
+        label: 'Gerenciar Mesas',
+        badge: pendingWaiterCalls.length || undefined,
+      },
       { id: 'relatorios', label: 'Relatórios' },
       { id: 'garcons', label: 'Garçons' },
     ] satisfies PanelNavItem[]
-  ).filter((item) => !isWaiter || item.id === 'mesas' || item.id === 'cozinha');
+  )
+    .map((item) => {
+      const locked = isPanelTabLocked(item.id, panelLocksAccess);
+      return {
+        ...item,
+        locked,
+        badge: locked ? undefined : item.badge,
+      };
+    })
+    .filter((item) => !isWaiter || item.id === 'mesas' || item.id === 'cozinha');
 
   const mesaPendentesCount = orders.filter((o) => o.orderType === 'mesa' && o.status === 'novo').length;
   const deliveryPendentesCount = deliveryOrders.filter(
@@ -2767,12 +2781,26 @@ export default function Settings() {
         }}
         showBoris={!isWaiter}
         storeOpenMode={storeOpenModeFromOverride(partnershipRestaurant?.storeOpenOverride)}
-        onStoreOpenModeChange={(mode) => void handleStoreOpenModeChange(mode)}
+        onStoreOpenModeChange={
+          storeOpsLocked ? undefined : (mode) => void handleStoreOpenModeChange(mode)
+        }
         storeOpenNow={
-          partnershipRestaurant ? resolveRestaurantOpenNow(partnershipRestaurant) : undefined
+          storeOpsLocked
+            ? false
+            : partnershipRestaurant
+              ? resolveRestaurantOpenNow(partnershipRestaurant)
+              : undefined
         }
       >
           {typeof trialDaysLeft === 'number' && <TrialDaysBanner daysLeft={trialDaysLeft} />}
+          {expiredReason && <ExpiredSubscriptionBanner reason={expiredReason} />}
+          {activeTabLocked ? (
+            <PartnershipFeatureLock
+              tabId={activeTab}
+              mode={isTrialRestricted ? 'trial' : 'expired'}
+            />
+          ) : (
+          <>
           {pendingWaiterCalls.length > 0 && activeTab !== 'mesas' && (
             <button
               type="button"
@@ -4552,6 +4580,8 @@ export default function Settings() {
                 </div>
               </div>
             </PanelPage>
+          )}
+          </>
           )}
 
       </RestaurantPanelShell>

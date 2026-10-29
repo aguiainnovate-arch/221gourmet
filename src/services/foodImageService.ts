@@ -20,7 +20,7 @@ import {
   resolveRestaurantPermissions,
 } from './permissionService';
 import { getProducts } from './productService';
-import { hasRestaurantPlatformAccess } from '../utils/partnershipAccess';
+import { canAppearOnMarketplace } from '../utils/partnershipAccess';
 import { isProductVisibleForMenuShift } from '../utils/menuShifts';
 import type { Restaurant } from '../types/restaurant';
 
@@ -154,7 +154,7 @@ export async function fetchFeaturedProductImages(
         getAllRestaurantPermissionsMap(),
       ]);
       allowedRestaurants = restaurants.filter((r) => {
-        if (!r.active || !hasRestaurantPlatformAccess(r)) return false;
+        if (!r.active || !canAppearOnMarketplace(r)) return false;
         const perms = resolveRestaurantPermissions(r.id, permissionsByRestaurant);
         const enabled = r.deliverySettings?.enabled ?? true;
         return perms.delivery && enabled;

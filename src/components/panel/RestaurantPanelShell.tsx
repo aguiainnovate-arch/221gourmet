@@ -22,6 +22,7 @@ import {
   Users,
   Utensils,
   Gift,
+  Lock,
 } from 'lucide-react';
 import BorisPanel from './BorisPanel';
 import type { PanelChecklistStep, PanelNavItem } from './panelChecklist';
@@ -356,21 +357,36 @@ export default function RestaurantPanelShell({
         {filtered.map((item) => {
           const Icon = ICONS[item.id] ?? Store;
           const active = item.id === activeId;
+          const locked = Boolean(item.locked);
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => go(item.id)}
+              title={locked ? 'Assinatura necessária' : undefined}
               className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition ${
                 active
                   ? 'border border-[#ff3a32]/50 bg-gradient-to-r from-[#dc160f]/50 to-[#dc160f]/5 text-white shadow-[0_0_22px_rgba(225,6,0,0.22)]'
-                  : 'text-white/60 hover:bg-white/[0.06] hover:text-white/90'
+                  : locked
+                    ? 'text-white/38 hover:bg-white/[0.04] hover:text-white/55'
+                    : 'text-white/60 hover:bg-white/[0.06] hover:text-white/90'
               }`}
             >
               {active && <span className="absolute left-0 h-5 w-0.5 rounded-r-full bg-[#ff443b]" />}
-              <Icon className="h-[17px] w-[17px] shrink-0" strokeWidth={1.7} />
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.badge ? (
+              <Icon
+                className={`h-[17px] w-[17px] shrink-0 ${locked && !active ? 'opacity-55' : ''}`}
+                strokeWidth={1.7}
+              />
+              <span className={`flex-1 truncate ${locked && !active ? 'opacity-70' : ''}`}>
+                {item.label}
+              </span>
+              {locked ? (
+                <Lock
+                  className="h-3.5 w-3.5 shrink-0 text-zinc-400 opacity-80"
+                  strokeWidth={2}
+                  aria-label="Bloqueado"
+                />
+              ) : item.badge ? (
                 <span
                   className={`min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] font-bold grid place-items-center ${
                     active ? 'bg-white text-[#e10600]' : 'bg-[#e10600] text-white'
