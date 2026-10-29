@@ -52,7 +52,7 @@ export default function DigitalMenuUpsellModal({
           </div>
 
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: tokens.accent }}>
-            Cardápio digital
+            Bora Comer Automatic
           </p>
           <h2
             id="digital-menu-upsell-title"
@@ -62,7 +62,7 @@ export default function DigitalMenuUpsellModal({
             Quer transformar também a experiência dos seus clientes?
           </h2>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: tokens.muted }}>
-            Conheça nosso Cardápio Digital e apresente seus produtos de forma moderna, profissional e
+            Conheça o Bora Comer Automatic e apresente seus produtos de forma moderna, profissional e
             acessível por QR Code.
           </p>
         </div>
@@ -109,7 +109,7 @@ export default function DigitalMenuUpsellModal({
                 Abrindo pagamento…
               </>
             ) : (
-              'Conhecer o Cardápio Digital'
+              'Conhecer o Bora Comer Automatic'
             )}
           </button>
 

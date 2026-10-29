@@ -1,19 +1,19 @@
-/** Oferta de upsell: Cardápio digital (QR de mesas + IA WhatsApp). */
+/** Oferta de upsell: Bora Comer Automatic (QR de mesas + IA WhatsApp). */
 
 export const DIGITAL_MENU_PRICE = 297;
 export const DIGITAL_MENU_PRICE_CENTS = 29700;
 
 export const DIGITAL_MENU_OFFER = {
-  title: 'Cardápio digital para o salão',
-  headline: 'Quer turbinar o salão com cardápio digital?',
+  title: 'Bora Comer Automatic',
+  headline: 'Quer turbinar o salão com o Bora Comer Automatic?',
   priceLabel: 'R$ 297',
   bullets: [
-    'QR Code por mesa que abre o cardápio digital na hora',
+    'QR Code por mesa que abre o cardápio na hora',
     'Pedidos e visualização no celular do cliente, sem papel',
     'IA para WhatsApp inclusa no pacote',
   ],
   pitch:
-    'Você não está apenas investindo em mais tecnologia — está investindo em mais tempo para você e para o seu negócio. Menos reimpressão de cardápio, menos espera no atendimento e mais foco no que importa: a cozinha e o cliente.',
+    'Você não está apenas investindo em mais tecnologia. Está investindo em mais tempo para você e para o seu negócio. Menos reimpressão de cardápio, menos espera no atendimento e mais foco no que importa: a cozinha e o cliente.',
 } as const;
 
 export type DigitalMenuStatus = 'none' | 'active';

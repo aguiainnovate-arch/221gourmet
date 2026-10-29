@@ -580,7 +580,7 @@ export default function CaptarRestaurant() {
                       <em>WhatsApp de forma automática?</em>
                     </h2>
                     <p className="captar-offer-lead">
-                      Conheça seu cardápio digital com link próprio e recursos para organizar os pedidos.
+                      Conheça o Bora Comer Automatic: QR no salão, link próprio e atendimento automático.
                     </p>
                     <ul>
                       <li>
@@ -597,7 +597,7 @@ export default function CaptarRestaurant() {
                       </li>
                     </ul>
                     <Link className="captar-btn-solid captar-btn-lg captar-offer-cta" to="/delivery/cardapio-digital">
-                      Conhecer o cardápio digital
+                      Conhecer o Bora Comer Automatic
                       <ArrowRight size={18} />
                     </Link>
                     <Link
@@ -627,7 +627,7 @@ export default function CaptarRestaurant() {
                           <img src="/cardapio-digital/burger.jpg" alt="" />
                           <div>
                             <strong>{form.restaurantName.trim() || 'Seu restaurante'}</strong>
-                            <span>Cardápio digital</span>
+                            <span>Bora Comer Automatic</span>
                           </div>
                         </div>
                         <div className="captar-offer-tabs">

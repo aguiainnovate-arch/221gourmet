@@ -32,7 +32,7 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
       setNote(null);
       const restaurant = await getRestaurantById(currentRestaurantId);
       if (hasActiveDigitalMenu(restaurant?.digitalMenu)) {
-        setNote('Este restaurante já tem o cardápio digital ativo.');
+        setNote('Este restaurante já tem o Bora Comer Automatic ativo.');
         return;
       }
       const { url } = await startDigitalMenuCheckout(currentRestaurantId);
@@ -47,7 +47,7 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
       if (import.meta.env.DEV) {
         try {
           await activateDigitalMenuLocally(currentRestaurantId);
-          setNote('Cardápio digital ativado neste computador.');
+          setNote('Bora Comer Automatic ativado neste computador.');
           return;
         } catch (localError) {
           console.error(localError);

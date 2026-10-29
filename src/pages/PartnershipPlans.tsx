@@ -108,7 +108,7 @@ const PLANS: PlanDef[] = [
       { text: 'CRM leve de clientes' },
       { text: 'Relatórios de desempenho' },
       { text: 'Prioridade no suporte' },
-      { text: 'Upsell de cardápio digital' },
+      { text: 'Upsell do Bora Comer Automatic' },
     ],
   },
   {
@@ -244,7 +244,7 @@ export default function PartnershipPlans() {
     if (digitalMenu === 'cancel') {
       setMessage({
         type: 'info',
-        text: 'Pagamento do cardápio digital cancelado. Você pode adquirir depois quando quiser.',
+        text: 'Pagamento do Bora Comer Automatic cancelado. Você pode adquirir depois quando quiser.',
       });
       setSearchParams({}, { replace: true });
       return;
@@ -255,12 +255,12 @@ export default function PartnershipPlans() {
       (async () => {
         try {
           setSubmitting(true);
-          setMessage({ type: 'info', text: 'Confirmando cardápio digital...' });
+          setMessage({ type: 'info', text: 'Confirmando Bora Comer Automatic...' });
           await confirmDigitalMenuCheckout(sessionId);
           if (cancelled) return;
           setMessage({
             type: 'ok',
-            text: 'Cardápio digital ativado! QR de mesas e IA para WhatsApp liberados.',
+            text: 'Bora Comer Automatic ativado! QR de mesas e IA para WhatsApp liberados.',
           });
           if (currentRestaurantId) {
             const refreshed = await getRestaurantById(currentRestaurantId);
@@ -273,7 +273,7 @@ export default function PartnershipPlans() {
           if (!cancelled) {
             setMessage({
               type: 'err',
-              text: 'Não foi possível confirmar o cardápio digital. Se o valor foi cobrado, fale com o suporte.',
+              text: 'Não foi possível confirmar o Bora Comer Automatic. Se o valor foi cobrado, fale com o suporte.',
             });
           }
         } finally {
@@ -1111,7 +1111,7 @@ export default function PartnershipPlans() {
                   onClick={() => setShowDigitalMenuUpsell(true)}
                 >
                   <strong style={{ color: 'var(--pp-orange)' }}>Oferta · </strong>
-                  Cardápio digital + IA WhatsApp — {DIGITAL_MENU_OFFER.priceLabel}
+                  Bora Comer Automatic + IA WhatsApp — {DIGITAL_MENU_OFFER.priceLabel}
                 </button>
               )}
 

@@ -94,15 +94,15 @@ function Hero() {
   return (
     <section className="cd-hero" ref={sectionRef}>
       <div className="cd-hero-copy">
-        <p className="cd-kicker">Cardápio digital</p>
+        <p className="cd-kicker">Bora Comer Automatic</p>
         <h1 className="cd-display">
           Seu cardápio não deveria apenas mostrar produtos.
           <br />
           Ele deveria vender por você.
         </h1>
-        <p>Transforme seu cardápio em uma experiência digital moderna, rápida e irresistível para seus clientes.</p>
+        <p>Com o Bora Comer Automatic, o salão vira uma experiência moderna, rápida e irresistível para seus clientes.</p>
         <div className="cd-hero-actions">
-          <BuyButton>Quero meu Cardápio Digital</BuyButton>
+          <BuyButton>Quero o Bora Comer Automatic</BuyButton>
           <a className="cd-btn cd-btn-ghost" href="#como">
             Ver como funciona
           </a>
@@ -248,7 +248,7 @@ function StorySection() {
     <section className="cd-story" ref={sectionRef}>
       <div className="cd-story-sticky">
         <div>
-          <p className="cd-kicker">Conheça o cardápio</p>
+          <p className="cd-kicker">Conheça o Automatic</p>
           <div className="cd-story-copy">
             {storySteps.map((step) => (
               <div key={step.scene} className={`cd-story-pane${step.scene === scene ? ' is-on' : ''}`}>
@@ -380,7 +380,7 @@ function BenefitsSection() {
             </article>
           ))}
           <div className="cd-mid-cta">
-            <BuyButton>Quero meu Cardápio Digital</BuyButton>
+            <BuyButton>Quero o Bora Comer Automatic</BuyButton>
           </div>
         </div>
       </div>
@@ -515,7 +515,7 @@ function OfferSection() {
       <div className="cd-offer">
         <div>
           <p className="cd-kicker">Oferta</p>
-          <h2 className="cd-display">Pronto para transformar a experiência do seu cardápio?</h2>
+          <h2 className="cd-display">Pronto para colocar o Bora Comer Automatic no salão?</h2>
         </div>
         <div className="cd-offer-card">
           <p className="cd-price">
@@ -532,7 +532,7 @@ function OfferSection() {
             ))}
           </ul>
           <p className="cd-guarantee">{offer.guarantee}</p>
-          <BuyButton>Quero meu Cardápio Digital</BuyButton>
+          <BuyButton>Quero o Bora Comer Automatic</BuyButton>
           {note && <p className="cd-note">{note}</p>}
         </div>
       </div>
@@ -575,7 +575,7 @@ function Finale() {
       </div>
       <h2 className="cd-display">Seu próximo cliente já está com o celular na mão.</h2>
       <p className="cd-sub">Agora só falta colocar sua marca na tela dele.</p>
-      <BuyButton>Criar meu Cardápio Digital</BuyButton>
+      <BuyButton>Criar meu Bora Comer Automatic</BuyButton>
     </section>
   );
 }
@@ -586,8 +586,8 @@ function Shell() {
     <div className="cd-root">
       <div className="cd-grain" aria-hidden="true" />
       <header className="cd-header">
-        <span className="cd-mark">Cardápio Digital</span>
-        <BuyButton>Quero meu Cardápio Digital</BuyButton>
+        <span className="cd-mark">Bora Comer Automatic</span>
+        <BuyButton>Quero o Bora Comer Automatic</BuyButton>
       </header>
       <main>
         <Hero />
@@ -613,7 +613,7 @@ function Shell() {
 
 export default function CardapioDigitalLanding() {
   useLayoutEffect(() => {
-    document.title = 'Cardápio Digital — Bora Comer!';
+    document.title = 'Bora Comer Automatic';
     document.body.classList.add('landing-cardapio');
     const link = document.createElement('link');
     link.rel = 'stylesheet';

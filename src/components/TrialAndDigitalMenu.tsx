@@ -141,7 +141,7 @@ export function DigitalMenuLockCard({ restaurantId }: { restaurantId: string }) 
       if (import.meta.env.DEV) {
         try {
           await activateDigitalMenuLocally(restaurantId);
-          setNote('Cardápio digital ativado neste computador. Atualize a página.');
+          setNote('Bora Comer Automatic ativado neste computador. Atualize a página.');
           return;
         } catch (localError) {
           console.error(localError);
@@ -158,7 +158,7 @@ export function DigitalMenuLockCard({ restaurantId }: { restaurantId: string }) 
       <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E91120] text-white">
         <QrCode className="h-5 w-5" />
       </div>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#E91120]">Cardápio digital</p>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#E91120]">Bora Comer Automatic</p>
       <h2 className="mt-1 text-xl font-semibold text-gray-900">{DIGITAL_MENU_OFFER.title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-gray-600">{DIGITAL_MENU_OFFER.headline}</p>
       <ul className="mt-4 space-y-2">
@@ -181,7 +181,7 @@ export function DigitalMenuLockCard({ restaurantId }: { restaurantId: string }) 
             Abrindo pagamento…
           </>
         ) : (
-          'Adquirir cardápio digital'
+          'Adquirir Bora Comer Automatic'
         )}
       </button>
       {note && <p className="mt-3 text-sm text-gray-600">{note}</p>}
